@@ -1,0 +1,20 @@
+[
+  {
+    "file": "scene-ja-notebook-22.png",
+    "lang": "ja",
+    "ocr": "jpn",
+    "truth": "さくら\n今日はいい天気です。\nセーブデータを読み込みますか？\nログ オート セーブ",
+    "size": 22,
+    "style": "notebook",
+    "layout": "scene"
+  },
+  {
+    "file": "scene-ko-dark-window-16.png",
+    "lang": "ko",
+    "ocr": "kor",
+    "truth": "채주아\n오늘은 날씨가 좋습니다.\n저장하지 않은 데이터가 있습니다.",
+    "size": 16,
+    "style": "dark-window",
+    "layout": "scene"
+  }
+]

@@ -81,5 +81,15 @@ int main() {
     check(pieces(splitForTranslation("保存", preservableScripts("ja", "zh"))) == "[T:保存]",
           "Han text must not be silently treated as Japanese");
     check(preservableScripts("ko", "") == subtitle::Hangul, "Korean mixed-script preservation still works");
+    check(pieces(splitForTranslation("今日はいい天気です。", preservableScripts("ja", ""))) == "[K:今日はいい天気です。]",
+          "a Japanese line keeps its kanji when translating into Japanese");
+    check(pieces(splitForTranslation("今天天气很好。", preservableScripts("ja", ""))) == "[T:今天天气很好。]",
+          "a kanji-only line may be Chinese and is still translated");
+    check(pieces(splitForTranslation("今日は晴れです。\n今天天气很好。", preservableScripts("ja", ""))) ==
+          "[K:今日は晴れです。\n][T:今天天气很好。]",
+          "Japanese on one line must not suppress translation of a Chinese line");
+    check(joinTranslated(splitForTranslation("今天天气很好。\r\n今日は晴れです。", preservableScripts("ja", "")),
+          {"今日は天気がいいです。"}) == "今日は天気がいいです。\r\n今日は晴れです。",
+          "mixed-line translation preserves original CRLF separators");
     std::cout << "shared core: all checks passed\n";
 }

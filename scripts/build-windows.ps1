@@ -27,7 +27,7 @@ $dist=Join-Path $projectRoot 'dist\windows'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 Copy-Item -LiteralPath "$buildRoot\Release\SubtitleTranslator.exe","$buildRoot\Release\subtitle_cli.exe" -Destination $dist -Force
 Copy-Item -LiteralPath "$onnxRoot\lib\onnxruntime.dll","$onnxRoot\lib\onnxruntime_providers_shared.dll" -Destination $dist -Force
-# Verified PaddleOCR PP-OCRv5 recognition models. No automatic downloads during builds.
+# Verified PaddleOCR PP-OCRv5 detection and recognition models. No automatic downloads during builds.
 $paddleDist=Join-Path $dist 'ocr\paddle'
 New-Item -ItemType Directory -Force -Path $paddleDist | Out-Null
 foreach($model in (Get-Content -LiteralPath "$projectRoot\scripts\paddle-models.json" -Raw | ConvertFrom-Json)) {

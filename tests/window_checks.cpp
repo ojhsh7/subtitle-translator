@@ -1,4 +1,7 @@
 #include "main_window.h"
+#include "capture_service.h"
+#include <QCursor>
+#include <QScopeGuard>
 #include "region_selector.h"
 #include "subtitle_overlay.h"
 #include <QCheckBox>
@@ -81,6 +84,111 @@ private slots:
         QVERIFY(!window.subtitleOverlay_->isVisible());
         window.showResult(); window.resultWindow_->move(200,180);
         QTest::qWait(50); QCOMPARE(window.resultWindow_->pos(),QPoint(200,180));
+    }
+    void mouseSizeIsRememberedAndInvalidSizeUsesDefault() {
+        {
+            MainWindow window;
+            QCOMPARE(window.cursorSizeBox_->currentData().toSize(), QSize(640, 160));
+            window.cursorSizeBox_->setCurrentIndex(2);
+        }
+        {
+            MainWindow next;
+            QCOMPARE(next.cursorSizeBox_->currentData().toSize(), QSize(960, 240));
+        }
+        QSettings().setValue("cursor/size", QSize(-10, 999999));
+        MainWindow invalid;
+        QCOMPARE(invalid.cursorSizeBox_->currentData().toSize(), QSize(640, 160));
+    }
+    void actualCursorCaptureKeepsSavedRegionAndRetryAnchor() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        const QPoint oldCursor = QCursor::pos();
+        const auto restoreCursor = qScopeGuard([oldCursor] { QCursor::setPos(oldCursor); });
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:32px;");
+        fixture.setAlignment(Qt::AlignCenter);
+        fixture.resize(840,220); fixture.move(30,30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        QTest::qWait(200);
+        MainWindow window;
+        window.executable_.clear(); // Require real PaddleOCR, no fallback and no network.
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE");
+        window.paddleEngine_=true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_.clear(); window.consent_=false;
+        window.selectedScreen_=fixture.screen();
+        window.selectedGeometry_=fixture.screen()->geometry();
+        window.selectedDpr_=fixture.screen()->devicePixelRatio();
+        const QRect savedRegion(80, 400, 600, 50);
+        window.region_=savedRegion; window.saveRegion();
+        const QPoint point=fixture.mapToGlobal(fixture.rect().center());
+        const QRect expected=Capture::aroundPoint(fixture.screen()->geometry(),point,QSize(640,160));
+        window.setAutoTranslate(true);
+        QVERIFY(window.autoTranslating());
+        QCursor::setPos(point);
+        QVERIFY(window.cursorRegistered_);
+        QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()),WM_HOTKEY,3,0));
+        QTRY_VERIFY_WITH_TIMEOUT(window.busy_,1000);
+        QCursor::setPos(point + QPoint(300,200)); // Source stays at the point sampled at the hotkey.
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,20000);
+        QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")), qPrintable(window.original_->toPlainText()));
+        QCOMPARE(window.ocr_.engineUsed(),QStringLiteral("PaddleOCR"));
+        QVERIFY(!window.autoTranslating());
+        QCOMPARE(window.captionArea_.rect,expected);
+        QCOMPARE(window.lastCaptionArea_.rect,expected);
+        QCOMPARE(window.lastSource_,int(ST_SCREEN_CAPTURE));
+        QCOMPARE(window.region_,savedRegion);
+        QCOMPARE(QSettings().value("capture/region").toRect(),savedRegion);
+        const qreal dpr=fixture.screen()->devicePixelRatio();
+        QCOMPARE(window.lastImage_.size(),QSize(qRound(expected.width()*dpr),qRound(expected.height()*dpr)));
+        QVERIFY(window.result_->toPlainText().isEmpty()); // No key: OCR success is not translation success.
+        QVERIFY(window.resultStatus_->text().contains(QStringLiteral("OCR 완료")));
+        QVERIFY(window.subtitleOverlay_->isVisible());
+        QVERIFY(!window.subtitleOverlay_->geometry().intersects(expected.translated(window.selectedGeometry_.topLeft())));
+        window.previewSubtitle(); // Previewing the saved game region must not change retry's mouse anchor.
+        QCOMPARE(window.captionArea_.rect,expected);
+        window.retry_->click();
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,20000);
+        QVERIFY(window.original_->toPlainText().contains(QStringLiteral("天気")));
+        QCOMPARE(window.captionArea_.rect,expected);
+        QCOMPARE(window.region_,savedRegion);
+        const QString evidence=qEnvironmentVariable("SUBTITLE_TEST_EVIDENCE");
+        if (!evidence.isEmpty()) {
+            window.showNormal();
+            QTest::qWait(100);
+            QVERIFY(window.grab().save(QDir(evidence).filePath("windows-mouse-ui.png")));
+        }
+    }
+    void cursorCaptureWorksWithoutSelectingGameRegion() {
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        if (!window.ocrReady()) QSKIP("Actual engine not configured");
+        QVERIFY(window.region_.isEmpty());
+        window.startCursorCapture();
+        QVERIFY(window.busy_);
+        QVERIFY(!window.captionArea_.rect.isEmpty());
+        QVERIFY(window.region_.isEmpty());
+        window.cancel(); // Cancel before the deferred capture reads the screen.
+        QTest::qWait(300);
+        QVERIFY(!window.busy_);
+        QVERIFY(window.lastImage_.isNull());
+        QVERIFY(!window.subtitleOverlay_->isVisible());
+        QCOMPARE(st_state(window.session_),int(ST_CANCELLED));
+    }
+    void cancelledMouseCountdownNeverCaptures() {
+        MainWindow window;
+        window.scheduleCursorCapture();
+        QVERIFY(window.busy_);
+        QVERIFY(window.cancel_->isEnabled());
+        QVERIFY(!window.cursorSizeBox_->isEnabled());
+        window.setAutoTranslate(true);
+        QVERIFY(!window.autoTranslating());
+        window.cancel();
+        QTest::qWait(3200);
+        QVERIFY(!window.busy_);
+        QVERIFY(window.lastImage_.isNull());
+        QVERIFY(window.cursorSizeBox_->isEnabled());
+        QCOMPARE(st_state(window.session_),int(ST_CANCELLED));
     }
     void overlayStaysOutsideSourceAndOnItsMonitor() {
         const QRect monitor(-1920, 0, 1920, 1040);

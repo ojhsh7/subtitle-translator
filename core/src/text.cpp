@@ -1,5 +1,6 @@
 #include "subtitle/text.h"
 #include <cstddef>
+#include <utility>
 namespace subtitle {
 namespace {
 enum class Kind { Neutral, Native, Foreign };
@@ -61,6 +62,26 @@ std::vector<TextSegment> splitForTranslation(const std::string& text, unsigned n
     std::vector<TextSegment> result;
     if (text.empty()) return result;
     if (native == 0) { result.push_back({text, true}); return result; }
+    // Apply the kana heuristic per line, never to a whole image with multiple languages.
+    if ((native & Kana) && text.find('\n') != std::string::npos) {
+        auto append = [&](TextSegment part) {
+            if (part.utf8.empty()) return;
+            if (!result.empty() && result.back().translate == part.translate) result.back().utf8 += part.utf8;
+            else result.push_back(std::move(part));
+        };
+        std::size_t begin = 0;
+        while (begin < text.size()) {
+            const auto end = text.find('\n', begin);
+            const auto length = end == std::string::npos ? text.size() - begin : end - begin;
+            for (auto part : splitForTranslation(text.substr(begin, length), native)) append(std::move(part));
+            if (end == std::string::npos) break;
+            append({"\n", false});
+            begin = end + 1;
+        }
+        return result;
+    }
+    // Kana marks a Japanese line, so its kanji are Japanese too (a kanji-only line may be Chinese).
+    if ((native & Kana) && (scriptsIn(text) & Kana)) native |= Han;
     // 1. Tokens: runs of native letters, foreign letters, or neutral characters.
     std::vector<Token> tokens;
     for (std::size_t i = 0; i < text.size();) {

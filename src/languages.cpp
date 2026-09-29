@@ -34,14 +34,14 @@ QString deeplSource(const QString& ocrCode) {
 QString sourceForScripts(unsigned scripts, const QString& ocrCode) {
     const QString fixed = deeplSource(ocrCode);
     if (!fixed.isEmpty()) return fixed; // the user chose one language
-    const bool japanese = ocrCode.contains("jpn"), chinese = ocrCode.contains("chi_");
     if (scripts == subtitle::Latin && ocrCode != "multi") return "EN"; // limited JA/EN/KO mode only
     if (scripts == subtitle::Thai) return "TH";
     if (scripts == subtitle::Cyrillic) return "RU"; // only Russian is offered in this selection
     if (scripts == subtitle::Devanagari) return "HI";
     if (scripts == subtitle::Hangul) return "KO";
     if ((scripts & subtitle::Kana) && !(scripts & ~(subtitle::Kana | subtitle::Han))) return "JA";
-    if (scripts == subtitle::Han) return japanese && !chinese ? "JA" : chinese && !japanese ? "ZH" : QString();
+    // The shared CJK model reads Chinese even in the default selection. Han alone is ambiguous.
+    if (scripts == subtitle::Han) return {};
     return {};
 }
 QString languageName(const QString& deeplCode) {

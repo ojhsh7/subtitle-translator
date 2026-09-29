@@ -31,7 +31,17 @@ protected:
 private:
     void settings();
     void chooseRegion();
+    struct CaptureArea {
+        QPointer<QScreen> screen;
+        QRect screenGeometry;
+        QRect rect; // logical pixels relative to screen
+        qreal dpr = 1;
+    };
+    CaptureArea selectedArea() const;
     void startCapture();
+    void startCursorCapture();
+    void scheduleCursorCapture();
+    void beginScreenCapture(const CaptureArea& area, const QString& status);
     void importImage();
     void processImage(const QImage& image, int source);
     void resetOutput();
@@ -43,7 +53,7 @@ private:
     void showResult();
     void presentTranslation();
     void previewSubtitle();
-    bool showSubtitle(const QString& text);
+    bool showSubtitle(const QString& text, bool selectionPreview = false);
     void setAutoTranslate(bool enabled);
     void autoTick();
     bool coversRegion(const QRect& global) const;
@@ -61,6 +71,8 @@ private:
     QLabel* preview_;
     QPushButton* select_;
     QPushButton* capture_;
+    QPushButton* cursorCapture_;
+    QComboBox* cursorSizeBox_;
     QPushButton* settings_;
     QPushButton* cancel_;
     QPushButton* import_;
@@ -86,6 +98,8 @@ private:
     QRect selectedGeometry_;
     qreal selectedDpr_ = 1;
     QRect region_;
+    CaptureArea captionArea_;     // current request's anchor, independent of the saved game region
+    CaptureArea lastCaptionArea_; // retry must use the last image's original anchor
     OcrService ocr_;
     TranslationService translation_;
     QString executable_;
@@ -100,6 +114,8 @@ private:
     bool modal_ = false;
     bool registered_ = false;
     bool autoRegistered_ = false;
+    bool cursorRegistered_ = false;
+    QString cursorShortcut_ = QStringLiteral("Ctrl+Alt+M");
     bool autoPending_ = false;  // --auto launch waiting for setup or a region
     bool restoreMain_ = false;
     bool restoreResult_ = false;

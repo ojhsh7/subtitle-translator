@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
         error = message; completed = true; loop.quit();
     });
     QJsonArray rows;
+    int failures = 0;
     QStringList previousModels;
     QElapsedTimer total; total.start();
     for (const auto value : doc.array()) {
@@ -64,7 +65,8 @@ int main(int argc, char** argv) {
         row["modelRuns"] = ocr.attemptsUsed();
         row["ocrChildPeakWorkingSetBytes"] = qint64(ocr.peakWorkingSetBytes());
         row["error"] = error;
-        if (!error.isEmpty()) { QTextStream(stderr) << error << "\n"; return 3; }
+        // "Nothing read" is a measured outcome (an empty reading counts as all characters wrong), not a crash.
+        if (!error.isEmpty()) ++failures;
         previousModels = selected;
         rows.append(row);
         if (rows.size() % 48 == 0) QTextStream(stderr) << mode << ": " << rows.size() << "/" << doc.array().size() << "\n";
@@ -73,10 +75,11 @@ int main(int argc, char** argv) {
     GetProcessMemoryInfo(GetCurrentProcess(), &memory, sizeof(memory));
     const QJsonObject report{{"schema", "subtitle.ocr-benchmark.v1"}, {"mode", mode},
         {"platform", "Windows x64 CPU, native C++ implementation"}, {"totalMs", total.elapsed()},
-        {"peakWorkingSetBytes", qint64(memory.PeakWorkingSetSize)}, {"networkUsed", false},
+        {"peakWorkingSetBytes", qint64(memory.PeakWorkingSetSize)}, {"networkUsed", false}, {"failedReads", failures},
         {"mobileMeasured", false}, {"data", "Synthetic text images; not a real-game accuracy estimate"}, {"rows", rows}};
     QFile output(parser.value("output"));
     if (!output.open(QIODevice::WriteOnly)) return 4;
     output.write(QJsonDocument(report).toJson(QJsonDocument::Indented));
+    QTextStream(stderr) << mode << ": done, " << failures << " of " << rows.size() << " images read nothing\n";
     return 0;
 }

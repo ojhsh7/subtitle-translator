@@ -29,6 +29,21 @@ QString readWith(OcrService& service, const QImage& image) {
 class LocalChecks : public QObject {
     Q_OBJECT
 private slots:
+    void cursorRegionUsesLogicalCoordinatesAndStaysOnOneScreen() {
+        const QRect primary(0,0,1920,1080);
+        const QSize box(640,160);
+        QCOMPARE(Capture::aroundPoint(primary,QPoint(960,540),box),QRect(640,460,640,160));
+        QCOMPARE(Capture::aroundPoint(primary,QPoint(0,0),box),QRect(0,0,640,160));
+        QCOMPARE(Capture::aroundPoint(primary,QPoint(1919,1079),box),QRect(1280,920,640,160));
+        const QRect left(-1920,-200,1920,1080);
+        QCOMPARE(Capture::aroundPoint(left,QPoint(-960,340),box),QRect(640,460,640,160));
+        QCOMPARE(Capture::aroundPoint(left,QPoint(-1,879),box),QRect(1280,920,640,160));
+        QCOMPARE(Capture::aroundPoint(QRect(200,300,320,100),QPoint(201,301),box),QRect(0,0,320,100));
+        QVERIFY(Capture::aroundPoint(primary,QPoint(-1,100),box).isEmpty());
+        QVERIFY(Capture::aroundPoint(primary,QPoint(1920,100),box).isEmpty());
+        QVERIFY(Capture::aroundPoint(primary,QPoint(100,100),QSize(-1,160)).isEmpty());
+        QVERIFY(Capture::aroundPoint(QRect(0,0,4,4),QPoint(1,1),box).isEmpty());
+    }
     void combinedOutputKeepsSpacingAndConfidence() {
         // Shape of one Tesseract run with both TSV and plain text written to stdout.
         const QString output = QStringLiteral(

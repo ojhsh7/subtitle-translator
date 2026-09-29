@@ -1,0 +1,553 @@
+{
+  "metric": "NFC Unicode codepoint Levenshtein CER; whitespace collapsed; lower is better",
+  "limitations": "28 synthetic sentences only; not an independent real-game evaluation. Windows CPU only.",
+  "selected": {
+    "total": {
+      "images": 672,
+      "characters": 17544,
+      "edits": 402,
+      "cerPercent": 2.291,
+      "cerWithoutSpacesPercent": 2.455,
+      "exact": 479,
+      "warmMedianMs": 44.57,
+      "warmP95Ms": 92.91,
+      "coldReadsMs": [
+        180.7,
+        98.24,
+        102.7,
+        103.12,
+        78.6,
+        91.38,
+        88.66,
+        96.45,
+        81.77
+      ]
+    },
+    "peakWorkingSetMiB": 152.88,
+    "totalMs": 38986,
+    "languages": {
+      "en": {
+        "images": 48,
+        "characters": 1464,
+        "edits": 15,
+        "cerPercent": 1.025,
+        "cerWithoutSpacesPercent": 0.943,
+        "exact": 36,
+        "warmMedianMs": 47.13,
+        "warmP95Ms": 85.14,
+        "coldReadsMs": [
+          180.7
+        ]
+      },
+      "ko": {
+        "images": 48,
+        "characters": 744,
+        "edits": 9,
+        "cerPercent": 1.21,
+        "cerWithoutSpacesPercent": 1.442,
+        "exact": 40,
+        "warmMedianMs": 44.14,
+        "warmP95Ms": 82.38,
+        "coldReadsMs": [
+          98.24
+        ]
+      },
+      "ja": {
+        "images": 48,
+        "characters": 600,
+        "edits": 16,
+        "cerPercent": 2.667,
+        "cerWithoutSpacesPercent": 2.667,
+        "exact": 33,
+        "warmMedianMs": 43.42,
+        "warmP95Ms": 84.84,
+        "coldReadsMs": [
+          102.7
+        ]
+      },
+      "zh-Hans": {
+        "images": 48,
+        "characters": 384,
+        "edits": 0,
+        "cerPercent": 0.0,
+        "cerWithoutSpacesPercent": 0.0,
+        "exact": 48,
+        "warmMedianMs": 31.87,
+        "warmP95Ms": 59.36,
+        "coldReadsMs": []
+      },
+      "zh-Hant": {
+        "images": 48,
+        "characters": 384,
+        "edits": 38,
+        "cerPercent": 9.896,
+        "cerWithoutSpacesPercent": 9.896,
+        "exact": 24,
+        "warmMedianMs": 31.72,
+        "warmP95Ms": 59.0,
+        "coldReadsMs": []
+      },
+      "fr": {
+        "images": 48,
+        "characters": 1896,
+        "edits": 4,
+        "cerPercent": 0.211,
+        "cerWithoutSpacesPercent": 0.124,
+        "exact": 44,
+        "warmMedianMs": 55.64,
+        "warmP95Ms": 94.21,
+        "coldReadsMs": [
+          103.12
+        ]
+      },
+      "de": {
+        "images": 48,
+        "characters": 1872,
+        "edits": 8,
+        "cerPercent": 0.427,
+        "cerWithoutSpacesPercent": 0.498,
+        "exact": 42,
+        "warmMedianMs": 53.08,
+        "warmP95Ms": 90.36,
+        "coldReadsMs": []
+      },
+      "es": {
+        "images": 48,
+        "characters": 1512,
+        "edits": 6,
+        "cerPercent": 0.397,
+        "cerWithoutSpacesPercent": 0.463,
+        "exact": 42,
+        "warmMedianMs": 42.73,
+        "warmP95Ms": 81.65,
+        "coldReadsMs": []
+      },
+      "pt": {
+        "images": 48,
+        "characters": 1584,
+        "edits": 4,
+        "cerPercent": 0.253,
+        "cerWithoutSpacesPercent": 0.298,
+        "exact": 45,
+        "warmMedianMs": 47.37,
+        "warmP95Ms": 87.58,
+        "coldReadsMs": []
+      },
+      "vi": {
+        "images": 48,
+        "characters": 1632,
+        "edits": 76,
+        "cerPercent": 4.657,
+        "cerWithoutSpacesPercent": 5.787,
+        "exact": 24,
+        "warmMedianMs": 153.82,
+        "warmP95Ms": 420.35,
+        "coldReadsMs": [
+          78.6
+        ]
+      },
+      "ru": {
+        "images": 48,
+        "characters": 1560,
+        "edits": 9,
+        "cerPercent": 0.577,
+        "cerWithoutSpacesPercent": 0.149,
+        "exact": 40,
+        "warmMedianMs": 48.36,
+        "warmP95Ms": 98.02,
+        "coldReadsMs": [
+          91.38
+        ]
+      },
+      "th": {
+        "images": 48,
+        "characters": 1344,
+        "edits": 76,
+        "cerPercent": 5.655,
+        "cerWithoutSpacesPercent": 5.357,
+        "exact": 24,
+        "warmMedianMs": 41.04,
+        "warmP95Ms": 64.82,
+        "coldReadsMs": [
+          88.66
+        ]
+      },
+      "ar": {
+        "images": 48,
+        "characters": 1056,
+        "edits": 56,
+        "cerPercent": 5.303,
+        "cerWithoutSpacesPercent": 6.134,
+        "exact": 20,
+        "warmMedianMs": 49.94,
+        "warmP95Ms": 69.57,
+        "coldReadsMs": [
+          96.45
+        ]
+      },
+      "hi": {
+        "images": 48,
+        "characters": 1512,
+        "edits": 85,
+        "cerPercent": 5.622,
+        "cerWithoutSpacesPercent": 6.209,
+        "exact": 17,
+        "warmMedianMs": 47.16,
+        "warmP95Ms": 71.66,
+        "coldReadsMs": [
+          81.77
+        ]
+      }
+    }
+  },
+  "legacy": {
+    "total": {
+      "images": 672,
+      "characters": 17544,
+      "edits": 5851,
+      "cerPercent": 33.35,
+      "cerWithoutSpacesPercent": 36.131,
+      "exact": 274,
+      "warmMedianMs": 68.69,
+      "warmP95Ms": 121.56,
+      "coldReadsMs": [
+        264.34
+      ]
+    },
+    "peakWorkingSetMiB": 200.73,
+    "totalMs": 65867,
+    "languages": {
+      "en": {
+        "images": 48,
+        "characters": 1464,
+        "edits": 12,
+        "cerPercent": 0.82,
+        "cerWithoutSpacesPercent": 0.943,
+        "exact": 38,
+        "warmMedianMs": 66.94,
+        "warmP95Ms": 110.19,
+        "coldReadsMs": [
+          264.34
+        ]
+      },
+      "ko": {
+        "images": 48,
+        "characters": 744,
+        "edits": 9,
+        "cerPercent": 1.21,
+        "cerWithoutSpacesPercent": 1.442,
+        "exact": 40,
+        "warmMedianMs": 65.72,
+        "warmP95Ms": 110.52,
+        "coldReadsMs": []
+      },
+      "ja": {
+        "images": 48,
+        "characters": 600,
+        "edits": 16,
+        "cerPercent": 2.667,
+        "cerWithoutSpacesPercent": 2.667,
+        "exact": 33,
+        "warmMedianMs": 63.29,
+        "warmP95Ms": 113.15,
+        "coldReadsMs": []
+      },
+      "zh-Hans": {
+        "images": 48,
+        "characters": 384,
+        "edits": 0,
+        "cerPercent": 0.0,
+        "cerWithoutSpacesPercent": 0.0,
+        "exact": 48,
+        "warmMedianMs": 49.29,
+        "warmP95Ms": 75.78,
+        "coldReadsMs": []
+      },
+      "zh-Hant": {
+        "images": 48,
+        "characters": 384,
+        "edits": 38,
+        "cerPercent": 9.896,
+        "cerWithoutSpacesPercent": 9.896,
+        "exact": 24,
+        "warmMedianMs": 50.77,
+        "warmP95Ms": 75.12,
+        "coldReadsMs": []
+      },
+      "fr": {
+        "images": 48,
+        "characters": 1896,
+        "edits": 36,
+        "cerPercent": 1.899,
+        "cerWithoutSpacesPercent": 1.244,
+        "exact": 30,
+        "warmMedianMs": 80.68,
+        "warmP95Ms": 127.42,
+        "coldReadsMs": []
+      },
+      "de": {
+        "images": 48,
+        "characters": 1872,
+        "edits": 58,
+        "cerPercent": 3.098,
+        "cerWithoutSpacesPercent": 3.545,
+        "exact": 23,
+        "warmMedianMs": 86.55,
+        "warmP95Ms": 123.54,
+        "coldReadsMs": []
+      },
+      "es": {
+        "images": 48,
+        "characters": 1512,
+        "edits": 36,
+        "cerPercent": 2.381,
+        "cerWithoutSpacesPercent": 2.469,
+        "exact": 18,
+        "warmMedianMs": 68.56,
+        "warmP95Ms": 107.35,
+        "coldReadsMs": []
+      },
+      "pt": {
+        "images": 48,
+        "characters": 1584,
+        "edits": 37,
+        "cerPercent": 2.336,
+        "cerWithoutSpacesPercent": 2.604,
+        "exact": 20,
+        "warmMedianMs": 73.92,
+        "warmP95Ms": 119.26,
+        "coldReadsMs": []
+      },
+      "vi": {
+        "images": 48,
+        "characters": 1632,
+        "edits": 451,
+        "cerPercent": 27.635,
+        "cerWithoutSpacesPercent": 34.645,
+        "exact": 0,
+        "warmMedianMs": 79.31,
+        "warmP95Ms": 119.78,
+        "coldReadsMs": []
+      },
+      "ru": {
+        "images": 48,
+        "characters": 1560,
+        "edits": 1357,
+        "cerPercent": 86.987,
+        "cerWithoutSpacesPercent": 99.256,
+        "exact": 0,
+        "warmMedianMs": 80.28,
+        "warmP95Ms": 131.25,
+        "coldReadsMs": []
+      },
+      "th": {
+        "images": 48,
+        "characters": 1344,
+        "edits": 1344,
+        "cerPercent": 100.0,
+        "cerWithoutSpacesPercent": 100.0,
+        "exact": 0,
+        "warmMedianMs": 58.02,
+        "warmP95Ms": 87.33,
+        "coldReadsMs": []
+      },
+      "ar": {
+        "images": 48,
+        "characters": 1056,
+        "edits": 956,
+        "cerPercent": 90.53,
+        "cerWithoutSpacesPercent": 100.0,
+        "exact": 0,
+        "warmMedianMs": 54.98,
+        "warmP95Ms": 78.03,
+        "coldReadsMs": []
+      },
+      "hi": {
+        "images": 48,
+        "characters": 1512,
+        "edits": 1501,
+        "cerPercent": 99.272,
+        "cerWithoutSpacesPercent": 104.493,
+        "exact": 0,
+        "warmMedianMs": 84.54,
+        "warmP95Ms": 1189.61,
+        "coldReadsMs": []
+      }
+    }
+  },
+  "multi": {
+    "total": {
+      "images": 672,
+      "characters": 17544,
+      "edits": 783,
+      "cerPercent": 4.463,
+      "cerWithoutSpacesPercent": 4.95,
+      "exact": 445,
+      "warmMedianMs": 128.53,
+      "warmP95Ms": 198.56,
+      "coldReadsMs": [
+        431.0
+      ]
+    },
+    "peakWorkingSetMiB": 377.39,
+    "totalMs": 82673,
+    "languages": {
+      "en": {
+        "images": 48,
+        "characters": 1464,
+        "edits": 2,
+        "cerPercent": 0.137,
+        "cerWithoutSpacesPercent": 0.157,
+        "exact": 46,
+        "warmMedianMs": 113.23,
+        "warmP95Ms": 160.59,
+        "coldReadsMs": [
+          431.0
+        ]
+      },
+      "ko": {
+        "images": 48,
+        "characters": 744,
+        "edits": 9,
+        "cerPercent": 1.21,
+        "cerWithoutSpacesPercent": 1.442,
+        "exact": 40,
+        "warmMedianMs": 65.48,
+        "warmP95Ms": 108.95,
+        "coldReadsMs": []
+      },
+      "ja": {
+        "images": 48,
+        "characters": 600,
+        "edits": 16,
+        "cerPercent": 2.667,
+        "cerWithoutSpacesPercent": 2.667,
+        "exact": 33,
+        "warmMedianMs": 64.68,
+        "warmP95Ms": 114.9,
+        "coldReadsMs": []
+      },
+      "zh-Hans": {
+        "images": 48,
+        "characters": 384,
+        "edits": 0,
+        "cerPercent": 0.0,
+        "cerWithoutSpacesPercent": 0.0,
+        "exact": 48,
+        "warmMedianMs": 50.54,
+        "warmP95Ms": 75.4,
+        "coldReadsMs": []
+      },
+      "zh-Hant": {
+        "images": 48,
+        "characters": 384,
+        "edits": 38,
+        "cerPercent": 9.896,
+        "cerWithoutSpacesPercent": 9.896,
+        "exact": 24,
+        "warmMedianMs": 56.88,
+        "warmP95Ms": 148.96,
+        "coldReadsMs": []
+      },
+      "fr": {
+        "images": 48,
+        "characters": 1896,
+        "edits": 9,
+        "cerPercent": 0.475,
+        "cerWithoutSpacesPercent": 0.124,
+        "exact": 40,
+        "warmMedianMs": 145.76,
+        "warmP95Ms": 191.23,
+        "coldReadsMs": []
+      },
+      "de": {
+        "images": 48,
+        "characters": 1872,
+        "edits": 19,
+        "cerPercent": 1.015,
+        "cerWithoutSpacesPercent": 1.182,
+        "exact": 40,
+        "warmMedianMs": 146.9,
+        "warmP95Ms": 183.51,
+        "coldReadsMs": []
+      },
+      "es": {
+        "images": 48,
+        "characters": 1512,
+        "edits": 20,
+        "cerPercent": 1.323,
+        "cerWithoutSpacesPercent": 1.389,
+        "exact": 30,
+        "warmMedianMs": 117.82,
+        "warmP95Ms": 157.95,
+        "coldReadsMs": []
+      },
+      "pt": {
+        "images": 48,
+        "characters": 1584,
+        "edits": 5,
+        "cerPercent": 0.316,
+        "cerWithoutSpacesPercent": 0.372,
+        "exact": 44,
+        "warmMedianMs": 127.13,
+        "warmP95Ms": 173.17,
+        "coldReadsMs": []
+      },
+      "vi": {
+        "images": 48,
+        "characters": 1632,
+        "edits": 398,
+        "cerPercent": 24.387,
+        "cerWithoutSpacesPercent": 30.71,
+        "exact": 0,
+        "warmMedianMs": 136.88,
+        "warmP95Ms": 205.9,
+        "coldReadsMs": []
+      },
+      "ru": {
+        "images": 48,
+        "characters": 1560,
+        "edits": 31,
+        "cerPercent": 1.987,
+        "cerWithoutSpacesPercent": 1.786,
+        "exact": 39,
+        "warmMedianMs": 153.05,
+        "warmP95Ms": 296.38,
+        "coldReadsMs": []
+      },
+      "th": {
+        "images": 48,
+        "characters": 1344,
+        "edits": 76,
+        "cerPercent": 5.655,
+        "cerWithoutSpacesPercent": 5.357,
+        "exact": 24,
+        "warmMedianMs": 158.58,
+        "warmP95Ms": 199.56,
+        "coldReadsMs": []
+      },
+      "ar": {
+        "images": 48,
+        "characters": 1056,
+        "edits": 56,
+        "cerPercent": 5.303,
+        "cerWithoutSpacesPercent": 6.134,
+        "exact": 20,
+        "warmMedianMs": 147.09,
+        "warmP95Ms": 167.63,
+        "coldReadsMs": []
+      },
+      "hi": {
+        "images": 48,
+        "characters": 1512,
+        "edits": 104,
+        "cerPercent": 6.878,
+        "cerWithoutSpacesPercent": 7.843,
+        "exact": 17,
+        "warmMedianMs": 180.43,
+        "warmP95Ms": 204.07,
+        "coldReadsMs": []
+      }
+    }
+  }
+}

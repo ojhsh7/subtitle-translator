@@ -1,0 +1,39 @@
+{
+  "verifiedAtUtc": "2026-09-29T12:21:59.063281+00:00",
+  "tests": {
+    "translation_protocol": {
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    "local_checks": {
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    },
+    "paddle_ocr": {
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0
+    },
+    "change_detection": {
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    "windows_flow": {
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0
+    },
+    "shared_core": {
+      "Windows": "passed",
+      "Ubuntu22.04_gcc_Cxx17": "passed"
+    }
+  },
+  "installedExeSha256": "0f7a8954b3bf3b145309d290e1a3bf79a9e6b5693599c0f9e4a00e7f38adf507",
+  "packagedAndInstalledExeMatch": true,
+  "installedModelsVerified": 8,
+  "mobileBuildOrDeviceTestPerformed": false,
+  "liveTranslationApiCalledInThisRun": false
+}

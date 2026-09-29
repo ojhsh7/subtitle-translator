@@ -8,6 +8,7 @@
 #include <QPainter>
 #include <QSignalSpy>
 #include <QRegularExpression>
+#include <QTemporaryDir>
 #include <QtTest>
 #include <cmath>
 namespace {
@@ -42,6 +43,40 @@ private slots:
         const auto bgr = PaddleRecognizer::inputTensor(blue, width);
         QCOMPARE(bgr[0], 1.0f);                           // channel 0 is blue (BGR order)
         QCOMPARE(bgr[size_t(2) * 48 * width], -1.0f);     // channel 2 is red
+    }
+    void detectorInputIsEnlargedWithinLimits() {
+        QImage white(100, 20, QImage::Format_RGB32); white.fill(Qt::white);
+        int width = 0, height = 0;
+        const auto data = PaddleDetector::inputTensor(white, width, height);
+        QCOMPARE(width, 320); QCOMPARE(height, 64); // shorter side raised to 64 (x3.2)
+        QCOMPARE(data.size(), size_t(3 * 320 * 64));
+        QCOMPARE(data[0], 1.0f);
+        QImage dialog(1000, 300, QImage::Format_RGB32); dialog.fill(QColor(0, 0, 255));
+        const auto bgr = PaddleDetector::inputTensor(dialog, width, height);
+        QCOMPARE(width, 1504); QCOMPARE(height, 448); // x1.5, rounded to multiples of 32
+        QCOMPARE(bgr[0], 1.0f);                                   // channel 0 is blue (BGR order)
+        QCOMPARE(bgr[size_t(2) * width * height], -1.0f);          // channel 2 is red
+        QImage screen(1920, 1080, QImage::Format_RGB32); screen.fill(Qt::black);
+        PaddleDetector::inputTensor(screen, width, height);
+        QVERIFY(qint64(width) * height <= 2'100'000); // a whole screen stays near native scale
+    }
+    void detectorBoxesFromProbabilityMap() {
+        std::vector<float> map(100 * 40, 0.0f);
+        auto fill = [&](int x0, int y0, int x1, int y1, float value) {
+            for (int y = y0; y <= y1; ++y) for (int x = x0; x <= x1; ++x) map[size_t(y) * 100 + x] = value;
+        };
+        fill(20, 15, 79, 24, 0.9f); // a text line
+        fill(85, 30, 95, 37, 0.35f); // above the pixel threshold, but a weak region on average
+        fill(2, 2, 3, 3, 0.9f);      // too small to be a glyph
+        // Core 20..80 x 15..25 after dilation, grown by 60*10*1.6/(2*70) = 6.86 px on each side.
+        QCOMPARE(PaddleDetector::boxes(map.data(), 100, 40, QSize(100, 40)), QList<QRect>{QRect(QPoint(13, 8), QPoint(87, 32))});
+        QCOMPARE(PaddleDetector::boxes(map.data(), 100, 40, QSize(200, 80)), QList<QRect>{QRect(QPoint(26, 16), QPoint(174, 64))});
+    }
+    void detectorJoinsWordsOfOneLine() {
+        const QList<QRect> lines = PaddleDetector::joinLines({QRect(10, 50, 80, 20), QRect(70, 12, 40, 18), QRect(10, 10, 50, 20)});
+        QCOMPARE(lines, (QList<QRect>{QRect(QPoint(10, 10), QPoint(109, 29)), QRect(10, 50, 80, 20)}));
+        // Stacked lines that touch are not joined.
+        QCOMPARE(PaddleDetector::joinLines({QRect(0, 0, 100, 20), QRect(0, 15, 100, 20)}).size(), 2);
     }
     void textLinesFindsEachLine() {
         QImage image(400, 140, QImage::Format_RGB32); image.fill(QColor(235, 225, 230));
@@ -87,8 +122,12 @@ private slots:
         const auto result = ocr.read(QImage(fixture(file)), language, error);
         QVERIFY2(error.isEmpty(), qPrintable(error));
         QCOMPARE(result.modelRuns, 1);
-        // Whole sentence, in logical Unicode order. Whitespace differences are checked in the benchmark.
-        auto compact = [](QString s) { return s.normalized(QString::NormalizationForm_C).remove(QRegularExpression("\\s")); };
+        QVERIFY(result.detected);
+        // Every letter of the sentence, in logical Unicode order. Whitespace and punctuation are
+        // measured in the benchmark (the detector can leave out a trailing full stop).
+        auto compact = [](QString s) {
+            return s.normalized(QString::NormalizationForm_C).remove(QRegularExpression("[\\s\\p{P}]"));
+        };
         QCOMPARE(compact(result.text), compact(expected));
     }
     void vietnameseKeepsToneMarks() {
@@ -144,6 +183,72 @@ private slots:
         QVERIFY(korean.text.contains(QStringLiteral("날씨"))); QCOMPARE(korean.modelRuns, 1);
         const auto japanese = ocr.read(QImage(fixture("shadow-ja-18px.png")), "jpn", error);
         QVERIFY(japanese.text.contains(QStringLiteral("天気"))); QCOMPARE(japanese.modelRuns, 1);
+    }
+    void autoDetectPrefersTheFullerReading() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        PaddleOcr ocr(models());
+        QString error;
+        // The Korean model read this Chinese line as a lone, confident "?" and used to win.
+        const auto chinese = ocr.read(QImage(fixture("multilang/zh-Hans-0-24-dark-on-light-tight.png")), "jpn+eng+kor", error);
+        QVERIFY2(chinese.text.contains(QStringLiteral("天气")), chinese.text.toUtf8().constData());
+    }
+    void multiLanguageAutoDetectIsStaged() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        PaddleOcr ocr(models());
+        QString error;
+        const auto korean = ocr.read(QImage(fixture("multilang/ko-0-24-dark-on-light-tight.png")), "multi", error);
+        QVERIFY(korean.text.contains(QStringLiteral("날씨")));
+        QCOMPARE(korean.modelRuns, 2); // Korean and Chinese/Japanese/English models were enough
+        const auto french = ocr.read(QImage(fixture("multilang/fr-0-24-dark-on-light-tight.png")), "multi", error);
+        QVERIFY2(french.text.contains(QStringLiteral("sauvegarder")), french.text.toUtf8().constData());
+        QCOMPARE(french.modelRuns, 4); // Latin-only reading: the Latin and Cyrillic models are asked too
+        const auto russian = ocr.read(QImage(fixture("multilang/ru-0-24-dark-on-light-tight.png")), "multi", error);
+        QVERIFY2(russian.text.contains(QStringLiteral("Сохранить")), russian.text.toUtf8().constData());
+        QVERIFY(russian.modelRuns >= 4); // look-alike Latin or doubtful reading: the Cyrillic model is asked
+    }
+    void decoratedDialogBoxIsReadLineByLine_data() {
+        QTest::addColumn<QString>("file");
+        QTest::addColumn<QString>("language");
+        QTest::addColumn<QStringList>("expected");
+        QFile manifest(fixture("scene/manifest.json"));
+        QVERIFY(manifest.open(QIODevice::ReadOnly));
+        for (const auto value : QJsonDocument::fromJson(manifest.readAll()).array()) {
+            const auto row = value.toObject();
+            // Dialog lines after the name tag; the name tag and the small UI buttons are measured
+            // in the benchmark (a tag's border can turn into an extra jamo, e.g. 채주아 -> 채주악).
+            QStringList lines = row["truth"].toString().split('\n');
+            if (row["style"].toString() == "notebook") lines.removeLast();
+            lines.removeFirst();
+            QTest::newRow(qPrintable(row["file"].toString())) << "scene/" + row["file"].toString()
+                << QStringLiteral("jpn+eng+kor") << lines;
+        }
+    }
+    void decoratedDialogBoxIsReadLineByLine() {
+        // The whole dialog box is selected: name tag, ruled lines, frame and scenery around the text.
+        // The edge-band line finder read nothing or noise here; the detection model finds each line.
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        QFETCH(QString, file); QFETCH(QString, language); QFETCH(QStringList, expected);
+        PaddleOcr ocr(models()); QString error;
+        const auto result = ocr.read(QImage(fixture(file)), language, error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QVERIFY(result.detected);
+        auto compact = [](QString s) {
+            return s.normalized(QString::NormalizationForm_KC).remove(QRegularExpression("[\\s\\p{P}]"));
+        };
+        for (const QString& line : expected)
+            QVERIFY2(compact(result.text).contains(compact(line)), qPrintable(result.text));
+        QVERIFY2(result.text.split('\n').size() > expected.size(), qPrintable(result.text)); // the name tag's line too
+    }
+    void withoutDetectionModelTheLineFinderReads() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString korean = QLatin1String(PaddleOcr::KoreanModel);
+        QVERIFY(QFile::copy(QDir(models()).filePath(korean), dir.filePath(korean)));
+        PaddleOcr ocr(dir.path()); QString error;
+        const auto result = ocr.read(QImage(fixture("shadow-ko-14px.png")), "kor", error);
+        QVERIFY(!result.detected); // older installs without the detection model keep working
+        QVERIFY2(result.text.contains(QStringLiteral("날씨")), qPrintable(result.text));
     }
     void warmReadIsFast() {
         if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");

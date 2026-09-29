@@ -1,0 +1,50 @@
+{
+  "recorded_at": "2026-09-29T12:44:19.780638+00:00",
+  "platform": "Windows 11 x64",
+  "qt": "6.8.3",
+  "build": "MSVC 2022 Release",
+  "ctest_groups_passed": 6,
+  "ctest_duration_seconds": 22.71,
+  "qt_test_totals_include_init_and_cleanup": true,
+  "tests": {
+    "translation_protocol": {
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0
+    },
+    "local_checks": {
+      "passed": 20,
+      "failed": 0,
+      "skipped": 0
+    },
+    "paddle_ocr": {
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0
+    },
+    "change_detection": {
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    "windows-flow": {
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "shared_core": "Windows CTest passed",
+  "mouse_default_hotkey": "Ctrl+Alt+M",
+  "observed_default_registration_error": 1409,
+  "verified_fallback_hotkey": "Ctrl+Alt+F8",
+  "hotkey_test": "real RegisterHotKey plus programmatic WM_HOTKEY delivery; physical keyboard press not tested",
+  "ocr": "actual screen pixels from a Japanese test window, PaddleOCR, no Tesseract fallback",
+  "new_external_translation_calls": 0,
+  "translation_protocol": "local test server",
+  "geometry": "synthetic negative monitor coordinates and edges; real mixed-DPI monitors not tested",
+  "installed_smoke_exit_code": 0,
+  "source_head": "e87e9c48b3d10a6d3a4277bc46eb1168eba95d2b",
+  "exe_sha256": "94f7aea51de8b358a4c9ea55bfd8fe8a578d95dee2788483ad711cbf250d9aee",
+  "installed_exe_sha256": "94f7aea51de8b358a4c9ea55bfd8fe8a578d95dee2788483ad711cbf250d9aee",
+  "mobile_tested": false
+}

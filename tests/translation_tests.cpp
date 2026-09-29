@@ -98,7 +98,9 @@ private slots:
         // Short fragments get an explicit source language when the script leaves no doubt.
         QCOMPARE(Languages::sourceForScripts(subtitle::Latin, "jpn+eng+kor"), QString("EN"));
         QCOMPARE(Languages::sourceForScripts(subtitle::Kana | subtitle::Han, "jpn+eng+kor"), QString("JA"));
-        QCOMPARE(Languages::sourceForScripts(subtitle::Han, "jpn+eng+kor"), QString("JA"));
+        QVERIFY(Languages::sourceForScripts(subtitle::Han, "jpn+eng+kor").isEmpty());
+        QCOMPARE(Languages::sourceForScripts(subtitle::Han, "jpn"), QString("JA"));
+        QCOMPARE(Languages::sourceForScripts(subtitle::Han, "chi_sim"), QString("ZH"));
         QVERIFY(Languages::sourceForScripts(subtitle::Han, "jpn+eng+kor+chi_sim").isEmpty()); // kanji or hanzi
         QVERIFY(Languages::sourceForScripts(subtitle::Latin | subtitle::Kana, "jpn+eng+kor").isEmpty()); // mixed
         QCOMPARE(Languages::sourceForScripts(subtitle::Latin, "jpn"), QString("JA")); // a fixed choice wins

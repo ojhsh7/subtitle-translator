@@ -22,10 +22,11 @@ add_library(subtitle_services STATIC
   src/capture_service.cpp src/capture_service.h
   src/change_detector.cpp src/change_detector.h
   src/languages.cpp src/languages.h
-  src/paddle_ocr.cpp src/paddle_ocr.h)
+  src/paddle_ocr.cpp src/paddle_ocr.h
+  src/game_window.cpp src/game_window.h)
 target_include_directories(subtitle_services PUBLIC src)
 target_include_directories(subtitle_services PRIVATE "${ONNXRUNTIME_ROOT}/include")
-target_link_libraries(subtitle_services PUBLIC Qt6::Widgets Qt6::Network subtitle_core PRIVATE Advapi32 Psapi icu Qt6::Concurrent "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib")
+target_link_libraries(subtitle_services PUBLIC Qt6::Widgets Qt6::Network subtitle_core PRIVATE Advapi32 Psapi User32 Dwmapi icu Qt6::Concurrent "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib")
 qt_add_executable(SubtitleTranslator WIN32
   src/main.cpp src/main_window.cpp src/main_window.h
   src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
@@ -72,6 +73,12 @@ if(BUILD_TESTING)
     target_compile_options(change_detector_tests PRIVATE /utf-8)
   endif()
   add_test(NAME change_detection COMMAND change_detector_tests -o "${CMAKE_CURRENT_BINARY_DIR}/change_detection.txt,txt")
+  qt_add_executable(game_window_tests tests/game_window_tests.cpp)
+  target_link_libraries(game_window_tests PRIVATE subtitle_services Qt6::Test User32)
+  if(MSVC)
+    target_compile_options(game_window_tests PRIVATE /utf-8)
+  endif()
+  add_test(NAME game_windows COMMAND game_window_tests -o "${CMAKE_CURRENT_BINARY_DIR}/game_windows.txt,txt")
 endif()
 install(TARGETS SubtitleTranslator RUNTIME DESTINATION .)
 
