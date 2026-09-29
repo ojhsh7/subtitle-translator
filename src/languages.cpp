@@ -1,4 +1,5 @@
 #include "languages.h"
+#include "subtitle/text.h"
 namespace {
 template <std::size_t N>
 QString labelFor(const std::array<Languages::Option, N>& options, const QString& code) {
@@ -24,6 +25,16 @@ QString deeplSource(const QString& ocrCode) {
     if (ocrCode == "eng") return "EN";
     if (ocrCode == "kor") return "KO";
     if (ocrCode == "chi_sim" || ocrCode == "chi_tra") return "ZH";
+    return {};
+}
+QString sourceForScripts(unsigned scripts, const QString& ocrCode) {
+    const QString fixed = deeplSource(ocrCode);
+    if (!fixed.isEmpty()) return fixed; // the user chose one language
+    const bool japanese = ocrCode.contains("jpn"), chinese = ocrCode.contains("chi_");
+    if (scripts == subtitle::Latin) return "EN"; // English is the only Latin-script model offered
+    if (scripts == subtitle::Hangul) return "KO";
+    if ((scripts & subtitle::Kana) && !(scripts & ~(subtitle::Kana | subtitle::Han))) return "JA";
+    if (scripts == subtitle::Han) return japanese && !chinese ? "JA" : chinese && !japanese ? "ZH" : QString();
     return {};
 }
 QString languageName(const QString& deeplCode) {

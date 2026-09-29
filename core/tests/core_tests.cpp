@@ -1,5 +1,6 @@
 #include "subtitle/core.h"
 #include "subtitle/models.h"
+#include "subtitle/text.h"
 #include <iostream>
 #include <cstdlib>
 #include <string>
@@ -33,5 +34,35 @@ int main() {
     const std::string huge(32769, 'x');
     check(st_accept_ocr(s, f, huge.c_str()) == ST_TOO_LONG, "bound text size");
     st_destroy(s);
+
+    using subtitle::splitForTranslation; using subtitle::joinTranslated;
+    const unsigned korean = subtitle::nativeScripts("ko");
+    auto pieces = [](const std::vector<subtitle::TextSegment>& segments) {
+        std::string out;
+        for (const auto& segment : segments) out += (segment.translate ? "[T:" : "[K:") + segment.utf8 + "]";
+        return out;
+    };
+    check(pieces(splitForTranslation("으응, 제 타액과 선배님의 타액을 모아서", korean)) == "[K:으응, 제 타액과 선배님의 타액을 모아서]",
+          "Korean text is kept as is");
+    check(pieces(splitForTranslation("今日はいい天気です。", korean)) == "[T:今日はいい天気です。]", "Japanese sentence in one piece");
+    check(pieces(splitForTranslation("Press any key to continue.", korean)) == "[T:Press any key to continue.]", "English sentence");
+    check(pieces(splitForTranslation("채주아: Hello, how are you?", korean)) == "[K:채주아: ][T:Hello, how are you?]",
+          "only the foreign part of a mixed line");
+    check(pieces(splitForTranslation("Hello! 반가워요", korean)) == "[T:Hello!][K: 반가워요]", "closing punctuation travels");
+    check(pieces(splitForTranslation("HP가 회복되었습니다", korean)) == "[K:HP가 회복되었습니다]", "acronyms stay");
+    check(pieces(splitForTranslation("今日は이いい天気", korean)) == "[T:今日は이いい天気]", "a misread glyph does not split a sentence");
+    check(pieces(splitForTranslation("선배l의 타액", korean)) == "[K:선배l의 타액]", "a stray Latin letter in Korean is noise");
+    check(pieces(splitForTranslation("Press any key", subtitle::nativeScripts("en"))) == "[K:Press any key]", "English target keeps English");
+    check(pieces(splitForTranslation("セーブしますか", subtitle::nativeScripts("ja"))) == "[K:セーブしますか]", "Japanese target keeps kana and kanji");
+    check(pieces(splitForTranslation("abc", 0)) == "[T:abc]", "unknown target translates everything");
+    check(splitForTranslation("", korean).empty(), "empty text");
+    check(pieces(splitForTranslation("\xff\xfe 안녕", korean)) == "[K:\xff\xfe 안녕]", "invalid UTF-8 is kept, not translated");
+    const auto mixed = splitForTranslation("채주아: Hello, how are you?", korean);
+    check(joinTranslated(mixed, {"안녕, 잘 지내?"}) == "채주아: 안녕, 잘 지내?", "rebuild mixed line");
+    check(joinTranslated(mixed, {}).empty() && joinTranslated(mixed, {"a", "b"}).empty(), "translation count must match");
+    check(subtitle::scriptsIn("See you.") == subtitle::Latin, "Latin letters only");
+    check(subtitle::scriptsIn("今日はいい天気") == (subtitle::Kana | subtitle::Han), "kana and kanji");
+    check(subtitle::scriptsIn("HP 100 회복") == (subtitle::Latin | subtitle::Hangul), "digits are ignored");
+    check(subtitle::scriptsIn("123 !?") == 0, "no letters");
     std::cout << "shared core: all checks passed\n";
 }

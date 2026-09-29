@@ -18,7 +18,7 @@ add_library(subtitle_services STATIC
   src/change_detector.cpp src/change_detector.h
   src/languages.cpp src/languages.h)
 target_include_directories(subtitle_services PUBLIC src)
-target_link_libraries(subtitle_services PUBLIC Qt6::Widgets Qt6::Network PRIVATE Advapi32 Psapi Qt6::Concurrent)
+target_link_libraries(subtitle_services PUBLIC Qt6::Widgets Qt6::Network subtitle_core PRIVATE Advapi32 Psapi Qt6::Concurrent)
 qt_add_executable(SubtitleTranslator WIN32
   src/main.cpp src/main_window.cpp src/main_window.h
   src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
@@ -37,6 +37,7 @@ if(BUILD_TESTING)
   add_test(NAME translation_protocol COMMAND translation_tests)
   qt_add_executable(integration_checks tests/integration_checks.cpp)
   target_link_libraries(integration_checks PRIVATE subtitle_services Qt6::Test)
+  target_compile_definitions(integration_checks PRIVATE OCR_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ocr")
   if(MSVC)
     target_compile_options(integration_checks PRIVATE /utf-8)
   endif()

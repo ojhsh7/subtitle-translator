@@ -1,4 +1,5 @@
-param([string]$ToolchainRoot=(Join-Path $env:TEMP 'SubtitleTranslatorToolchain'),[string]$QtRoot,[string]$CMakeExe,[switch]$SkipTests)
+# Keep the toolchain out of %TEMP%: Windows Storage Sense may delete it when disk space runs low.
+param([string]$ToolchainRoot=(Join-Path $env:LOCALAPPDATA 'SubtitleTranslatorToolchain'),[string]$QtRoot,[string]$CMakeExe,[switch]$SkipTests)
 $ErrorActionPreference='Stop'
 if (!$QtRoot) { $QtRoot=Join-Path $ToolchainRoot 'Qt\6.8.3\msvc2022_64' }
 if (!$CMakeExe) { $found=Get-Command cmake -ErrorAction SilentlyContinue; $CMakeExe=if($found){$found.Source}else{Join-Path $ToolchainRoot 'python\cmake\data\bin\cmake.exe'} }

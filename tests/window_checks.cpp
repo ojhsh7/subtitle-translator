@@ -2,6 +2,7 @@
 #include "region_selector.h"
 #include "subtitle_overlay.h"
 #include <QCheckBox>
+#include <QComboBox>
 #include <QSettings>
 #include <QDir>
 #include <QtTest>
@@ -184,6 +185,22 @@ private slots:
         QSettings().remove("capture");
         MainWindow fresh;
         QVERIFY(fresh.region_.isEmpty());
+    }
+    void koreanLineIsNotSentWhenTranslatingIntoKorean() {
+        if(qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual engine not configured");
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"); window.tessdata_=qEnvironmentVariable("SUBTITLE_TEST_TESSDATA");
+        window.apiKey_=QStringLiteral("fixture-key:fx"); window.consent_=true; // must stay unused: nothing is foreign
+        window.targetLanguageBox_->setCurrentIndex(window.targetLanguageBox_->findData(QStringLiteral("KO")));
+        QImage image(1000,120,QImage::Format_RGB32); image.fill(Qt::white);
+        QPainter p(&image); QFont f("Malgun Gothic"); f.setPixelSize(48); p.setFont(f); p.setPen(Qt::black);
+        p.drawText(image.rect(),Qt::AlignCenter,QStringLiteral("오늘은 날씨가 좋습니다.")); p.end();
+        window.processImage(image,ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,25000);
+        QVERIFY(!window.translation_.isBusy());
+        QVERIFY2(window.resultStatus_->text().contains(QStringLiteral("이미")), qPrintable(window.resultStatus_->text()));
+        QVERIFY(window.result_->toPlainText().isEmpty());
+        QCOMPARE(st_state(window.session_),int(ST_COMPLETE));
     }
     void autoWithoutRegionWaitsForSelection() {
         MainWindow window;

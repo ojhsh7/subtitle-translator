@@ -3,6 +3,7 @@
 #include "credential_store.h"
 #include "languages.h"
 #include "region_selector.h"
+#include "subtitle/text.h"
 #include "subtitle_overlay.h"
 #include <QApplication>
 #include <QCheckBox>
@@ -31,6 +32,7 @@
 #include <QFutureWatcher>
 #include <QtConcurrent>
 #include <QVBoxLayout>
+#include <algorithm>
 #include <windows.h>
 
 namespace {
@@ -207,16 +209,34 @@ MainWindow::MainWindow() {
             finish(QStringLiteral("동일한 원문이므로 번역 API를 다시 호출하지 않았습니다."));
             return;
         }
+        // Only foreign-script runs are translated; text already in the target language stays.
+        const QString target = Languages::targetLabel(targetLanguage());
+        segments_ = subtitle::splitForTranslation(st_source_text(session_),
+            subtitle::nativeScripts(targetLanguage().section('-', 0, 0).toLower().toStdString()));
+        QStringList pieces;
+        unsigned scripts = 0;
+        for (const auto& segment : segments_)
+            if (segment.translate) { pieces << QString::fromStdString(segment.utf8); scripts |= subtitle::scriptsIn(segment.utf8); }
+        if (pieces.isEmpty()) {
+            st_finish_ocr(session_, request_);
+            resultStatus_->setText(QStringLiteral("원문이 이미 %1입니다 · 번역하지 않았습니다.").arg(target));
+            if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE) {
+                subtitleOverlay_->hide(); setBusy(false);
+                status_->setText(QStringLiteral("자동 번역 중 · 원문이 이미 %1라 번역하지 않았습니다.").arg(target));
+                return;
+            }
+            finish(QStringLiteral("원문이 이미 %1라 번역 요청을 보내지 않았습니다.").arg(target));
+            return;
+        }
         if (apiKey_.isEmpty() || !consent_) {
             st_finish_ocr(session_, request_);
             resultStatus_->setText(QStringLiteral("OCR 완료 · 번역 미실행. 설정에서 API 키와 전송 동의를 확인하세요."));
             finish(QStringLiteral("OCR 완료. API 키·전송 동의가 없어 번역 요청은 보내지 않았습니다."));
             return;
         }
-        status_->setText(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(Languages::targetLabel(targetLanguage())));
+        status_->setText(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(target));
         resultStatus_->setText(QStringLiteral("번역 중…"));
-        translation_.translate(QString::fromUtf8(st_source_text(session_)), apiKey_, freeApi_,
-                               targetLanguage(), Languages::deeplSource(ocrLanguages()));
+        translation_.translate(pieces, apiKey_, freeApi_, targetLanguage(), Languages::sourceForScripts(scripts, ocrLanguages()));
     });
     connect(&ocr_, &OcrService::failed, this, [this](const QString& error) {
         if (!busy_) return;
@@ -224,15 +244,27 @@ MainWindow::MainWindow() {
         resultStatus_->setText(QStringLiteral("OCR 실패 · 번역 없음"));
         finish(error);
     });
-    connect(&translation_, &TranslationService::translated, this, [this](const QString& text, const QString& detected) {
+    connect(&translation_, &TranslationService::translated, this, [this](const QStringList& pieces, const QString& detected) {
         if (!busy_) return;
-        if (!st_complete(session_, request_, text.toUtf8().constData())) return;
+        std::vector<std::string> translations;
+        for (const QString& piece : pieces) translations.push_back(piece.toStdString());
+        const std::string joined = subtitle::joinTranslated(segments_, translations);
+        if (joined.empty()) {
+            st_fail(session_, request_);
+            resultStatus_->setText(QStringLiteral("번역 실패 · 원문은 앱에서 확인할 수 있습니다."));
+            finish(QStringLiteral("번역 응답 개수가 요청과 달라 결과를 표시하지 않았습니다."));
+            return;
+        }
+        if (!st_complete(session_, request_, joined.c_str())) return;
+        const QString text = QString::fromStdString(joined);
         result_->setPlainText(text);
         const QString target = Languages::targetLabel(targetLanguage());
+        const bool partial = std::any_of(segments_.begin(), segments_.end(), [](const auto& s) { return !s.translate; });
         resultStatus_->setText(Languages::sameLanguage(detected, targetLanguage())
             ? QStringLiteral("원문이 이미 %1입니다 · DeepL이 그대로 돌려준 문장입니다.").arg(target)
-            : QStringLiteral("번역 완료 · DeepL · %1 → %2")
-                  .arg(detected.isEmpty() ? QStringLiteral("자동 감지") : Languages::languageName(detected), target));
+            : QStringLiteral("번역 완료 · DeepL · %1 → %2%3")
+                  .arg(detected.isEmpty() ? QStringLiteral("자동 감지") : Languages::languageName(detected), target,
+                       partial ? QStringLiteral(" · 외국어 부분만 번역") : QString()));
         presentTranslation();
         finish(autoTranslating() ? QStringLiteral("자동 번역 중 · 번역 완료. 다음 대사를 기다립니다.")
                                  : QStringLiteral("번역 완료. 다음 자막에서 Ctrl + Alt + T를 누르세요."));

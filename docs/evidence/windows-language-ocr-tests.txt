@@ -1,9 +1,16 @@
 ********* Start testing of LocalChecks *********
 Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
 PASS   : LocalChecks::initTestCase()
+PASS   : LocalChecks::combinedOutputKeepsSpacingAndConfidence()
+PASS   : LocalChecks::lightTextMaskIsolatesWhiteText()
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined english 18px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined korean 18px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined japanese 22px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow english 14px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow korean 14px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow japanese 18px)
 PASS   : LocalChecks::cleanTextFixesStandaloneI()
 PASS   : LocalChecks::automaticLayoutReadsStripsAsOneLine()
-PASS   : LocalChecks::smallLinesAreUpscaled()
 PASS   : LocalChecks::autoDetectReadsEachLanguage(english)
 PASS   : LocalChecks::autoDetectReadsEachLanguage(korean)
 PASS   : LocalChecks::autoDetectReadsEachLanguage(japanese)
@@ -12,5 +19,5 @@ PASS   : LocalChecks::rejectInvalidCapture()
 PASS   : LocalChecks::nonexistentOcrExecutable()
 PASS   : LocalChecks::japaneseOcrActualEngine()
 PASS   : LocalChecks::cleanupTestCase()
-Totals: 12 passed, 0 failed, 0 skipped, 0 blacklisted, 1101ms
+Totals: 19 passed, 0 failed, 0 skipped, 0 blacklisted, 4955ms
 ********* Finished testing of LocalChecks *********

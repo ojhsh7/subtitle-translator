@@ -8,9 +8,10 @@ PASS   : ProtocolChecks::responseLimit()
 PASS   : ProtocolChecks::usageFixture()
 PASS   : ProtocolChecks::rejectedUsage()
 PASS   : ProtocolChecks::requestBodyTargetAndOptionalSource()
+PASS   : ProtocolChecks::severalPiecesInOneRequest()
 PASS   : ProtocolChecks::detectedLanguageFixture()
 PASS   : ProtocolChecks::languageTables()
 PASS   : ProtocolChecks::freeKeySuffix()
 PASS   : ProtocolChecks::cleanupTestCase()
-Totals: 12 passed, 0 failed, 0 skipped, 0 blacklisted, 2ms
+Totals: 13 passed, 0 failed, 0 skipped, 0 blacklisted, 1ms
 ********* Finished testing of ProtocolChecks *********

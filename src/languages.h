@@ -32,6 +32,11 @@ QString ocrLabel(const QString& code);
 QString targetLabel(const QString& code);
 // DeepL source_lang for a single-language OCR choice; empty lets DeepL detect the language.
 QString deeplSource(const QString& ocrCode);
+// DeepL source_lang for the pieces being sent, from their scripts (subtitle::Script bits).
+// DeepL's own detection is unreliable for short fragments such as "you.", so when the letters
+// can only come from one of our OCR models (Latin -> English, kana -> Japanese, Hangul -> Korean)
+// we say so. Returns empty when mixed or ambiguous (e.g. kanji with both jpn and chi loaded).
+QString sourceForScripts(unsigned scripts, const QString& ocrCode);
 // Korean name for a DeepL language code such as "EN" or "EN-US".
 QString languageName(const QString& deeplCode);
 // True when DeepL detected the language we are translating into (e.g. "EN" and "EN-US").

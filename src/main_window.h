@@ -6,7 +6,9 @@
 #include <QMainWindow>
 #include <QImage>
 #include "subtitle/core.h"
+#include "subtitle/text.h"
 #include <QPointer>
+#include <vector>
 #include <QRect>
 class QComboBox;
 class QTimer;
@@ -70,6 +72,7 @@ private:
     int activeSource_ = ST_IMAGE_FILE;
     st_session* session_ = st_create();
     uint64_t request_ = 0;
+    std::vector<subtitle::TextSegment> segments_; // pieces of the current line: kept or sent to DeepL
     QPlainTextEdit* original_;
     QWidget* resultWindow_;
     SubtitleOverlay* subtitleOverlay_;

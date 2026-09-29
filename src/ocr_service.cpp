@@ -6,6 +6,8 @@
 #include <QtConcurrent>
 #include <QRegularExpression>
 #include <QStringDecoder>
+#include <algorithm>
+#include <vector>
 #define NOMINMAX
 #include <windows.h>
 #include <psapi.h>
@@ -49,19 +51,81 @@ void OcrService::fail(const QString& message) {
     if (probe) emit probeFinished(false, message);
     else emit failed(message);
 }
-QImage OcrService::prepare(const QImage& image) {
-    if (image.height() >= 40) return image;
-    return image.scaled(image.width() * 2, image.height() * 2, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-}
 int OcrService::resolvePsm(int psm, const QSize& imageSize) {
     if (psm != 0) return psm;
     // Block mode (PSM 6) sometimes repeats the first syllable of a lone line with several models loaded.
     return imageSize.height() <= SingleLineMaxHeight ? 7 : 6;
 }
+QImage OcrService::lightTextMask(const QImage& image, double* coverage, bool anyColour) {
+    const QImage big = image.scaled(image.size() * 3, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                           .convertToFormat(QImage::Format_RGB32);
+    QImage mask(big.size(), QImage::Format_Grayscale8);
+    qint64 ink = 0;
+    for (int y = 0; y < big.height(); ++y) {
+        const auto* in = reinterpret_cast<const QRgb*>(big.constScanLine(y));
+        uchar* out = mask.scanLine(y);
+        for (int x = 0; x < big.width(); ++x) {
+            const int r = qRed(in[x]), g = qGreen(in[x]), b = qBlue(in[x]);
+            const int low = std::min({r, g, b}), high = std::max({r, g, b});
+            // Bright and nearly colourless; anyColour also accepts ClearType-style colour fringes.
+            const bool text = anyColour ? qGray(in[x]) >= 185 : low >= 185 && high - low <= 60;
+            out[x] = text ? 0 : 255;
+            ink += text;
+        }
+    }
+    if (coverage) *coverage = mask.isNull() ? 0 : double(ink) / (qint64(mask.width()) * mask.height());
+    return mask;
+}
+QImage OcrService::growInk(const QImage& mask) {
+    QImage grown(mask.size(), QImage::Format_Grayscale8);
+    const int w = mask.width(), h = mask.height();
+    for (int y = 0; y < h; ++y) {
+        uchar* out = grown.scanLine(y);
+        for (int x = 0; x < w; ++x) {
+            uchar darkest = 255; // 3x3 minimum: black ink spreads by one pixel
+            for (int dy = std::max(0, y - 1); dy <= std::min(h - 1, y + 1); ++dy) {
+                const uchar* row = mask.constScanLine(dy);
+                for (int dx = std::max(0, x - 1); dx <= std::min(w - 1, x + 1); ++dx) darkest = std::min(darkest, row[dx]);
+            }
+            out[x] = darkest;
+        }
+    }
+    return grown;
+}
+OcrService::Reading OcrService::parseOutput(const QString& output) {
+    Reading reading;
+    QStringList textLines;
+    double weighted = 0;
+    qsizetype letters = 0;
+    static const QRegularExpression tsvRow(QStringLiteral("^(level|\\d+)\\t"));
+    for (QString line : output.split('\n')) {
+        if (line.endsWith('\r')) line.chop(1);
+        const QStringList cols = line.split('\t');
+        if (cols.size() == 12 && tsvRow.match(line).hasMatch()) {
+            // Word rows (level 5) carry the confidence; the plain text below keeps the real spacing.
+            const QString word = cols[11].trimmed();
+            bool ok = false;
+            const double confidence = cols[10].toDouble(&ok);
+            if (cols[0] == QLatin1String("5") && !word.isEmpty() && ok && confidence >= 0) {
+                weighted += confidence * word.size(); letters += word.size();
+            }
+            continue;
+        }
+        if (!line.trimmed().isEmpty()) textLines << line.trimmed();
+    }
+    reading.text = textLines.join('\n');
+    reading.confidence = letters ? weighted / letters : 0;
+    return reading;
+}
 QString OcrService::cleanText(const QString& text) {
     static const QRegularExpression standalonePipe(QStringLiteral("(^|\\s)\\|(?=$|\\s|[A-Za-z'’?!.,])"));
+    // Japanese and Chinese have no spaces between words; Tesseract sometimes inserts them.
+    // Hangul is not in this class, so Korean word spacing is kept.
+    static const QString cjk = QStringLiteral("\\p{Han}\\p{Hiragana}\\p{Katakana}\\x{3001}-\\x{303F}\\x{FF01}-\\x{FF60}");
+    static const QRegularExpression cjkGap(QStringLiteral("(?<=[%1])[ \\t]+(?=[%1?!.,:;])").arg(cjk));
     QString cleaned = text;
-    return cleaned.replace(standalonePipe, QStringLiteral("\\1I"));
+    cleaned.replace(standalonePipe, QStringLiteral("\\1I"));
+    return cleaned.replace(cjkGap, QString());
 }
 void OcrService::recognize(const QImage& image, const QString& executable, const QString& data, int psm,
                            const QString& languages) {
@@ -73,26 +137,76 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
     psm = resolvePsm(psm, image.size());
     if (psm != 6 && psm != 7) { emit failed(QStringLiteral("지원하지 않는 OCR 배치입니다.")); return; }
     if (!Languages::isOcrCode(languages)) { emit failed(QStringLiteral("지원하지 않는 OCR 언어입니다.")); return; }
-    languages_ = languages;
+    languages_ = languages; executable_ = executable;
+    // Plain text (real spacing) and TSV (per-word confidence) in one run; -c avoids tessdata/configs files.
+    arguments_ = QStringList{"stdin", "stdout", "-l", languages, "--oem", "1", "--psm", QString::number(psm),
+                             "-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=1", "-c", "page_separator="};
+    if (!data.isEmpty()) arguments_ << "--tessdata-dir" << data;
     busy_ = true; elapsed_.start(); peakMemory_ = 0; elapsedMs_ = 0;
+    attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false;
     deadline_.start(20000);
     const auto ticket = ++generation_;
-    auto* watcher = new QFutureWatcher<QByteArray>(this);
-    connect(watcher, &QFutureWatcher<QByteArray>::finished, this, [this, watcher, ticket, executable, data, psm, languages] {
-        auto bytes = watcher->result(); watcher->deleteLater();
+    auto* watcher = new QFutureWatcher<QList<QByteArray>>(this);
+    connect(watcher, &QFutureWatcher<QList<QByteArray>>::finished, this, [this, watcher, ticket] {
+        const auto candidates = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
-        if (bytes.isEmpty() || bytes.size() > 32 * 1024 * 1024) {
+        if (candidates.isEmpty() || candidates.first().isEmpty()) {
             fail(QStringLiteral("이미지 인코딩에 실패했거나 이미지가 너무 큽니다.")); return;
         }
-        QStringList args{"stdin", "stdout", "-l", languages, "--oem", "1", "--psm", QString::number(psm)};
-        if (!data.isEmpty()) args << "--tessdata-dir" << data;
-        launch(executable, args, std::move(bytes));
+        attempts_ = candidates;
+        runAttempt();
     });
     watcher->setFuture(QtConcurrent::run([image] {
-        QByteArray bytes; QBuffer buffer(&bytes); buffer.open(QIODevice::WriteOnly);
-        if (!prepare(image).save(&buffer, "PNG")) return QByteArray();
-        return bytes;
+        QList<QByteArray> candidates;
+        auto encode = [&candidates](const QImage& candidate) {
+            QByteArray bytes; QBuffer buffer(&bytes); buffer.open(QIODevice::WriteOnly);
+            candidates << (candidate.save(&buffer, "PNG") && bytes.size() <= 32 * 1024 * 1024 ? bytes : QByteArray());
+        };
+        encode(image); // upscaling was measured to hurt busy-background text, so the original goes first as is
+        if (qint64(image.width()) * image.height() * 9 <= 16000000) {
+            // Skip a mask when there is no light text, or when "light" is really the background.
+            auto usable = [](double coverage) { return coverage > 0.003 && coverage < 0.4; };
+            double coverage = 0;
+            const QImage mask = lightTextMask(image, &coverage);
+            if (usable(coverage)) { encode(mask); encode(growInk(mask)); }
+            const QImage bright = lightTextMask(image, &coverage, true);
+            if (usable(coverage)) encode(bright);
+        }
+        candidates.removeAll(QByteArray());
+        return candidates;
     }));
+}
+void OcrService::runAttempt() {
+    ++attemptsUsed_;
+    launch(executable_, arguments_, attempts_.at(attempt_));
+}
+void OcrService::attemptFinished(const QString& output) {
+    const Reading reading = parseOutput(output);
+    const bool fromMask = attempt_ > 0;
+    if (!reading.text.isEmpty()) {
+        const double needed = best_.confidence + (fromMask && !bestFromMask_ ? MaskMargin : 0);
+        if (best_.text.isEmpty() || reading.confidence > needed) { best_ = reading; bestFromMask_ = fromMask; }
+    }
+    ++attempt_;
+    if (best_.confidence < ConfidentEnough && attempt_ < attempts_.size()) {
+        releaseProcess();
+        runAttempt();
+        return;
+    }
+    const Reading best = best_;
+    cancel();
+    if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
+    else emit recognized(cleanText(best.text));
+}
+void OcrService::releaseProcess() {
+    memoryTimer_.stop(); sample();
+    if (processHandle_) { CloseHandle(static_cast<HANDLE>(processHandle_)); processHandle_ = nullptr; }
+    if (process_) {
+        auto* old = process_; process_ = nullptr;
+        disconnect(old, nullptr, this, nullptr);
+        old->deleteLater();
+    }
+    output_.clear(); errors_.clear();
 }
 void OcrService::probe(const QString& executable, const QString& data, const QString& languages) {
     if (busy_) return;
@@ -141,17 +255,15 @@ void OcrService::launch(const QString& executable, const QStringList& args, QByt
             QStringDecoder decoder(QStringDecoder::Utf8);
             const QString decoded = decoder(output_); const QString text = decoded.trimmed();
             if (decoder.hasError()) { fail(QStringLiteral("OCR 출력의 문자 인코딩을 읽지 못했습니다.")); return; }
+            if (!probe) { attemptFinished(decoded); return; }
             cancel();
-            if (probe) {
-                const QStringList installed = text.split(QRegularExpression("[\\r\\n]+"));
-                QStringList missing;
-                for (const QString& model : languages_.split('+'))
-                    if (!installed.contains(model)) missing << model;
-                emit probeFinished(missing.isEmpty(), missing.isEmpty()
-                    ? QStringLiteral("OCR 엔진과 필요한 언어 모델(%1)을 확인했습니다.").arg(languages_.split('+').join(", "))
-                    : QStringLiteral("없는 언어 모델: %1. tessdata 폴더에 해당 traineddata를 준비하세요.").arg(missing.join(", ")));
-            } else if (text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
-            else emit recognized(cleanText(text));
+            const QStringList installed = text.split(QRegularExpression("[\\r\\n]+"));
+            QStringList missing;
+            for (const QString& model : languages_.split('+'))
+                if (!installed.contains(model)) missing << model;
+            emit probeFinished(missing.isEmpty(), missing.isEmpty()
+                ? QStringLiteral("OCR 엔진과 필요한 언어 모델(%1)을 확인했습니다.").arg(languages_.split('+').join(", "))
+                : QStringLiteral("없는 언어 모델: %1. tessdata 폴더에 해당 traineddata를 준비하세요.").arg(missing.join(", ")));
         });
     p->start(executable, args, QIODevice::ReadWrite);
 }

@@ -57,28 +57,34 @@ bool TranslationService::readAvailable() {
     }
     return true;
 }
-QByteArray TranslationService::requestBody(const QString& text, const QString& targetLang, const QString& sourceLang) {
-    QJsonObject object{{"text",QJsonArray{text}},{"target_lang",targetLang}};
+QByteArray TranslationService::requestBody(const QStringList& texts, const QString& targetLang, const QString& sourceLang) {
+    QJsonObject object{{"text",QJsonArray::fromStringList(texts)},{"target_lang",targetLang}};
     if (!sourceLang.isEmpty()) object.insert("source_lang", sourceLang);
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
-void TranslationService::translate(const QString& text, const QString& apiKey, bool freeApi,
+void TranslationService::translate(const QStringList& texts, const QString& apiKey, bool freeApi,
                                    const QString& targetLang, const QString& sourceLang) {
     if (isBusy()) return;
     const QString key = apiKey.trimmed();
     if (!validKey(key)) {
         emit failed(QStringLiteral("올바른 DeepL API 키를 설정하세요.")); return;
     }
-    if (text.trimmed().isEmpty() || text.toUtf8().size() > 32768) {
+    qsizetype bytes = 0;
+    for (const QString& text : texts) {
+        if (text.trimmed().isEmpty()) { bytes = -1; break; }
+        bytes += text.toUtf8().size();
+    }
+    if (texts.isEmpty() || texts.size() > MaxTexts || bytes < 0 || bytes > 32768) {
         emit failed(QStringLiteral("번역할 텍스트가 비어 있거나 너무 깁니다.")); return;
     }
     if (!validLanguage(targetLang) || (!sourceLang.isEmpty() && !validLanguage(sourceLang))) {
         emit failed(QStringLiteral("지원하지 않는 번역 언어 설정입니다.")); return;
     }
-    const QByteArray body = requestBody(text, targetLang, sourceLang);
+    const QByteArray body = requestBody(texts, targetLang, sourceLang);
     if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 큽니다.")); return; }
     QNetworkRequest request = deeplRequest(freeApi, "/v2/translate", key);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    expected_ = texts.size();
     start(network_.post(request,body), Kind::Translate);
 }
 void TranslationService::checkUsage(const QString& apiKey, bool freeApi) {
@@ -119,8 +125,8 @@ void TranslationService::start(QNetworkReply* reply, Kind kind) {
             return;
         }
         QString detected;
-        const QString result = decodeResponse(status,body,error,&detected);
-        if(!error.isEmpty()) emit failed(error); else emit translated(result,detected);
+        const QStringList results = decodeResponses(status,body,expected_,error,&detected);
+        if(!error.isEmpty()) emit failed(error); else emit translated(results,detected);
     });
     deadline_.start(30000);
 }
@@ -143,7 +149,8 @@ bool TranslationService::decodeUsage(int status, const QByteArray& body, qint64&
     if(max.isDouble() && max.toInteger(-1) >= 0) limit = max.toInteger();
     return true;
 }
-QString TranslationService::decodeResponse(int status, const QByteArray& body, QString& error, QString* detectedLanguage) {
+QStringList TranslationService::decodeResponses(int status, const QByteArray& body, qsizetype expected, QString& error,
+                                                QString* detectedLanguage) {
     error.clear();
     if(detectedLanguage) detectedLanguage->clear();
     if(status != 200) { error = statusMessage(status); return {}; }
@@ -153,14 +160,24 @@ QString TranslationService::decodeResponse(int status, const QByteArray& body, Q
     if(parse.error != QJsonParseError::NoError || !document.isObject()) {
         error = QStringLiteral("번역 응답 JSON 형식 오류."); return {};
     }
+    // One translation per requested piece, in the same order.
     const auto array = document.object().value("translations").toArray();
-    if(array.size() != 1 || !array.at(0).isObject() || !array.at(0).toObject().value("text").isString()) {
-        error = QStringLiteral("번역 응답에 필수 필드가 없습니다."); return {};
+    if(expected < 1 || array.size() != expected) { error = QStringLiteral("번역 응답에 필수 필드가 없습니다."); return {}; }
+    QStringList results;
+    for(const auto& item : array) {
+        if(!item.isObject() || !item.toObject().value("text").isString()) {
+            error = QStringLiteral("번역 응답에 필수 필드가 없습니다."); return {};
+        }
+        const QString text = item.toObject().value("text").toString();
+        if(text.trimmed().isEmpty()) { error = QStringLiteral("서버가 빈 번역 결과를 반환했습니다."); return {}; }
+        results << text;
     }
-    const auto result = array.at(0).toObject().value("text").toString();
-    if(result.trimmed().isEmpty()) { error = QStringLiteral("서버가 빈 번역 결과를 반환했습니다."); return {}; }
     // Optional; only a well-formed language code is passed on to the UI.
     const QString detected = array.at(0).toObject().value("detected_source_language").toString();
     if(detectedLanguage && validLanguage(detected)) *detectedLanguage = detected;
-    return result;
+    return results;
+}
+QString TranslationService::decodeResponse(int status, const QByteArray& body, QString& error, QString* detectedLanguage) {
+    const QStringList results = decodeResponses(status, body, 1, error, detectedLanguage);
+    return results.isEmpty() ? QString() : results.first();
 }

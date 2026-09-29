@@ -3,6 +3,7 @@
 #include "credential_store.h"
 #include "languages.h"
 #include "subtitle/core.h"
+#include "subtitle/text.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QElapsedTimer>
@@ -54,6 +55,8 @@ int main(int argc, char** argv) {
         {"mobilePerformance", "Not measured; no mobile estimate provided"},
         {"ocrTestData", "Actual image input; no synthetic OCR result"}
     };
+    std::vector<subtitle::TextSegment> segments;
+    unsigned scripts = 0;
     bool done = false;
     auto finish = [&](int exitCode) {
         if (done) return;
@@ -73,15 +76,29 @@ int main(int argc, char** argv) {
     });
     QObject::connect(&ocr, &OcrService::recognized, &app, [&](const QString& text) {
         report["ocrMs"] = phase.elapsed();
+        report["ocrAttempts"] = ocr.attemptsUsed();
         report["ocrChildPeakWorkingSetBytes"] = qint64(ocr.peakWorkingSetBytes());
         const int decision = st_accept_ocr(session, request, text.toUtf8().constData());
         report["sourceText"] = QString::fromUtf8(st_source_text(session));
         if (decision != ST_TRANSLATE) {
             report["state"] = "failed"; report["stage"] = "ocr"; report["message"] = "Empty or oversized OCR output"; finish(3); return;
         }
+        // Same rule as the app: only foreign-script runs go to DeepL.
+        segments = subtitle::splitForTranslation(st_source_text(session),
+            subtitle::nativeScripts(target.section('-', 0, 0).toLower().toStdString()));
+        QStringList pieces;
+        for (const auto& segment : segments)
+            if (segment.translate) { pieces << QString::fromStdString(segment.utf8); scripts |= subtitle::scriptsIn(segment.utf8); }
+        report["piecesToTranslate"] = int(pieces.size());
         if (!parser.isSet("translate")) {
             st_finish_ocr(session, request);
             report["state"] = "ocr_complete_translation_not_requested";
+            finish(0); return;
+        }
+        if (pieces.isEmpty()) {
+            st_finish_ocr(session, request);
+            report["state"] = "already_target_language";
+            report["message"] = "No foreign-script text; no translation request sent.";
             finish(0); return;
         }
         QString error;
@@ -95,16 +112,25 @@ int main(int argc, char** argv) {
         }
         phase.restart();
         report["translationNetworkUsed"] = true;
-        report["outboundTextUtf8Bytes"] = text.toUtf8().size();
+        report["outboundTextUtf8Bytes"] = int(pieces.join(QString()).toUtf8().size());
         report["networkMeasurementNote"] = "Text payload only; TLS and HTTP transport bytes are not measured.";
-        translation.translate(QString::fromUtf8(st_source_text(session)), key, !parser.isSet("pro"),
-                              target, Languages::deeplSource(languages));
+        const QString source = Languages::sourceForScripts(scripts, languages);
+        report["sourceLanguageSent"] = source.isEmpty() ? QStringLiteral("auto") : source;
+        translation.translate(pieces, key, !parser.isSet("pro"), target, source);
         key.fill(QChar('\0'));
     });
-    QObject::connect(&translation, &TranslationService::translated, &app, [&](const QString& text, const QString& detected) {
-        st_complete(session, request, text.toUtf8().constData());
-        report["translationMs"] = phase.elapsed(); report["state"] = "complete";
-        report["translatedText"] = text; report["detectedSourceLanguage"] = detected; finish(0);
+    QObject::connect(&translation, &TranslationService::translated, &app, [&](const QStringList& translated, const QString& detected) {
+        std::vector<std::string> parts;
+        for (const QString& piece : translated) parts.push_back(piece.toStdString());
+        const std::string joined = subtitle::joinTranslated(segments, parts);
+        report["translationMs"] = phase.elapsed();
+        if (joined.empty()) {
+            st_fail(session, request);
+            report["state"] = "failed"; report["stage"] = "translation"; report["message"] = "Translation count mismatch"; finish(5); return;
+        }
+        st_complete(session, request, joined.c_str());
+        report["state"] = "complete";
+        report["translatedText"] = QString::fromStdString(joined); report["detectedSourceLanguage"] = detected; finish(0);
     });
     QObject::connect(&translation, &TranslationService::failed, &app, [&](const QString& error) {
         st_fail(session, request);

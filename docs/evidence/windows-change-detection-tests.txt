@@ -9,5 +9,5 @@ PASS   : ChangeChecks::singlePixelNoiseIsIgnored()
 PASS   : ChangeChecks::animatedBackgroundIsProcessedAtMostEveryMaxWait()
 PASS   : ChangeChecks::resetForgetsTheProcessedLine()
 PASS   : ChangeChecks::cleanupTestCase()
-Totals: 9 passed, 0 failed, 0 skipped, 0 blacklisted, 16ms
+Totals: 9 passed, 0 failed, 0 skipped, 0 blacklisted, 11ms
 ********* Finished testing of ChangeChecks *********
