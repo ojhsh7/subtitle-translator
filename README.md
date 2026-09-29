@@ -4,7 +4,7 @@
 
 Windows는 파일·자막 영역 캡처, Android는 이미지 선택·공유와 터치 자르기를 지원하도록 구현했습니다. 로컬 일본어 OCR 뒤 개인 DeepL API 키가 있으면 한국어를 요청합니다. C++17 코어를 공유합니다.
 
-**사용자 API 키가 없어 실서비스 번역은 미검증입니다.** 키가 없으면 실제 OCR 원문까지만 표시합니다. iOS는 설계만 제공하며 구현 완료로 보고하지 않습니다.
+**Windows에서 사용자 본인의 DeepL 키로 실제 번역 1회를 검증했습니다(샘플 이미지, CLI).** 키가 없으면 실제 OCR 원문까지만 표시합니다. Android의 실제 번역은 미검증입니다. iOS는 설계만 제공하며 구현 완료로 보고하지 않습니다.
 
 ## 자세한 설명
 
@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\launch-windows.ps1
 ```
 
 1. 실행 → 설정에서 Tesseract·일본어 모델 확인.
-2. 선택 사항: 본인의 DeepL API 키와 Free/Pro 요금제 입력, 전송·비용 안내 확인. 키를 채팅이나 소스에 적지 않습니다.
+2. 선택 사항: 본인의 DeepL API 키 입력 → **키 확인**으로 사용량이 표시되는지 확인 → 전송·비용 안내 확인. 키를 채팅이나 소스에 적지 않습니다. 발급 방법은 아래 [DeepL API 키 준비](#deepl-api-키-준비-직접-발급)를 보세요.
 3. 자막 영역 선택 → `Ctrl+Alt+T`. 단축키 충돌 시 캡처 버튼을 사용합니다.
 4. 기본값인 **원문 아래에 번역 글자만 표시**를 켜면 게임 대사 바로 아래에 배경·테두리 없는 한국어 자막이 나타납니다. 자막 글자 부분만 영역으로 선택하세요. 키가 없으면 번역이 실행되지 않았다는 안내가 표시됩니다.
 5. **위치 미리보기**로 배치를 확인하고 앱을 최소화하세요. `Ctrl+Alt+T`로 갱신하며, 표시 체크를 해제하면 화면 자막이 숨겨집니다.
@@ -39,6 +39,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\launch-windows.ps1
 이미지·원문·번역 내역을 기본적으로 파일에 저장하지 않습니다. 선택한 키 저장소는 Windows Credential Manager이고, 일반 설정은 현재 사용자 레지스트리의 PersonalTools/SubtitleTranslator입니다. 캡처 영역은 재실행 시 다시 선택합니다.
 
 보이는 픽셀을 캡처하므로 보호 콘텐츠·보안 데스크톱·독점 전체화면·가려진 자막은 성공을 보장하지 않습니다. 창 모드·테두리 없는 창 모드로 확인하세요.
+
+### DeepL API 키 준비 (직접 발급)
+
+이 앱은 사용자 본인의 키만 사용합니다. 개발자 키를 앱에 넣거나 서버로 중계하지 않습니다.
+
+1. [DeepL API 요금제 페이지](https://www.deepl.com/pro-api#api-pricing)에서 요금제를 골라 가입합니다. DeepL 문서에 따르면 기존 DeepL Translator 계정이 있으면 로그아웃한 뒤 새 계정을 만들어야 합니다.
+2. 계정의 [API Keys 탭](https://www.deepl.com/your-account/keys)에서 키를 복사합니다.
+3. 앱의 설정에 붙여넣습니다. Free 키는 끝이 `:fx`이며, 앱이 키 형식에 맞춰 Free/Pro를 자동으로 선택합니다.
+4. **키 확인**을 누릅니다. `GET /v2/usage`로 사용량만 조회하므로 번역 글자는 차감되지 않습니다. 이번 청구 기간 사용량이 표시되면 키와 요금제 설정이 맞는 것입니다.
+5. 전송·비용 안내를 읽고 동의에 체크한 뒤 **설정 저장**을 누릅니다.
+
+공식 문서로 확인한 내용: [인증 헤더·`:fx` 접미사·키 위치](https://developers.deepl.com/docs/getting-started/auth), [사용량 조회는 글자를 차감하지 않음](https://developers.deepl.com/api-reference/usage-and-quota), [가입 절차](https://developers.deepl.com/docs/getting-started/quickstart).
+
+확인하지 못한 내용: Free 요금제의 월 무료 글자 수, 가입 시 결제 수단 등록 필요 여부. 공식 요금제 페이지가 자동 조회에 응답하지 않았으므로 가입 화면에서 직접 확인하세요.
 
 ### VS Code 빌드
 

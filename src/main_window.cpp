@@ -17,6 +17,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -234,7 +235,7 @@ void MainWindow::settings() {
     modal_ = true;
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("최초 설정 · OCR와 번역"));
-    dialog.resize(700, 620);
+    dialog.resize(700, 700);
     auto* layout = new QVBoxLayout(&dialog);
     auto* heading = new QLabel(QStringLiteral("1. 일본어 OCR 준비"));
     layout->addWidget(heading);
@@ -292,6 +293,38 @@ void MainWindow::settings() {
     apiForm->addRow(QStringLiteral("API 요금제"), plan);
     apiForm->addRow(QStringLiteral("API 키"), key);
     layout->addLayout(apiForm);
+    auto* checkKey = new QPushButton(QStringLiteral("키 확인"));
+    auto* keyStatus = new QLabel(QStringLiteral("키 확인은 API 키만 DeepL에 보내 이번 달 사용량을 조회합니다. 번역 글자는 차감되지 않습니다."));
+    keyStatus->setWordWrap(true);
+    layout->addWidget(checkKey); layout->addWidget(keyStatus);
+    TranslationService keyChecker;
+    // DeepL API Free keys end with ":fx"; a mismatched endpoint fails with 403.
+    connect(key, &QLineEdit::textEdited, &dialog, [&](const QString& text) {
+        if (text.trimmed().isEmpty()) return;
+        const int wanted = TranslationService::isFreeKey(text) ? 0 : 1;
+        if (plan->currentIndex() == wanted) return;
+        plan->setCurrentIndex(wanted);
+        keyStatus->setText(wanted == 0 ? QStringLiteral("키 끝이 :fx라서 DeepL API Free로 맞췄습니다.")
+            : QStringLiteral("키 끝에 :fx가 없어 DeepL API Pro로 맞췄습니다. Free 키라면 키 전체를 다시 복사하세요."));
+    });
+    connect(checkKey, &QPushButton::clicked, &dialog, [&] {
+        if (key->text().trimmed().isEmpty()) { keyStatus->setText(QStringLiteral("먼저 API 키를 입력하세요.")); return; }
+        checkKey->setEnabled(false);
+        keyStatus->setText(QStringLiteral("DeepL에서 키 확인 중…"));
+        keyChecker.checkUsage(key->text(), plan->currentIndex() == 0);
+    });
+    connect(&keyChecker, &TranslationService::usageChecked, &dialog, [&](qint64 used, qint64 limit) {
+        checkKey->setEnabled(true);
+        const QLocale locale;
+        keyStatus->setText(limit > 0
+            ? QStringLiteral("키 확인 완료 · 이번 청구 기간 %1 / %2자 사용 (남은 글자 %3자)")
+                .arg(locale.toString(used), locale.toString(limit), locale.toString(qMax<qint64>(0, limit - used)))
+            : QStringLiteral("키 확인 완료 · 이번 청구 기간 %1자 사용 · 한도는 DeepL 계정에서 확인하세요.").arg(locale.toString(used)));
+    });
+    connect(&keyChecker, &TranslationService::failed, &dialog, [&](const QString& error) {
+        checkKey->setEnabled(true);
+        keyStatus->setText(QStringLiteral("키 확인 실패 · ") + error);
+    });
     auto* remember = new QCheckBox(QStringLiteral("이 Windows 계정의 자격 증명 관리자에 키 저장"));
     remember->setChecked(remember_);
     layout->addWidget(remember);
@@ -307,7 +340,8 @@ void MainWindow::settings() {
     auto* consent = new QCheckBox(QStringLiteral("인식 텍스트의 DeepL 전송과 비용 가능성을 확인했습니다"));
     consent->setChecked(consent_);
     layout->addWidget(consent);
-    auto* links = new QLabel(QStringLiteral("<a href='https://developers.deepl.com/docs/getting-started/auth'>DeepL API 안내</a> · "
+    auto* links = new QLabel(QStringLiteral("<a href='https://www.deepl.com/your-account/keys'>DeepL API 키 발급·확인</a> · "
+        "<a href='https://developers.deepl.com/docs/getting-started/auth'>DeepL API 안내</a> · "
         "<a href='https://tesseract-ocr.github.io/tessdoc/Installation.html'>Tesseract 설치 안내</a>"));
     links->setOpenExternalLinks(true);
     layout->addWidget(links);
@@ -347,6 +381,7 @@ void MainWindow::settings() {
     });
     dialog.exec();
     checker.cancel();
+    keyChecker.cancel();
     modal_ = false;
 }
 void MainWindow::chooseRegion() {

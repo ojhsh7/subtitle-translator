@@ -4,6 +4,30 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+namespace {
+bool validKey(const QString& key) {
+    return !key.isEmpty() && key.size() <= 512 && !key.contains('\r') && !key.contains('\n');
+}
+QNetworkRequest deeplRequest(bool freeApi, const char* path, const QString& key) {
+    QNetworkRequest request(QUrl(QString::fromLatin1(freeApi ? "https://api-free.deepl.com" : "https://api.deepl.com") + path));
+    request.setRawHeader("Authorization", "DeepL-Auth-Key " + key.toUtf8());
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    request.setTransferTimeout(30000);
+    return request;
+}
+QString statusMessage(int status) {
+    switch(status) {
+    case 401: case 403: return QStringLiteral("DeepL 인증 실패. API 키와 Free/Pro 설정을 확인하세요.");
+    case 429: return QStringLiteral("요청이 너무 많습니다. 잠시 후 직접 재시도하세요.");
+    case 456: return QStringLiteral("DeepL 사용 한도에 도달했습니다. 계정 한도를 확인하세요.");
+    case 413: return QStringLiteral("요청 크기가 너무 큽니다. 자막 영역을 줄이세요.");
+    default:
+        if(status >= 300 && status < 400) return QStringLiteral("번역 서버의 주소 이동 응답을 거부했습니다.");
+        if(status >= 500) return QStringLiteral("번역 서버 오류입니다. 잠시 후 재시도하세요.");
+        return QStringLiteral("예상하지 못한 번역 HTTP 응답입니다 (%1).").arg(status);
+    }
+}
+}
 TranslationService::TranslationService(QObject* parent) : QObject(parent), network_(this) {
     deadline_.setSingleShot(true);
     connect(&deadline_, &QTimer::timeout, this, [this] {
@@ -31,7 +55,7 @@ bool TranslationService::readAvailable() {
 void TranslationService::translate(const QString& text, const QString& apiKey, bool freeApi) {
     if (isBusy()) return;
     const QString key = apiKey.trimmed();
-    if (key.isEmpty() || key.size() > 512 || key.contains('\r') || key.contains('\n')) {
+    if (!validKey(key)) {
         emit failed(QStringLiteral("올바른 DeepL API 키를 설정하세요.")); return;
     }
     if (text.trimmed().isEmpty() || text.toUtf8().size() > 32768) {
@@ -40,52 +64,74 @@ void TranslationService::translate(const QString& text, const QString& apiKey, b
     const QJsonObject object{{"text",QJsonArray{text}},{"source_lang","JA"},{"target_lang","KO"}};
     const QByteArray body = QJsonDocument(object).toJson(QJsonDocument::Compact);
     if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 큽니다.")); return; }
-    QNetworkRequest request(QUrl(freeApi ? "https://api-free.deepl.com/v2/translate" : "https://api.deepl.com/v2/translate"));
+    QNetworkRequest request = deeplRequest(freeApi, "/v2/translate", key);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setRawHeader("Authorization", "DeepL-Auth-Key " + key.toUtf8());
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
-    request.setTransferTimeout(30000);
+    start(network_.post(request,body), Kind::Translate);
+}
+void TranslationService::checkUsage(const QString& apiKey, bool freeApi) {
+    if (isBusy()) return;
+    const QString key = apiKey.trimmed();
+    if (!validKey(key)) {
+        emit failed(QStringLiteral("올바른 DeepL API 키를 설정하세요.")); return;
+    }
+    start(network_.get(deeplRequest(freeApi, "/v2/usage", key)), Kind::Usage);
+}
+void TranslationService::start(QNetworkReply* reply, Kind kind) {
     response_.clear();
-    auto* reply = network_.post(request,body); reply_ = reply;
+    reply_ = reply;
     reply->setReadBufferSize(MaxResponseBytes + 1);
     connect(reply,&QNetworkReply::readyRead,this,[this,reply] { if(reply_ == reply) readAvailable(); });
     connect(reply,&QNetworkReply::metaDataChanged,this,[this,reply] {
         if(reply_ == reply && reply->header(QNetworkRequest::ContentLengthHeader).toLongLong() > MaxResponseBytes)
             failCurrent(QStringLiteral("번역 응답이 허용 크기를 초과했습니다."));
     });
-    connect(reply,&QNetworkReply::finished,this,[this,reply] {
+    connect(reply,&QNetworkReply::finished,this,[this,reply,kind] {
         if(reply_ != reply || !readAvailable()) return;
         deadline_.stop();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const auto networkError = reply->error();
         const QByteArray body = response_;
         reply_ = nullptr; response_.clear(); reply->deleteLater();
-        QString error, result;
-        if(status != 0 && status != 200) result = decodeResponse(status,body,error);
-        else if(networkError != QNetworkReply::NoError) {
-            error = networkError == QNetworkReply::TimeoutError
+        // An HTTP error status is reported as-is; a transport error only matters without one.
+        if((status == 0 || status == 200) && networkError != QNetworkReply::NoError) {
+            emit failed(networkError == QNetworkReply::TimeoutError
                 ? QStringLiteral("번역 연결 시간이 초과되었습니다.")
-                : QStringLiteral("번역 서버에 안전하게 연결하지 못했습니다. 네트워크와 시스템 날짜를 확인하세요.");
-        } else result = decodeResponse(status,body,error);
+                : QStringLiteral("번역 서버에 안전하게 연결하지 못했습니다. 네트워크와 시스템 날짜를 확인하세요."));
+            return;
+        }
+        QString error;
+        if(kind == Kind::Usage) {
+            qint64 used = 0, limit = -1;
+            if(decodeUsage(status,body,used,limit,error)) emit usageChecked(used,limit); else emit failed(error);
+            return;
+        }
+        const QString result = decodeResponse(status,body,error);
         if(!error.isEmpty()) emit failed(error); else emit translated(result);
     });
     deadline_.start(30000);
 }
+bool TranslationService::decodeUsage(int status, const QByteArray& body, qint64& used, qint64& limit, QString& error) {
+    error.clear(); used = 0; limit = -1;
+    if(status != 200) { error = statusMessage(status); return false; }
+    if(body.size() > MaxResponseBytes) { error = QStringLiteral("사용량 응답 크기 초과."); return false; }
+    QJsonParseError parse;
+    const auto document = QJsonDocument::fromJson(body,&parse);
+    if(parse.error != QJsonParseError::NoError || !document.isObject()) {
+        error = QStringLiteral("사용량 응답 JSON 형식 오류."); return false;
+    }
+    const auto object = document.object();
+    const auto count = object.value("character_count");
+    if(!count.isDouble() || count.toInteger(-1) < 0) {
+        error = QStringLiteral("사용량 응답에 필수 필드가 없습니다."); return false;
+    }
+    used = count.toInteger();
+    const auto max = object.value("character_limit");
+    if(max.isDouble() && max.toInteger(-1) >= 0) limit = max.toInteger();
+    return true;
+}
 QString TranslationService::decodeResponse(int status, const QByteArray& body, QString& error) {
     error.clear();
-    if(status != 200) {
-        switch(status) {
-        case 401: case 403: error = QStringLiteral("DeepL 인증 실패. API 키와 Free/Pro 설정을 확인하세요."); break;
-        case 429: error = QStringLiteral("요청이 너무 많습니다. 잠시 후 직접 재시도하세요."); break;
-        case 456: error = QStringLiteral("DeepL 사용 한도에 도달했습니다. 계정 한도를 확인하세요."); break;
-        case 413: error = QStringLiteral("요청 크기가 너무 큽니다. 자막 영역을 줄이세요."); break;
-        default:
-            if(status >= 300 && status < 400) error = QStringLiteral("번역 서버의 주소 이동 응답을 거부했습니다.");
-            else if(status >= 500) error = QStringLiteral("번역 서버 오류입니다. 잠시 후 재시도하세요.");
-            else error = QStringLiteral("예상하지 못한 번역 HTTP 응답입니다 (%1).").arg(status);
-        }
-        return {};
-    }
+    if(status != 200) { error = statusMessage(status); return {}; }
     if(body.size() > MaxResponseBytes) { error = QStringLiteral("번역 응답 크기 초과."); return {}; }
     QJsonParseError parse;
     const auto document = QJsonDocument::fromJson(body,&parse);

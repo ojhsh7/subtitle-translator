@@ -2,7 +2,7 @@
 
 ## 간단한 사전 설명
 
-Windows 실행 파일과 Android APK를 실제 빌드했습니다. Windows의 캡처·OCR 흐름과 Android 에뮬레이터의 이미지 입력·자르기·OCR 흐름을 검증했습니다. **사용자 DeepL API 키가 없으므로 실제 한국어 번역 성공은 검증하지 못했습니다. Android 실기기와 iOS도 미검증입니다.**
+Windows 실행 파일과 Android APK를 실제 빌드했습니다. Windows의 캡처·OCR 흐름과 Android 에뮬레이터의 이미지 입력·자르기·OCR 흐름을 검증했습니다. **Windows에서 사용자 본인의 DeepL API Free 키로 실제 일본어 → 한국어 번역 1회를 검증했습니다(샘플 이미지 1장, CLI 경로). 앱 화면 경로의 실제 번역, Android의 실제 번역·실기기, iOS는 미검증입니다.**
 
 ## 자세한 설명
 
@@ -12,9 +12,9 @@ Windows 실행 파일과 Android APK를 실제 빌드했습니다. Windows의 �
 |---|---|---|---|
 | 공통 C++ 모델·상태·공백 정리·직전 중복 처리 | 완료 | MSVC, Linux g++, Android NDK arm64/x86_64 빌드 및 JNI 계측 테스트 | 여러 번역 제공자 확장 전 오류 매핑 보강 |
 | 저장 이미지 → 일본어 OCR | 완료 | Windows Tesseract, Android bundled ML Kit | 일반 게임 폰트·루비·세로쓰기 정확도 미검증 |
-| DeepL HTTPS 번역 | 연결 완료 | 요청/응답 형식·403/429/456·잘못된 JSON 등 Windows 프로토콜 테스트 | 실서비스 키 없음. 실제 번역·비용·API 지연 미검증 |
+| DeepL HTTPS 번역 | 완료 | 프로토콜 테스트, Windows CLI 실서비스 번역 1회 성공(Free), 잘못된 키의 실제 403 안내 확인 | 앱 화면 경로 실번역, 오프라인·한도(456) 실제 발생, 게임 자막 번역 품질, Android 실번역 미검증 |
 | Windows 영역·단축키·별도 창 | 완료 | 실제 화면 캡처·WM_HOTKEY 경로·창 이동·재시도·취소 | 실제 게임·독점 전체화면·고DPI·복수 모니터 별도 |
-| Windows 설정·키 저장 | 완료 | 앱 빌드·설정 코드 검토, 키 없음 경로 확인 | 실제 키의 저장/읽기 왕복 및 사용자 수동 설정 전체 동작 미검증 |
+| Windows 설정·키 저장·키 확인 | 완료 | 앱 빌드·설정 코드 검토, 키 없음 경로 확인, 사용량 응답·`:fx` 판별 프로토콜 테스트 | 실제 키의 저장/읽기 왕복, 실제 키 확인 요청, 사용자 수동 설정 전체 동작 미검증 |
 | Android 선택·공유·자르기·회전 | 완료 | 공유 URI, 터치 drag, 회전 유지, picker 취소, 권한 오류, 재시도·background 취소 | 실기기·다양한 사진 제공자·pinch 실사용 조합 별도 |
 | Android 캡처·overlay | 미구현 | 없음 | 이미지 번역·실서비스 흐름 검증 이후 별도 기술 검증 |
 | iOS | 설계만 | 공식 문서 검토 | macOS/Xcode·Simulator·iPhone 환경 필요 |
@@ -33,8 +33,8 @@ Windows 실행 파일과 Android APK를 실제 빌드했습니다. Windows의 �
 | OCR 자식 프로세스 peak working set | 51,970,048–51,986,432 bytes, 약49.6MiB |
 | Qt CLI 호스트 peak working set | 17,031,168–18,026,496 bytes |
 | 이미지 네트워크 전송 | 없음 — stdin으로 로컬 OCR 프로세스에 전달 |
-| 번역 API 요청 | 키 없어 보내지 않음 |
-| 실제 번역 시간·전송 바이트 | 미측정 |
+| 번역 API 요청 | 이 측정 때는 키가 없어 보내지 않음. 이후 결과는 아래 '실제 DeepL 번역' 참고 |
+| 실제 번역 시간·전송 바이트 | 아래 '실제 DeepL 번역' 참고 |
 | 모바일 성능으로 환산 | 하지 않음 |
 
 OCR 시간에는 비동기 PNG 인코딩·프로세스 시작·실제 인식이 포함됩니다. 이미지 디스크 디코딩 이전부터의 시간이 아닙니다. 각 프로세스 메모리 최댓값의 관측 시점은 다를 수 있으므로 합계를 동시 peak로 해석하면 안 됩니다.
@@ -69,7 +69,8 @@ PSS는 peak가 아닌 한 시점의 관측이며 계측 테스트 코드가 포�
 
 ### 다음 검증 완료 기준
 
-- 본인 API 키·동의 설정 후 실제 일본어 → 한국어 1회, 오프라인·키 오류·한도 오류·사용자 취소 확인.
+- ~~CLI에서 실제 일본어 → 한국어 1회, 잘못된 키 오류 확인~~ (완료, 아래 '실제 DeepL 번역').
+- 앱 화면에서 **키 확인** 성공 → 동의 설정 후 실제 번역 1회, 오프라인·한도 오류·사용자 취소 확인.
 - Android 실제 기기에서 picker·공유·핀치·회전·background·큰 이미지 및 화면 크기 확인.
 - 게임의 실제 자막 샘플 여러 장으로 OCR 품질 측정.
 - 위 흐름 검증 이후에만 Android MediaProjection·overlay를 별도 프로젝트 단계로 검증.
@@ -84,3 +85,35 @@ Release 빌드와 CTest 4개 그룹 모두 통과했습니다(전체 2.02초). W
 검증 원자료: [UI 테스트 로그](evidence/windows-caption-tests.txt), [배경 없는 자막 렌더링 PNG](evidence/windows-transparent-caption.png). PNG의 문구는 위치 검증용 안내이고 실제 번역문이 아닙니다.
 
 구현 근거: [Qt 6.8 투명 창](https://doc.qt.io/qt-6.8/qwidget.html#creating-translucent-windows), [입력 통과·포커스 플래그](https://doc.qt.io/qt-6.8/qt.html#WindowType-enum), [사용 가능한 모니터 좌표](https://doc.qt.io/qt-6.8/qscreen.html#availableGeometry-prop), [Microsoft 확장 창 스타일](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles). 변경은 Windows UI 어댑터에만 적용했고 공통 코어와 Android는 변경하지 않았습니다.
+
+### DeepL 키 확인 — 추가 검증
+
+사용자가 DeepL API 키를 직접 발급해 입력하는 방식에 맞춰, 첫 캡처 전에 키와 Free/Pro 설정을 확인하는 **키 확인** 버튼을 설정 화면에 추가했습니다. `GET /v2/usage`를 호출하므로 API 키만 전송되며 번역 글자는 차감되지 않습니다. 인식 텍스트는 보내지 않습니다. 키 끝이 `:fx`인지에 따라 Free/Pro 요금제를 자동으로 맞추며, 요금제가 바뀌면 안내 문구를 표시합니다.
+
+Release 빌드(/W4 경고 없음)와 CTest 4개 그룹이 모두 통과했습니다(전체 2.03초). translation_protocol은 9개 항목이 통과했으며 새 항목은 3개입니다. 사용량 응답 파싱(DeepL 문서 예시 형식), 잘못된 응답·HTTP 오류 거부와 서버 본문 비노출, `:fx` 판별입니다. 배포 폴더의 `--smoke-test`는 exit0입니다. 이전 실행본이 `Ctrl+Alt+T`를 점유하면 windows_flow의 단축키 테스트가 실패하므로 이전 실행본을 종료한 뒤 측정했습니다.
+
+**실제 키로 키 확인 요청을 보낸 적은 없습니다.** 테스트 응답은 프로토콜 fixture이며 실서비스 성공이 아닙니다. 실제 번역 경로도 여전히 미검증입니다. 번역 기능과 캡처 흐름, 공통 코어, Android는 변경하지 않았습니다. 번역 요청의 네트워크 처리 코드를 사용량 조회와 공유하도록 정리했지만 번역 요청 형식과 오류 문구는 그대로입니다.
+
+검증 원자료: [프로토콜 테스트 로그](evidence/windows-key-check-tests.txt). 구현 근거: [DeepL 인증](https://developers.deepl.com/docs/getting-started/auth), [사용량 조회](https://developers.deepl.com/api-reference/usage-and-quota).
+
+### 실제 DeepL 번역 — Windows CLI
+
+사용자의 요청으로 Windows 자격 증명 관리자에 저장된 사용자 본인의 키를 사용해 실제 번역을 1회 실행했습니다. 키는 프로그램 안에서만 읽었고 출력·로그·문서에 남기지 않았습니다. 입력은 위와 같은 테스트 이미지(1000×180)입니다.
+
+| 항목 | 결과 |
+|---|---|
+| OCR 원문 | 今日はいい天気です。 |
+| 한국어 번역 (DeepL 실제 응답) | 오늘은 날씨가 좋습니다. |
+| 요금제·엔드포인트 | DeepL API Free · api-free.deepl.com |
+| OCR 시간 | 131ms |
+| 번역 시간 | 1,195ms (연결 설정 포함 1회 측정) |
+| 전체 시간 | 1,327ms |
+| 외부 전송 텍스트 | 30 bytes (UTF-8 일본어 10자). TLS·HTTP 전송량은 미측정 |
+| 이미지 외부 전송 | 없음 |
+| 사용 글자 수 | 약 10자 |
+
+잘못된 키 경로: 사용자 키가 아닌 가짜 키(`:fx` 형식)로 같은 요청을 보냈습니다. DeepL이 인증 실패를 반환했고 앱은 "DeepL 인증 실패. API 키와 Free/Pro 설정을 확인하세요."를 표시했습니다. 일본어 원문은 유지됐고 종료 코드는 5입니다(1,099ms).
+
+한 번 측정한 값이므로 평균 지연으로 일반화하지 않습니다. 앱 화면 경로(단축키 → 화면 자막 표시)의 실제 번역, 오프라인, 한도 초과(456)는 이번에 실제로 발생시키지 않았습니다.
+
+원자료: [실제 번역 JSON](evidence/windows-live-translation.json), [잘못된 키 JSON](evidence/windows-invalid-key.json).
