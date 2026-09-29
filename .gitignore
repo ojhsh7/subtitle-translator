@@ -1,0 +1,9 @@
+/build/
+/dist/
+/.tools/
+*.user
+.env
+.env.*
+*.log
+
+/build-core/

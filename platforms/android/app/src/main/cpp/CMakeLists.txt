@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(subtitle_android LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CORE_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../../../core")
+add_library(subtitle_core_jni SHARED native_core.cpp "${CORE_ROOT}/src/core.cpp")
+target_include_directories(subtitle_core_jni PRIVATE "${CORE_ROOT}/include")

@@ -1,0 +1,64 @@
+Start testing: Sep 29 01:16 대한민국 표준시
+----------------------------------------------------------
+1/4 Testing: translation_protocol
+1/4 Test: translation_protocol
+Command: "C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build/Release/translation_tests.exe"
+Directory: C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build
+"translation_protocol" start time: Sep 29 01:16 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"translation_protocol" end time: Sep 29 01:16 대한민국 표준시
+"translation_protocol" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/4 Testing: local_checks
+2/4 Test: local_checks
+Command: "C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build/Release/integration_checks.exe"
+Directory: C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build
+"local_checks" start time: Sep 29 01:16 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.27 sec
+----------------------------------------------------------
+Test Passed.
+"local_checks" end time: Sep 29 01:16 대한민국 표준시
+"local_checks" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/4 Testing: windows_flow
+3/4 Test: windows_flow
+Command: "C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build/Release/window_checks.exe"
+Directory: C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build
+"windows_flow" start time: Sep 29 01:16 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   2.97 sec
+----------------------------------------------------------
+Test Passed.
+"windows_flow" end time: Sep 29 01:16 대한민국 표준시
+"windows_flow" time elapsed: 00:00:02
+----------------------------------------------------------
+
+4/4 Testing: shared_core
+4/4 Test: shared_core
+Command: "C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build/core/Release/core_tests.exe"
+Directory: C:/Users/User/AppData/Local/Temp/SubtitleTranslatorToolchain/windows-build/core
+"shared_core" start time: Sep 29 01:16 대한민국 표준시
+Output:
+----------------------------------------------------------
+shared core: all checks passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"shared_core" end time: Sep 29 01:16 대한민국 표준시
+"shared_core" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 29 01:16 대한민국 표준시

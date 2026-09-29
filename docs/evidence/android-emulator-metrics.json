@@ -1,0 +1,10 @@
+{
+  "platform": "Android 15 API35 x86_64 emulator",
+  "realDevice": false,
+  "ocrMs": 720,
+  "appPssKiB": 98753,
+  "inputWidth": 1000,
+  "inputHeight": 180,
+  "translationVerified": false,
+  "networkTest": "Wi-Fi and mobile data disabled before OCR; bundled model"
+}

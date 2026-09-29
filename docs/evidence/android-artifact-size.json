@@ -1,0 +1,122 @@
+{
+  "apkBytes": 35906759,
+  "modelAssetsUncompressedBytes": 3454500,
+  "models": [
+    {
+      "name": "assets/mlkit-google-ocr-models/aksara/aksara_page_layout_analysis_rpn_gcn.binarypb",
+      "bytes": 276
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/aksara/aksara_page_layout_analysis_ti_rpn_gcn.binarypb",
+      "bytes": 278
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc/optical/assets.extra/LabelMap.pb",
+      "bytes": 70403
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc/optical/conv_model.fb",
+      "bytes": 40808
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc/optical/lstm_model.fb",
+      "bytes": 891872
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Hani_ctc_cpu.binarypb",
+      "bytes": 329
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Jpan_ctc/optical/assets.extra/LabelMap.pb",
+      "bytes": 36246
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Jpan_ctc/optical/conv_model.fb",
+      "bytes": 40808
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Jpan_ctc/optical/lstm_model.fb",
+      "bytes": 886720
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Jpan_ctc_cpu.binarypb",
+      "bytes": 329
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc/optical/assets.extra/LabelMap.pb",
+      "bytes": 3809
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc/optical/conv_model.fb",
+      "bytes": 40848
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc/optical/lstm_model.fb",
+      "bytes": 309568
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/Latn_ctc_cpu.binarypb",
+      "bytes": 333
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/gocr_models/line_recognition_legacy_mobile/tflite_langid.tflite",
+      "bytes": 315520
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/layout/line_clustering_custom_ops/model.tflite",
+      "bytes": 129612
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/gocr/layout/line_splitting_custom_ops/model.tflite",
+      "bytes": 114384
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser/detector/region_proposal_text_detector_tflite_vertical_mbv2_v1.bincfg",
+      "bytes": 452
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser/detector/rpn_text_detector_mobile_space_to_depth_quantized_mbv2_v1.tflite",
+      "bytes": 340760
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser/rpn_text_detection_tflite_mobile_mbv2.binarypb",
+      "bytes": 194
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser/segmenter/tflite_script_detector_0.3.bincfg",
+      "bytes": 1118
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser/segmenter/tflite_script_detector_0.3.conv_model",
+      "bytes": 40808
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser/segmenter/tflite_script_detector_0.3.lstm_model",
+      "bytes": 161448
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser/taser_script_identification_tflite_mobile.binarypb",
+      "bytes": 136
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser_tflite_gocrjapanese_and_latin_mbv2_aksara_layout_gcn_mobile_engine.binarypb",
+      "bytes": 13182
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser_tflite_gocrjapanese_and_latin_mbv2_aksara_layout_gcn_mobile_engine_ti.binarypb",
+      "bytes": 13187
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser_tflite_gocrjapanese_and_latin_mbv2_aksara_layout_gcn_mobile_recognizer.binarypb",
+      "bytes": 399
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser_tflite_gocrjapanese_and_latin_mbv2_aksara_layout_gcn_mobile_runner.binarypb",
+      "bytes": 335
+    },
+    {
+      "name": "assets/mlkit-google-ocr-models/taser_tflite_gocrjapanese_and_latin_mbv2_aksara_layout_gcn_mobile_runner_ti.binarypb",
+      "bytes": 338
+    }
+  ]
+}
