@@ -22,7 +22,8 @@ SubtitleOverlay::SubtitleOverlay()
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_ShowWithoutActivating);
     setFocusPolicy(Qt::NoFocus);
-    QFont captionFont("Malgun Gothic", 18);
+    QFont captionFont("Malgun Gothic");
+    captionFont.setPixelSize(24);
     captionFont.setWeight(QFont::DemiBold);
     setFont(captionFont);
 }
@@ -31,8 +32,8 @@ QRect SubtitleOverlay::placement(const QRect& source, const QRect& workArea, con
     const QRect available = workArea.adjusted(4, 4, -4, -4);
     if (source.isEmpty() || !available.isValid() || size.isEmpty() ||
         size.width() > available.width() || size.height() > available.height()) return {};
-    const int left = std::clamp(source.center().x() - size.width() / 2,
-                               available.left(), available.right() - size.width() + 1);
+    // Start where the original line starts, like a second line of the same dialogue.
+    const int left = std::clamp(source.left(), available.left(), available.right() - size.width() + 1);
     int top = source.bottom() + 1 + Gap;
     if (top + size.height() - 1 > available.bottom())
         top = source.top() - Gap - size.height();
@@ -43,6 +44,10 @@ QRect SubtitleOverlay::placement(const QRect& source, const QRect& workArea, con
 
 bool SubtitleOverlay::showText(const QString& text, const QRect& source, const QRect& workArea) {
     if (text.trimmed().isEmpty()) { hide(); return false; }
+    // Match the size of the selected original text line.
+    QFont captionFont = font();
+    captionFont.setPixelSize(std::clamp(source.height() * 3 / 5, 16, 36));
+    setFont(captionFont);
     const int width = std::min(std::clamp(source.width(), 360, 1100), workArea.width() - 8);
     if (width <= Padding * 2) { hide(); return false; }
     const int textWidth = width - Padding * 2;
@@ -90,7 +95,7 @@ void SubtitleOverlay::paintEvent(QPaintEvent*) {
     const int lineHeight = QFontMetrics(font()).lineSpacing();
     for (int i = 0; i < lines_.size(); ++i) {
         const QRect line(Padding, Padding + i * lineHeight, width() - Padding * 2, lineHeight);
-        const int flags = Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextSingleLine;
+        const int flags = Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine;
         // Outline only: no background panel is painted.
         painter.setPen(QColor(0, 0, 0, 220));
         for (int dy = -1; dy <= 1; ++dy)

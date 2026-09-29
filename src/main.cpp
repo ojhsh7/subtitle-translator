@@ -11,7 +11,9 @@ int main(int argc, char** argv) {
     app.setApplicationVersion("0.1.0");
     app.setFont(QFont("Malgun Gothic", 10));
     MainWindow window;
-    window.show();
+    // Started with --auto and a saved region: stay minimized so the game keeps the screen.
+    if (window.autoTranslating()) window.showMinimized();
+    else window.show();
     // Explicit smoke mode exercises the real UI event loop. It performs no OCR/network request.
     if (app.arguments().contains("--smoke-test")) {
         QTimer::singleShot(900, &app, [&] {

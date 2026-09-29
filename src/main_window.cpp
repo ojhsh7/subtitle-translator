@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "capture_service.h"
 #include "credential_store.h"
+#include "languages.h"
 #include "region_selector.h"
 #include "subtitle_overlay.h"
 #include <QApplication>
@@ -23,6 +24,7 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QImageReader>
@@ -31,8 +33,15 @@
 #include <QVBoxLayout>
 #include <windows.h>
 
+namespace {
+QString describeRegion(const QScreen* screen, const QRect& region) {
+    return QStringLiteral("%1 · 위치 (%2, %3) · %4 × %5 논리 픽셀")
+        .arg(screen->name()).arg(region.x()).arg(region.y()).arg(region.width()).arg(region.height());
+}
+}
+
 MainWindow::MainWindow() {
-    setWindowTitle(QStringLiteral("자막 번역 · 일본어 → 한국어"));
+    setWindowTitle(QStringLiteral("자막 번역"));
     resize(720, 760);
     setMinimumSize(600, 620);
     setAttribute(Qt::WA_ShowWithoutActivating);
@@ -44,7 +53,8 @@ MainWindow::MainWindow() {
     auto* title = new QLabel(QStringLiteral("게임 자막 번역"));
     title->setStyleSheet("font-size:24px; font-weight:600;");
     layout->addWidget(title);
-    auto* intro = new QLabel(QStringLiteral("설정 → 모니터·영역 선택 → Ctrl + Alt + T → 한국어 결과 확인"));
+    auto* intro = new QLabel(QStringLiteral("설정 → 자막 영역 선택 → 자동 번역 켜기 (Ctrl + Alt + P)\n"
+        "대사가 바뀔 때마다 바로 아래에 번역이 나옵니다. 한 번만 번역하려면 Ctrl + Alt + T."));
     intro->setWordWrap(true);
     layout->addWidget(intro);
     auto* row = new QHBoxLayout;
@@ -54,15 +64,38 @@ MainWindow::MainWindow() {
     row->addWidget(screens_, 1);
     row->addWidget(settings_);
     layout->addLayout(row);
+    auto* languageRow = new QHBoxLayout;
+    ocrLanguageBox_ = new QComboBox;
+    for (const auto& option : Languages::Ocr) ocrLanguageBox_->addItem(QString::fromUtf8(option.label), QString::fromLatin1(option.code));
+    targetLanguageBox_ = new QComboBox;
+    for (const auto& option : Languages::Target) targetLanguageBox_->addItem(QString::fromUtf8(option.label), QString::fromLatin1(option.code));
+    {
+        const QSettings saved;
+        const int ocrIndex = ocrLanguageBox_->findData(saved.value("ocr/languages", Languages::DefaultOcr).toString());
+        ocrLanguageBox_->setCurrentIndex(qMax(0, ocrIndex));
+        const int targetIndex = targetLanguageBox_->findData(saved.value("translation/target", Languages::DefaultTarget).toString());
+        targetLanguageBox_->setCurrentIndex(qMax(0, targetIndex));
+    }
+    languageRow->addWidget(new QLabel(QStringLiteral("원문 언어")));
+    languageRow->addWidget(ocrLanguageBox_, 3);
+    languageRow->addWidget(new QLabel(QStringLiteral("→ 번역 언어")));
+    languageRow->addWidget(targetLanguageBox_, 2);
+    layout->addLayout(languageRow);
     auto* actions = new QHBoxLayout;
     select_ = new QPushButton(QStringLiteral("자막 영역 선택"));
     capture_ = new QPushButton(QStringLiteral("캡처·번역  Ctrl+Alt+T"));
     cancel_ = new QPushButton(QStringLiteral("취소"));
     cancel_->setEnabled(false);
+    auto_ = new QPushButton(QStringLiteral("자동 번역  Ctrl+Alt+P"));
+    auto_->setCheckable(true);
     actions->addWidget(select_);
+    actions->addWidget(auto_, 1);
     actions->addWidget(capture_, 1);
     actions->addWidget(cancel_);
     layout->addLayout(actions);
+    autoTimer_ = new QTimer(this);
+    autoTimer_->setInterval(400);
+    autoClock_.start();
     auto* imageActions = new QHBoxLayout;
     import_ = new QPushButton(QStringLiteral("이미지 파일 선택"));
     retry_ = new QPushButton(QStringLiteral("최근 이미지 재시도"));
@@ -100,19 +133,20 @@ MainWindow::MainWindow() {
     preview_->setMaximumHeight(150);
     preview_->setStyleSheet("background:#202733; color:#d7dee9; border-radius:6px;");
     layout->addWidget(preview_);
-    layout->addWidget(new QLabel(QStringLiteral("일본어 OCR 원문")));
+    layout->addWidget(new QLabel(QStringLiteral("OCR 원문")));
     original_ = new QPlainTextEdit;
     original_->setReadOnly(true);
     original_->setPlaceholderText(QStringLiteral("실제 OCR 결과가 여기에 표시됩니다."));
     layout->addWidget(original_, 1);
-    auto* resultButton = new QPushButton(QStringLiteral("한국어 결과 창 열기"));
+    auto* resultButton = new QPushButton(QStringLiteral("번역 결과 창 열기"));
     layout->addWidget(resultButton);
-    auto* note = new QLabel(QStringLiteral("자막 글자 부분만 선택하면 바로 아래에 번역 글자가 표시됩니다. 체크 해제로 숨길 수 있습니다.\n앱을 최소화하고 Ctrl+Alt+T로 갱신하세요. 창 모드·테두리 없는 창 모드를 권장합니다."));
+    auto* note = new QLabel(QStringLiteral("자막 글자 부분만 선택하면 바로 아래에 번역 글자가 표시됩니다. 선택한 영역은 다음 실행에도 사용합니다.\n"
+        "자동 번역은 0.4초마다 자막 영역만 확인하고, 대사 출력이 멈추면 한 번 번역합니다. 창 모드·테두리 없는 창 모드를 권장합니다."));
     note->setWordWrap(true);
     layout->addWidget(note);
     resultWindow_ = new QWidget(nullptr, Qt::Window | Qt::WindowStaysOnTopHint);
     resultWindow_->setAttribute(Qt::WA_ShowWithoutActivating);
-    resultWindow_->setWindowTitle(QStringLiteral("한국어 자막 · 번역 결과"));
+    resultWindow_->setWindowTitle(QStringLiteral("자막 번역 결과"));
     resultWindow_->resize(640, 300);
     auto* resultLayout = new QVBoxLayout(resultWindow_);
     resultStatus_ = new QLabel(QStringLiteral("아직 번역한 자막이 없습니다."));
@@ -121,7 +155,7 @@ MainWindow::MainWindow() {
     result_ = new QPlainTextEdit;
     result_->setReadOnly(true);
     result_->setFont(QFont("Malgun Gothic", 16));
-    result_->setPlaceholderText(QStringLiteral("한국어 번역이 완료되면 표시됩니다."));
+    result_->setPlaceholderText(QStringLiteral("번역이 완료되면 표시됩니다."));
     resultLayout->addWidget(result_);
     auto* copy = new QPushButton(QStringLiteral("번역 전체 선택"));
     resultLayout->addWidget(copy);
@@ -130,6 +164,17 @@ MainWindow::MainWindow() {
     connect(settings_, &QPushButton::clicked, this, &MainWindow::settings);
     connect(select_, &QPushButton::clicked, this, &MainWindow::chooseRegion);
     connect(capture_, &QPushButton::clicked, this, &MainWindow::startCapture);
+    connect(auto_, &QPushButton::toggled, this, &MainWindow::setAutoTranslate);
+    // A new language changes what the current line means: forget the cache and read it again.
+    connect(ocrLanguageBox_, &QComboBox::currentIndexChanged, this, [this] {
+        QSettings().setValue("ocr/languages", ocrLanguages());
+        st_reset_cache(session_); detector_.reset();
+    });
+    connect(targetLanguageBox_, &QComboBox::currentIndexChanged, this, [this] {
+        QSettings().setValue("translation/target", targetLanguage());
+        st_reset_cache(session_); detector_.reset();
+    });
+    connect(autoTimer_, &QTimer::timeout, this, &MainWindow::autoTick);
     connect(cancel_, &QPushButton::clicked, this, &MainWindow::cancel);
     connect(qApp, &QGuiApplication::screenAdded, this, [this] { refreshScreens(); });
     connect(qApp, &QGuiApplication::screenRemoved, this, [this] {
@@ -144,7 +189,13 @@ MainWindow::MainWindow() {
         original_->setPlainText(QString::fromUtf8(st_source_text(session_)));
         if (decision == ST_EMPTY || decision == ST_TOO_LONG) {
             st_fail(session_, request_);
-        resultStatus_->setText(QStringLiteral("OCR 결과를 번역할 수 없습니다."));
+            if (decision == ST_EMPTY && autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE) {
+                // An empty dialogue box is normal while playing: hide the old caption quietly.
+                subtitleOverlay_->hide(); setBusy(false);
+                status_->setText(QStringLiteral("자동 번역 중 · 자막이 없어 다음 대사를 기다립니다."));
+                return;
+            }
+            resultStatus_->setText(QStringLiteral("OCR 결과를 번역할 수 없습니다."));
             finish(decision == ST_EMPTY ? QStringLiteral("인식한 글자가 없습니다.")
                 : QStringLiteral("인식 텍스트가 너무 깁니다. 자막 부분만 선택하세요."));
             return;
@@ -162,39 +213,50 @@ MainWindow::MainWindow() {
             finish(QStringLiteral("OCR 완료. API 키·전송 동의가 없어 번역 요청은 보내지 않았습니다."));
             return;
         }
-        status_->setText(QStringLiteral("DeepL에서 한국어로 번역 중…"));
+        status_->setText(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(Languages::targetLabel(targetLanguage())));
         resultStatus_->setText(QStringLiteral("번역 중…"));
-        translation_.translate(QString::fromUtf8(st_source_text(session_)), apiKey_, freeApi_);
+        translation_.translate(QString::fromUtf8(st_source_text(session_)), apiKey_, freeApi_,
+                               targetLanguage(), Languages::deeplSource(ocrLanguages()));
     });
     connect(&ocr_, &OcrService::failed, this, [this](const QString& error) {
         if (!busy_) return;
         st_fail(session_, request_);
-        resultStatus_->setText(QStringLiteral("OCR 실패 · 한국어 번역 없음"));
+        resultStatus_->setText(QStringLiteral("OCR 실패 · 번역 없음"));
         finish(error);
     });
-    connect(&translation_, &TranslationService::translated, this, [this](const QString& text) {
+    connect(&translation_, &TranslationService::translated, this, [this](const QString& text, const QString& detected) {
         if (!busy_) return;
         if (!st_complete(session_, request_, text.toUtf8().constData())) return;
         result_->setPlainText(text);
-        resultStatus_->setText(QStringLiteral("번역 완료 · DeepL · 일본어 → 한국어"));
+        const QString target = Languages::targetLabel(targetLanguage());
+        resultStatus_->setText(Languages::sameLanguage(detected, targetLanguage())
+            ? QStringLiteral("원문이 이미 %1입니다 · DeepL이 그대로 돌려준 문장입니다.").arg(target)
+            : QStringLiteral("번역 완료 · DeepL · %1 → %2")
+                  .arg(detected.isEmpty() ? QStringLiteral("자동 감지") : Languages::languageName(detected), target));
         presentTranslation();
-        finish(QStringLiteral("번역 완료. 다음 자막에서 Ctrl + Alt + T를 누르세요."));
+        finish(autoTranslating() ? QStringLiteral("자동 번역 중 · 번역 완료. 다음 대사를 기다립니다.")
+                                 : QStringLiteral("번역 완료. 다음 자막에서 Ctrl + Alt + T를 누르세요."));
     });
     connect(&translation_, &TranslationService::failed, this, [this](const QString& error) {
         if (!busy_) return;
         st_fail(session_, request_);
-        resultStatus_->setText(QStringLiteral("번역 실패 · 일본어 원문은 앱에서 확인할 수 있습니다."));
+        resultStatus_->setText(QStringLiteral("번역 실패 · 원문은 앱에서 확인할 수 있습니다."));
         finish(error);
     });
     QSettings saved;
     executable_ = saved.value("ocr/executable").toString();
     tessdata_ = saved.value("ocr/tessdata").toString();
-    psm_ = saved.value("ocr/psm", 6).toInt() == 7 ? 7 : 6;
+    // New key: the old "ocr/psm" only ever held the former default, so automatic layout applies to everyone.
+    psm_ = saved.value("ocr/layout", 0).toInt();
+    if (psm_ != 6 && psm_ != 7) psm_ = 0;
     freeApi_ = saved.value("translation/freeApi", true).toBool();
     consent_ = saved.value("translation/consent", false).toBool();
     remember_ = saved.value("translation/rememberKey", false).toBool();
     QString credentialError;
     if (remember_) apiKey_ = Credentials::load(credentialError);
+    // A saved path can vanish (e.g. an old copy in a temp folder); fall back to the bundled engine.
+    if (!executable_.isEmpty() && !QFileInfo::exists(executable_)) { executable_.clear(); tessdata_.clear(); }
+    if (!tessdata_.isEmpty() && !QDir(tessdata_).exists()) tessdata_.clear();
     if (executable_.isEmpty()) {
         const QString bundled = QCoreApplication::applicationDirPath() + "/ocr/tesseract.exe";
         const QString installed = "C:/Program Files/Tesseract-OCR/tesseract.exe";
@@ -207,18 +269,33 @@ MainWindow::MainWindow() {
         if (QDir(adjacent).exists()) tessdata_ = adjacent;
     }
     refreshScreens();
-    registered_ = RegisterHotKey(reinterpret_cast<HWND>(winId()), 1,
-        MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'T') != 0;
-    status_->setText(registered_ ? QStringLiteral("준비됨 · 먼저 설정을 확인하고 자막 영역을 선택하세요.")
-        : QStringLiteral("Ctrl+Alt+T 등록 실패: 다른 앱에서 사용 중일 수 있습니다. 캡처 버튼을 사용하세요."));
+    restoreRegion();
+    const HWND handle = reinterpret_cast<HWND>(winId());
+    registered_ = RegisterHotKey(handle, 1, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'T') != 0;
+    autoRegistered_ = RegisterHotKey(handle, 2, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'P') != 0;
+    QString ready = registered_ ? QStringLiteral("준비됨 · 먼저 설정을 확인하고 자막 영역을 선택하세요.")
+        : QStringLiteral("Ctrl+Alt+T 등록 실패: 다른 앱에서 사용 중일 수 있습니다. 캡처 버튼을 사용하세요.");
+    if (!autoRegistered_) ready += QStringLiteral("\nCtrl+Alt+P 등록 실패: 자동 번역 버튼을 사용하세요.");
+    status_->setText(ready);
+    const bool setupComplete = saved.value("setupComplete", false).toBool();
+    // The desktop shortcut passes --auto: the user chose to start translating right away.
+    if (QCoreApplication::arguments().contains("--auto")) {
+        if (setupComplete && !region_.isEmpty()) setAutoTranslate(true);
+        else {
+            autoPending_ = true;
+            status_->setText(QStringLiteral("설정을 마치고 자막 영역을 선택하면 자동 번역이 바로 시작됩니다."));
+        }
+    }
     if (!credentialError.isEmpty()) status_->setText(credentialError);
-    if (!saved.value("setupComplete", false).toBool() &&
+    if (!setupComplete &&
         !QCoreApplication::arguments().contains("--smoke-test") && !qApp->property("testMode").toBool())
         QTimer::singleShot(0, this, &MainWindow::settings);
 }
 MainWindow::~MainWindow() {
+    autoTimer_->stop();
     cancel();
     if (registered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 1);
+    if (autoRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 2);
     delete subtitleOverlay_;
     delete resultWindow_;
     st_destroy(session_);
@@ -237,7 +314,7 @@ void MainWindow::settings() {
     dialog.setWindowTitle(QStringLiteral("최초 설정 · OCR와 번역"));
     dialog.resize(700, 700);
     auto* layout = new QVBoxLayout(&dialog);
-    auto* heading = new QLabel(QStringLiteral("1. 일본어 OCR 준비"));
+    auto* heading = new QLabel(QStringLiteral("1. OCR 준비 · 원문 언어: %1").arg(ocrLanguageBox_->currentText()));
     layout->addWidget(heading);
     auto* form = new QFormLayout;
     auto* exe = new QLineEdit(executable_);
@@ -258,20 +335,21 @@ void MainWindow::settings() {
     form->addRow(QStringLiteral("tesseract.exe"), pathRow(exe, false));
     form->addRow(QStringLiteral("tessdata 폴더"), pathRow(tessdataEdit, true));
     auto* mode = new QComboBox;
+    mode->addItem(QStringLiteral("자동 · 선택 영역 높이로 판단"), 0);
     mode->addItem(QStringLiteral("여러 줄 자막 (PSM 6)"), 6);
     mode->addItem(QStringLiteral("한 줄 자막 (PSM 7)"), 7);
-    mode->setCurrentIndex(psm_ == 7 ? 1 : 0);
+    mode->setCurrentIndex(qMax(0, mode->findData(psm_)));
     form->addRow(QStringLiteral("자막 배치"), mode);
     layout->addLayout(form);
-    auto* probe = new QPushButton(QStringLiteral("일본어 OCR 설치 확인"));
-    auto* probeStatus = new QLabel(QStringLiteral("Tesseract 5와 jpn.traineddata가 필요합니다. 키 없이 OCR만 사용할 수 있습니다."));
+    auto* probe = new QPushButton(QStringLiteral("OCR 설치·언어 모델 확인"));
+    auto* probeStatus = new QLabel(QStringLiteral("Tesseract 5와 선택한 원문 언어의 traineddata가 필요합니다. 원문 언어는 메인 창에서 고릅니다. 키 없이 OCR만 사용할 수 있습니다."));
     probeStatus->setWordWrap(true);
     layout->addWidget(probe); layout->addWidget(probeStatus);
     OcrService checker;
     connect(probe, &QPushButton::clicked, &dialog, [&] {
         probe->setEnabled(false);
-        probeStatus->setText(QStringLiteral("일본어 모델 확인 중…"));
-        checker.probe(exe->text().trimmed(), tessdataEdit->text().trimmed());
+        probeStatus->setText(QStringLiteral("언어 모델 확인 중…"));
+        checker.probe(exe->text().trimmed(), tessdataEdit->text().trimmed(), ocrLanguages());
     });
     connect(&checker, &OcrService::probeFinished, &dialog, [&](bool, const QString& message) {
         probeStatus->setText(message); probe->setEnabled(true);
@@ -330,7 +408,8 @@ void MainWindow::settings() {
     layout->addWidget(remember);
     auto* privacy = new QLabel(QStringLiteral(
         "화면 이미지는 PC 메모리에서 Tesseract로 전달하며 파일로 저장하거나 서버에 보내지 않습니다.\n"
-        "번역 시 인식한 일본어 텍스트와 API 인증 정보가 HTTPS로 DeepL에 전송됩니다.\n"
+        "번역 시 인식한 원문 텍스트와 API 인증 정보가 HTTPS로 DeepL에 전송됩니다.\n"
+        "자동 번역을 켜면 대사가 바뀔 때마다 새 원문이 전송됩니다. 바로 앞과 같은 원문은 다시 보내지 않습니다.\n"
         "요금제와 사용량에 따라 비용이 발생하거나 무료 한도가 소진될 수 있습니다. 계정의 한도를 확인하세요.\n"
         "동의하지 않거나 키가 없으면 로컬 OCR까지만 실행합니다. 저장을 선택하지 않은 키는 종료 시 사라집니다.\n"
         "번역 요청을 취소해도 이미 서버가 처리한 사용량은 청구될 수 있습니다."));
@@ -370,7 +449,7 @@ void MainWindow::settings() {
         psm_ = mode->currentData().toInt();
         QSettings saved;
         saved.setValue("ocr/executable", executable_); saved.setValue("ocr/tessdata", tessdata_);
-        saved.setValue("ocr/psm", psm_); saved.setValue("translation/freeApi", freeApi_);
+        saved.setValue("ocr/layout", psm_); saved.setValue("translation/freeApi", freeApi_);
         saved.setValue("translation/consent", consent_); saved.setValue("translation/rememberKey", remember_);
         saved.setValue("setupComplete", true);
         saved.sync();
@@ -406,13 +485,15 @@ void MainWindow::chooseRegion() {
             restoreOverlay_ = false;
             selectedScreen_ = screen; region_ = selector.selectedRegion();
             selectedGeometry_ = screen->geometry(); selectedDpr_ = screen->devicePixelRatio();
-            regionLabel_->setText(QStringLiteral("%1 · 위치 (%2, %3) · %4 × %5 논리 픽셀")
-                .arg(screen->name()).arg(region_.x()).arg(region_.y()).arg(region_.width()).arg(region_.height()));
-            status_->setText(QStringLiteral("영역 선택 완료. Ctrl + Alt + T 또는 캡처 버튼을 누르세요."));
+            regionLabel_->setText(describeRegion(screen, region_));
+            saveRegion();
+            detector_.reset();
+            status_->setText(QStringLiteral("영역 선택 완료. 자동 번역을 켜거나 Ctrl + Alt + T를 누르세요."));
         }
         modal_ = false;
         restoreWindows();
-        if (selected && inlineCaptions_->isChecked()) previewSubtitle();
+        if (selected && autoPending_) setAutoTranslate(true);
+        else if (selected && inlineCaptions_->isChecked()) previewSubtitle();
     });
 }
 void MainWindow::startCapture() {
@@ -506,9 +587,13 @@ bool MainWindow::nativeEvent(const QByteArray&, void* message, qintptr* result) 
     if (msg->message == WM_HOTKEY && msg->wParam == 1) {
         startCapture(); *result = 0; return true;
     }
+    if (msg->message == WM_HOTKEY && msg->wParam == 2) {
+        setAutoTranslate(!autoTranslating()); *result = 0; return true;
+    }
     return false;
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
+    autoTimer_->stop();
     cancel();
     resultWindow_->hide(); subtitleOverlay_->hide();
     event->accept();
@@ -528,8 +613,8 @@ void MainWindow::processImage(const QImage& image, int source) {
     lastImage_ = image; lastSource_ = source;
     setBusy(true);
     preview_->setPixmap(QPixmap::fromImage(image).scaled(preview_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    status_->setText(QStringLiteral("PC에서 일본어 OCR 처리 중…"));
-    ocr_.recognize(image, executable_, tessdata_, psm_);
+    status_->setText(QStringLiteral("PC에서 OCR 처리 중…"));
+    ocr_.recognize(image, executable_, tessdata_, psm_, ocrLanguages());
 }
 void MainWindow::importImage() {
     if (busy_ || modal_) return;
@@ -559,3 +644,92 @@ void MainWindow::importImage() {
         return reader.read();
     }));
 }
+bool MainWindow::autoTranslating() const { return autoTimer_->isActive(); }
+void MainWindow::setAutoTranslate(bool enabled) {
+    const QSignalBlocker blocker(auto_);
+    detector_.reset();
+    if (!enabled) {
+        autoPending_ = false;
+        auto_->setChecked(false);
+        if (!autoTimer_->isActive()) return;
+        autoTimer_->stop();
+        subtitleOverlay_->hide();
+        status_->setText(QStringLiteral("자동 번역을 껐습니다. Ctrl + Alt + P로 다시 켜거나 Ctrl + Alt + T로 한 번씩 번역하세요."));
+        return;
+    }
+    if (!selectedScreen_ || region_.isEmpty()) {
+        auto_->setChecked(false);
+        autoPending_ = true;
+        status_->setText(QStringLiteral("먼저 자막 영역을 선택하세요. 선택하면 자동 번역이 바로 시작됩니다."));
+        return;
+    }
+    autoPending_ = false;
+    auto_->setChecked(true);
+    autoTimer_->start();
+    showMinimized(); // Keep the app window off the game's subtitle.
+    status_->setText(QStringLiteral("자동 번역 중 · 대사가 바뀌면 번역합니다. Ctrl + Alt + P로 멈춥니다."));
+    showSubtitle(QStringLiteral("자동 번역 켜짐 · 대사가 바뀌면 여기에 번역이 나옵니다 (Ctrl+Alt+P 멈춤)"));
+}
+void MainWindow::autoTick() {
+    if (busy_ || modal_) return;
+    if (!selectedScreen_ || region_.isEmpty() || selectedScreen_->geometry() != selectedGeometry_ ||
+        selectedScreen_->devicePixelRatio() != selectedDpr_) {
+        setAutoTranslate(false);
+        status_->setText(QStringLiteral("모니터 구성이 바뀌어 자동 번역을 멈췄습니다. 영역을 다시 선택하세요."));
+        return;
+    }
+    if (executable_.isEmpty() || !QFileInfo::exists(executable_)) {
+        setAutoTranslate(false);
+        status_->setText(QStringLiteral("설정에서 올바른 tesseract.exe 경로를 지정하세요."));
+        return;
+    }
+    // Polling does not hide windows (that would flicker), so skip frames our own windows cover.
+    if (coversRegion(region_.translated(selectedGeometry_.topLeft()))) {
+        status_->setText(QStringLiteral("앱 창이 자막 영역을 가리고 있어 자동 번역을 잠시 건너뜁니다. 창을 옮기거나 최소화하세요."));
+        return;
+    }
+    QString error;
+    const QImage image = Capture::region(selectedScreen_, region_, error);
+    if (image.isNull()) {
+        setAutoTranslate(false);
+        status_->setText(error);
+        return;
+    }
+    if (detector_.feed(image, autoClock_.elapsed()) != ChangeDetector::Decision::Process) return;
+    // Keep the previous caption on screen until the new line has a result.
+    original_->clear(); result_->clear();
+    processImage(image, ST_SCREEN_CAPTURE);
+}
+bool MainWindow::coversRegion(const QRect& global) const {
+    return (isVisible() && !isMinimized() && frameGeometry().intersects(global)) ||
+           (resultWindow_->isVisible() && resultWindow_->frameGeometry().intersects(global)) ||
+           (subtitleOverlay_->isVisible() && subtitleOverlay_->geometry().intersects(global));
+}
+void MainWindow::saveRegion() {
+    QSettings saved;
+    saved.setValue("capture/screen", selectedScreen_->name());
+    saved.setValue("capture/screenGeometry", selectedGeometry_);
+    saved.setValue("capture/devicePixelRatio", selectedDpr_);
+    saved.setValue("capture/region", region_);
+}
+void MainWindow::restoreRegion() {
+    QSettings saved;
+    const QRect region = saved.value("capture/region").toRect();
+    if (region.isEmpty()) return;
+    const auto list = QGuiApplication::screens();
+    for (int i = 0; i < list.size(); ++i) {
+        QScreen* screen = list[i];
+        if (screen->name() != saved.value("capture/screen").toString()) continue;
+        // A saved region is only meaningful on the same resolution and scale.
+        if (screen->geometry() != saved.value("capture/screenGeometry").toRect() ||
+            !qFuzzyCompare(screen->devicePixelRatio(), saved.value("capture/devicePixelRatio").toReal())) break;
+        selectedScreen_ = screen; selectedGeometry_ = screen->geometry();
+        selectedDpr_ = screen->devicePixelRatio(); region_ = region;
+        screens_->setCurrentIndex(i);
+        regionLabel_->setText(describeRegion(screen, region_) + QStringLiteral(" · 저장된 영역"));
+        return;
+    }
+    regionLabel_->setText(QStringLiteral("저장한 영역의 모니터 구성이 바뀌었습니다. 영역을 다시 선택하세요."));
+}
+QString MainWindow::ocrLanguages() const { return ocrLanguageBox_->currentData().toString(); }
+QString MainWindow::targetLanguage() const { return targetLanguageBox_->currentData().toString(); }

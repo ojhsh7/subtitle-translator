@@ -1,4 +1,5 @@
 #include "ocr_service.h"
+#include "languages.h"
 #include <QBuffer>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -48,35 +49,54 @@ void OcrService::fail(const QString& message) {
     if (probe) emit probeFinished(false, message);
     else emit failed(message);
 }
-void OcrService::recognize(const QImage& image, const QString& executable, const QString& data, int psm) {
+QImage OcrService::prepare(const QImage& image) {
+    if (image.height() >= 40) return image;
+    return image.scaled(image.width() * 2, image.height() * 2, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+}
+int OcrService::resolvePsm(int psm, const QSize& imageSize) {
+    if (psm != 0) return psm;
+    // Block mode (PSM 6) sometimes repeats the first syllable of a lone line with several models loaded.
+    return imageSize.height() <= SingleLineMaxHeight ? 7 : 6;
+}
+QString OcrService::cleanText(const QString& text) {
+    static const QRegularExpression standalonePipe(QStringLiteral("(^|\\s)\\|(?=$|\\s|[A-Za-z'’?!.,])"));
+    QString cleaned = text;
+    return cleaned.replace(standalonePipe, QStringLiteral("\\1I"));
+}
+void OcrService::recognize(const QImage& image, const QString& executable, const QString& data, int psm,
+                           const QString& languages) {
     if (busy_) return;
     probing_ = false;
     if (image.isNull() || qint64(image.width()) * image.height() > 16000000) {
         emit failed(QStringLiteral("OCR 이미지가 비어 있거나 너무 큽니다.")); return;
     }
+    psm = resolvePsm(psm, image.size());
     if (psm != 6 && psm != 7) { emit failed(QStringLiteral("지원하지 않는 OCR 배치입니다.")); return; }
+    if (!Languages::isOcrCode(languages)) { emit failed(QStringLiteral("지원하지 않는 OCR 언어입니다.")); return; }
+    languages_ = languages;
     busy_ = true; elapsed_.start(); peakMemory_ = 0; elapsedMs_ = 0;
     deadline_.start(20000);
     const auto ticket = ++generation_;
     auto* watcher = new QFutureWatcher<QByteArray>(this);
-    connect(watcher, &QFutureWatcher<QByteArray>::finished, this, [this, watcher, ticket, executable, data, psm] {
+    connect(watcher, &QFutureWatcher<QByteArray>::finished, this, [this, watcher, ticket, executable, data, psm, languages] {
         auto bytes = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
         if (bytes.isEmpty() || bytes.size() > 32 * 1024 * 1024) {
             fail(QStringLiteral("이미지 인코딩에 실패했거나 이미지가 너무 큽니다.")); return;
         }
-        QStringList args{"stdin", "stdout", "-l", "jpn", "--oem", "1", "--psm", QString::number(psm)};
+        QStringList args{"stdin", "stdout", "-l", languages, "--oem", "1", "--psm", QString::number(psm)};
         if (!data.isEmpty()) args << "--tessdata-dir" << data;
         launch(executable, args, std::move(bytes));
     });
     watcher->setFuture(QtConcurrent::run([image] {
         QByteArray bytes; QBuffer buffer(&bytes); buffer.open(QIODevice::WriteOnly);
-        if (!image.save(&buffer, "PNG")) return QByteArray();
+        if (!prepare(image).save(&buffer, "PNG")) return QByteArray();
         return bytes;
     }));
 }
-void OcrService::probe(const QString& executable, const QString& data) {
+void OcrService::probe(const QString& executable, const QString& data, const QString& languages) {
     if (busy_) return;
+    languages_ = languages;
     probing_ = true; busy_ = true; elapsed_.start(); elapsedMs_ = 0; peakMemory_ = 0;
     ++generation_; deadline_.start(20000);
     QStringList args{"--list-langs"};
@@ -114,7 +134,8 @@ void OcrService::launch(const QString& executable, const QStringList& args, QByt
             collect();
             if (process_ != p) return;
             if (exit != QProcess::NormalExit || code != 0) {
-                fail(QStringLiteral("OCR 실행 실패. 일본어 모델(jpn)과 tessdata 경로를 확인하세요.")); return;
+                fail(QStringLiteral("OCR 실행 실패. 선택한 언어 모델(%1)과 tessdata 경로를 확인하세요.")
+                    .arg(languages_)); return;
             }
             const bool probe = probing_;
             QStringDecoder decoder(QStringDecoder::Utf8);
@@ -122,11 +143,15 @@ void OcrService::launch(const QString& executable, const QStringList& args, QByt
             if (decoder.hasError()) { fail(QStringLiteral("OCR 출력의 문자 인코딩을 읽지 못했습니다.")); return; }
             cancel();
             if (probe) {
-                const bool japanese = text.split(QRegularExpression("[\\r\\n]+")).contains("jpn");
-                emit probeFinished(japanese, japanese ? QStringLiteral("일본어 OCR 엔진과 jpn 모델을 확인했습니다.")
-                    : QStringLiteral("jpn 모델이 없습니다. tessdata 폴더에 일본어 모델을 준비하세요."));
+                const QStringList installed = text.split(QRegularExpression("[\\r\\n]+"));
+                QStringList missing;
+                for (const QString& model : languages_.split('+'))
+                    if (!installed.contains(model)) missing << model;
+                emit probeFinished(missing.isEmpty(), missing.isEmpty()
+                    ? QStringLiteral("OCR 엔진과 필요한 언어 모델(%1)을 확인했습니다.").arg(languages_.split('+').join(", "))
+                    : QStringLiteral("없는 언어 모델: %1. tessdata 폴더에 해당 traineddata를 준비하세요.").arg(missing.join(", ")));
             } else if (text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
-            else emit recognized(text);
+            else emit recognized(cleanText(text));
         });
     p->start(executable, args, QIODevice::ReadWrite);
 }

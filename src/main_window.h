@@ -1,12 +1,15 @@
 #pragma once
+#include "change_detector.h"
 #include "ocr_service.h"
 #include "translation_service.h"
+#include <QElapsedTimer>
 #include <QMainWindow>
 #include <QImage>
 #include "subtitle/core.h"
 #include <QPointer>
 #include <QRect>
 class QComboBox;
+class QTimer;
 class QLabel;
 class QPushButton;
 class QPlainTextEdit;
@@ -19,6 +22,7 @@ public:
     friend class WindowChecks;
     MainWindow();
     ~MainWindow() override;
+    bool autoTranslating() const;
 protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
     void closeEvent(QCloseEvent*) override;
@@ -38,7 +42,16 @@ private:
     void presentTranslation();
     void previewSubtitle();
     bool showSubtitle(const QString& text);
+    void setAutoTranslate(bool enabled);
+    void autoTick();
+    bool coversRegion(const QRect& global) const;
+    void saveRegion();
+    void restoreRegion();
+    QString ocrLanguages() const;
+    QString targetLanguage() const;
     QComboBox* screens_;
+    QComboBox* ocrLanguageBox_;
+    QComboBox* targetLanguageBox_;
     QLabel* status_;
     QLabel* regionLabel_;
     QLabel* preview_;
@@ -48,6 +61,10 @@ private:
     QPushButton* cancel_;
     QPushButton* import_;
     QPushButton* retry_;
+    QPushButton* auto_;
+    QTimer* autoTimer_;
+    QElapsedTimer autoClock_;
+    ChangeDetector detector_;
     QImage lastImage_;
     int lastSource_ = ST_IMAGE_FILE;
     int activeSource_ = ST_IMAGE_FILE;
@@ -75,9 +92,11 @@ private:
     bool busy_ = false;
     bool modal_ = false;
     bool registered_ = false;
+    bool autoRegistered_ = false;
+    bool autoPending_ = false;  // --auto launch waiting for setup or a region
     bool restoreMain_ = false;
     bool restoreResult_ = false;
     bool restoreOverlay_ = false;
-    int psm_ = 6;
+    int psm_ = 0; // 0 = automatic, 6 = block, 7 = single line
     quint64 generation_ = 0;
 };

@@ -1,6 +1,7 @@
 #include "ocr_service.h"
 #include "translation_service.h"
 #include "credential_store.h"
+#include "languages.h"
 #include "subtitle/core.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
@@ -21,12 +22,18 @@ int main(int argc, char** argv) {
     parser.addOptions({
         {{"i","input"}, "Saved image to OCR.", "path"},
         {"tesseract", "Path to tesseract.exe.", "path"},
-        {"tessdata", "Folder containing jpn.traineddata.", "path"},
+        {"tessdata", "Folder containing the traineddata models.", "path"},
+        {"lang", "Tesseract language code from the app list (default jpn+eng+kor).", "code", Languages::DefaultOcr},
+        {"target", "DeepL target language (default KO).", "code", Languages::DefaultTarget},
         {"translate", "Send OCR text to DeepL using the user's credential or SUBTITLE_TRANSLATOR_API_KEY."},
         {"pro", "Use the DeepL API Pro endpoint."}
     });
     parser.process(app);
     if (!parser.isSet("input") || !parser.isSet("tesseract")) parser.showHelp(2);
+    const QString languages = parser.value("lang"), target = parser.value("target");
+    if (!Languages::isOcrCode(languages) || !Languages::isTargetCode(target)) {
+        QTextStream(stderr) << "Unsupported --lang or --target\n"; return 2;
+    }
     QImageReader reader(parser.value("input")); reader.setAutoTransform(true);
     if (!reader.size().isValid() || qint64(reader.size().width()) * reader.size().height() > 16000000) {
         QTextStream(stderr) << "Invalid or oversized image\n"; return 2;
@@ -42,7 +49,7 @@ int main(int argc, char** argv) {
     QJsonObject report{
         {"schema", "subtitle.pipeline.v1"}, {"measurementPlatform", "Windows host"},
         {"inputType", "saved-image"}, {"width", image.width()}, {"height", image.height()},
-        {"ocrEngine", "Tesseract CLI"}, {"modelBytes", QFileInfo(parser.value("tessdata") + "/jpn.traineddata").size()},
+        {"ocrEngine", "Tesseract CLI"}, {"ocrLanguages", languages}, {"targetLanguage", target},
         {"imageUploaded", false}, {"translationNetworkUsed", false},
         {"mobilePerformance", "Not measured; no mobile estimate provided"},
         {"ocrTestData", "Actual image input; no synthetic OCR result"}
@@ -68,7 +75,7 @@ int main(int argc, char** argv) {
         report["ocrMs"] = phase.elapsed();
         report["ocrChildPeakWorkingSetBytes"] = qint64(ocr.peakWorkingSetBytes());
         const int decision = st_accept_ocr(session, request, text.toUtf8().constData());
-        report["japaneseText"] = QString::fromUtf8(st_source_text(session));
+        report["sourceText"] = QString::fromUtf8(st_source_text(session));
         if (decision != ST_TRANSLATE) {
             report["state"] = "failed"; report["stage"] = "ocr"; report["message"] = "Empty or oversized OCR output"; finish(3); return;
         }
@@ -90,13 +97,14 @@ int main(int argc, char** argv) {
         report["translationNetworkUsed"] = true;
         report["outboundTextUtf8Bytes"] = text.toUtf8().size();
         report["networkMeasurementNote"] = "Text payload only; TLS and HTTP transport bytes are not measured.";
-        translation.translate(QString::fromUtf8(st_source_text(session)), key, !parser.isSet("pro"));
+        translation.translate(QString::fromUtf8(st_source_text(session)), key, !parser.isSet("pro"),
+                              target, Languages::deeplSource(languages));
         key.fill(QChar('\0'));
     });
-    QObject::connect(&translation, &TranslationService::translated, &app, [&](const QString& text) {
+    QObject::connect(&translation, &TranslationService::translated, &app, [&](const QString& text, const QString& detected) {
         st_complete(session, request, text.toUtf8().constData());
         report["translationMs"] = phase.elapsed(); report["state"] = "complete";
-        report["koreanText"] = text; finish(0);
+        report["translatedText"] = text; report["detectedSourceLanguage"] = detected; finish(0);
     });
     QObject::connect(&translation, &TranslationService::failed, &app, [&](const QString& error) {
         st_fail(session, request);
@@ -104,7 +112,7 @@ int main(int argc, char** argv) {
         report["stage"] = "translation"; report["message"] = error; finish(5);
     });
     QTimer::singleShot(0, &app, [&] {
-        ocr.recognize(image, parser.value("tesseract"), parser.value("tessdata"), 6);
+        ocr.recognize(image, parser.value("tesseract"), parser.value("tessdata"), 0, languages);
     });
     QTimer::singleShot(60000, &app, [&] {
         report["state"] = "timeout"; ocr.cancel(); translation.cancel(); finish(6);

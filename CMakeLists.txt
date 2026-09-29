@@ -14,7 +14,9 @@ add_library(subtitle_services STATIC
   src/ocr_service.cpp src/ocr_service.h
   src/translation_service.cpp src/translation_service.h
   src/credential_store.cpp src/credential_store.h
-  src/capture_service.cpp src/capture_service.h)
+  src/capture_service.cpp src/capture_service.h
+  src/change_detector.cpp src/change_detector.h
+  src/languages.cpp src/languages.h)
 target_include_directories(subtitle_services PUBLIC src)
 target_link_libraries(subtitle_services PUBLIC Qt6::Widgets Qt6::Network PRIVATE Advapi32 Psapi Qt6::Concurrent)
 qt_add_executable(SubtitleTranslator WIN32
@@ -39,6 +41,12 @@ if(BUILD_TESTING)
     target_compile_options(integration_checks PRIVATE /utf-8)
   endif()
   add_test(NAME local_checks COMMAND integration_checks)
+  qt_add_executable(change_detector_tests tests/change_detector_tests.cpp)
+  target_link_libraries(change_detector_tests PRIVATE subtitle_services Qt6::Test)
+  if(MSVC)
+    target_compile_options(change_detector_tests PRIVATE /utf-8)
+  endif()
+  add_test(NAME change_detection COMMAND change_detector_tests)
 endif()
 install(TARGETS SubtitleTranslator RUNTIME DESTINATION .)
 

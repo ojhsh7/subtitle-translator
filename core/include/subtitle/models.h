@@ -12,7 +12,7 @@ struct TextBlock {
 };
 struct OcrResult {
     std::string utf8Text;
-    std::string language = "ja";
+    std::string language; // Engine language set, e.g. "jpn+eng+kor"; empty when unknown.
     std::vector<TextBlock> blocks;
 };
 enum class ErrorCode {
@@ -31,7 +31,9 @@ struct Error {
 struct TranslationResult {
     std::uint64_t requestId = 0;
     OcrResult original;
-    std::string koreanText;
+    std::string sourceLanguage; // Detected by the provider, e.g. "EN"; empty when unknown.
+    std::string targetLanguage; // Provider code, e.g. "KO" or "EN-US".
+    std::string translatedText;
     bool reusedFromMemory = false;
 };
 std::string normalizeText(const std::string& utf8);

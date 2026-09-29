@@ -4,9 +4,14 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 namespace {
 bool validKey(const QString& key) {
     return !key.isEmpty() && key.size() <= 512 && !key.contains('\r') && !key.contains('\n');
+}
+bool validLanguage(const QString& code) {
+    static const QRegularExpression pattern(QStringLiteral("^[A-Z]{2}(-[A-Z]{2,4})?$"));
+    return pattern.match(code).hasMatch();
 }
 QNetworkRequest deeplRequest(bool freeApi, const char* path, const QString& key) {
     QNetworkRequest request(QUrl(QString::fromLatin1(freeApi ? "https://api-free.deepl.com" : "https://api.deepl.com") + path));
@@ -52,7 +57,13 @@ bool TranslationService::readAvailable() {
     }
     return true;
 }
-void TranslationService::translate(const QString& text, const QString& apiKey, bool freeApi) {
+QByteArray TranslationService::requestBody(const QString& text, const QString& targetLang, const QString& sourceLang) {
+    QJsonObject object{{"text",QJsonArray{text}},{"target_lang",targetLang}};
+    if (!sourceLang.isEmpty()) object.insert("source_lang", sourceLang);
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+void TranslationService::translate(const QString& text, const QString& apiKey, bool freeApi,
+                                   const QString& targetLang, const QString& sourceLang) {
     if (isBusy()) return;
     const QString key = apiKey.trimmed();
     if (!validKey(key)) {
@@ -61,8 +72,10 @@ void TranslationService::translate(const QString& text, const QString& apiKey, b
     if (text.trimmed().isEmpty() || text.toUtf8().size() > 32768) {
         emit failed(QStringLiteral("번역할 텍스트가 비어 있거나 너무 깁니다.")); return;
     }
-    const QJsonObject object{{"text",QJsonArray{text}},{"source_lang","JA"},{"target_lang","KO"}};
-    const QByteArray body = QJsonDocument(object).toJson(QJsonDocument::Compact);
+    if (!validLanguage(targetLang) || (!sourceLang.isEmpty() && !validLanguage(sourceLang))) {
+        emit failed(QStringLiteral("지원하지 않는 번역 언어 설정입니다.")); return;
+    }
+    const QByteArray body = requestBody(text, targetLang, sourceLang);
     if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 큽니다.")); return; }
     QNetworkRequest request = deeplRequest(freeApi, "/v2/translate", key);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -105,8 +118,9 @@ void TranslationService::start(QNetworkReply* reply, Kind kind) {
             if(decodeUsage(status,body,used,limit,error)) emit usageChecked(used,limit); else emit failed(error);
             return;
         }
-        const QString result = decodeResponse(status,body,error);
-        if(!error.isEmpty()) emit failed(error); else emit translated(result);
+        QString detected;
+        const QString result = decodeResponse(status,body,error,&detected);
+        if(!error.isEmpty()) emit failed(error); else emit translated(result,detected);
     });
     deadline_.start(30000);
 }
@@ -129,8 +143,9 @@ bool TranslationService::decodeUsage(int status, const QByteArray& body, qint64&
     if(max.isDouble() && max.toInteger(-1) >= 0) limit = max.toInteger();
     return true;
 }
-QString TranslationService::decodeResponse(int status, const QByteArray& body, QString& error) {
+QString TranslationService::decodeResponse(int status, const QByteArray& body, QString& error, QString* detectedLanguage) {
     error.clear();
+    if(detectedLanguage) detectedLanguage->clear();
     if(status != 200) { error = statusMessage(status); return {}; }
     if(body.size() > MaxResponseBytes) { error = QStringLiteral("번역 응답 크기 초과."); return {}; }
     QJsonParseError parse;
@@ -144,5 +159,8 @@ QString TranslationService::decodeResponse(int status, const QByteArray& body, Q
     }
     const auto result = array.at(0).toObject().value("text").toString();
     if(result.trimmed().isEmpty()) { error = QStringLiteral("서버가 빈 번역 결과를 반환했습니다."); return {}; }
+    // Optional; only a well-formed language code is passed on to the UI.
+    const QString detected = array.at(0).toObject().value("detected_source_language").toString();
+    if(detectedLanguage && validLanguage(detected)) *detectedLanguage = detected;
     return result;
 }

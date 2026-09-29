@@ -10,6 +10,7 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QPainter>
+#include <QTimer>
 #include <windows.h>
 class WindowChecks : public QObject {
     Q_OBJECT
@@ -81,6 +82,7 @@ private slots:
         QVERIFY(monitor.contains(below));
         QVERIFY(below.top() > source.bottom());
         QVERIFY(!below.intersects(source));
+        QCOMPARE(below.left(), source.left()); // Starts where the original line starts.
         const QRect bottomSource(-400, 990, 380, 40);
         const QRect above = SubtitleOverlay::placement(bottomSource, monitor, QSize(600, 70));
         QVERIFY(monitor.contains(above));
@@ -130,6 +132,65 @@ private slots:
         QVERIFY(window.subtitleOverlay_->isVisible());
         window.setBusy(true); window.cancel();
         QVERIFY(!window.subtitleOverlay_->isVisible());
+    }
+    void autoTranslateReadsEachNewLineOnce() {
+        if(qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual engine not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:52px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(1000,180); fixture.move(30,30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        QTest::qWait(250);
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"); window.tessdata_=qEnvironmentVariable("SUBTITLE_TEST_TESSDATA");
+        window.apiKey_.clear(); window.consent_=false;
+        window.selectedScreen_=fixture.screen(); window.selectedGeometry_=fixture.screen()->geometry();
+        window.selectedDpr_=fixture.screen()->devicePixelRatio();
+        window.region_=QRect(fixture.mapToGlobal(QPoint(0,0))-fixture.screen()->geometry().topLeft(),fixture.size());
+        window.inlineCaptions_->setChecked(true);
+        QVERIFY(window.autoRegistered_);
+        QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()),WM_HOTKEY,2,0));
+        QTRY_VERIFY(window.autoTranslating());
+        QVERIFY(window.auto_->isChecked());
+        QTRY_VERIFY_WITH_TIMEOUT(window.original_->toPlainText().contains(QStringLiteral("天気")) && !window.busy_,25000);
+        const auto firstRequest=window.request_;
+        QTest::qWait(1600); // The unchanged line must not be read again.
+        QCOMPARE(window.request_,firstRequest);
+        fixture.setText(QStringLiteral("明日は雨が降ります。"));
+        QTRY_VERIFY_WITH_TIMEOUT(window.request_!=firstRequest && !window.busy_ && !window.original_->toPlainText().isEmpty(),25000);
+        QVERIFY(!window.original_->toPlainText().contains(QStringLiteral("天気")));
+        QVERIFY(window.result_->toPlainText().isEmpty()); // Missing key is not a translation.
+        QVERIFY(window.subtitleOverlay_->isVisible());
+        QVERIFY(!window.subtitleOverlay_->geometry().intersects(QRect(fixture.mapToGlobal(QPoint(0,0)),fixture.size())));
+        QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()),WM_HOTKEY,2,0));
+        QTRY_VERIFY(!window.autoTranslating());
+        QVERIFY(!window.auto_->isChecked());
+        QVERIFY(!window.subtitleOverlay_->isVisible());
+    }
+    void regionIsRememberedForTheNextLaunch() {
+        const QRect region(80,100,600,50);
+        {
+            MainWindow window;
+            window.selectedScreen_=QGuiApplication::primaryScreen();
+            window.selectedGeometry_=window.selectedScreen_->geometry();
+            window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+            window.region_=region;
+            window.saveRegion();
+        }
+        MainWindow next;
+        QCOMPARE(next.region_,region);
+        QCOMPARE(next.selectedScreen_.data(),QGuiApplication::primaryScreen());
+        QVERIFY(next.regionLabel_->text().contains(QStringLiteral("저장된 영역")));
+        QSettings().remove("capture");
+        MainWindow fresh;
+        QVERIFY(fresh.region_.isEmpty());
+    }
+    void autoWithoutRegionWaitsForSelection() {
+        MainWindow window;
+        window.setAutoTranslate(true);
+        QVERIFY(!window.autoTranslating());
+        QVERIFY(window.autoPending_);
+        QVERIFY(!window.auto_->isChecked());
     }
     void cancelInvalidatesPendingResult() {
         MainWindow window; window.setBusy(true);

@@ -1,4 +1,8 @@
+#include "languages.h"
 #include "translation_service.h"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QtTest>
 class ProtocolChecks : public QObject {
     Q_OBJECT
@@ -47,6 +51,36 @@ private slots:
             QVERIFY(!TranslationService::decodeUsage(code,"private-server-body",used,limit,error));
             QVERIFY(!error.contains("private-server-body")); QVERIFY(!error.isEmpty());
         }
+    }
+    void requestBodyTargetAndOptionalSource() {
+        const auto detect = QJsonDocument::fromJson(TranslationService::requestBody("fixture", "KO", {})).object();
+        QCOMPARE(detect.value("target_lang").toString(),QString("KO"));
+        QVERIFY(!detect.contains("source_lang")); // DeepL detects the language.
+        const auto fixed = QJsonDocument::fromJson(TranslationService::requestBody("fixture", "EN-US", "JA")).object();
+        QCOMPARE(fixed.value("source_lang").toString(),QString("JA"));
+        QCOMPARE(fixed.value("target_lang").toString(),QString("EN-US"));
+        QCOMPARE(fixed.value("text").toArray().first().toString(),QString("fixture"));
+    }
+    void detectedLanguageFixture() {
+        QString error, detected;
+        TranslationService::decodeResponse(200,
+            QByteArrayLiteral("{\"translations\":[{\"detected_source_language\":\"EN\",\"text\":\"fixture\"}]}"),error,&detected);
+        QCOMPARE(detected,QString("EN")); QVERIFY(error.isEmpty());
+        TranslationService::decodeResponse(200,
+            QByteArrayLiteral("{\"translations\":[{\"detected_source_language\":\"<b>x</b>\",\"text\":\"fixture\"}]}"),error,&detected);
+        QVERIFY(detected.isEmpty()); // Only well-formed codes reach the UI.
+    }
+    void languageTables() {
+        QVERIFY(Languages::isOcrCode("jpn+eng+kor"));
+        QVERIFY(!Languages::isOcrCode("jpn -c tessedit_write_images=1"));
+        QVERIFY(!Languages::isOcrCode("fra"));
+        QVERIFY(Languages::isTargetCode("EN-US")); QVERIFY(!Languages::isTargetCode("EN-XX"));
+        QCOMPARE(Languages::deeplSource("jpn"),QString("JA"));
+        QCOMPARE(Languages::deeplSource("chi_tra"),QString("ZH"));
+        QVERIFY(Languages::deeplSource("jpn+eng+kor").isEmpty());
+        QVERIFY(Languages::sameLanguage("EN","EN-US")); QVERIFY(Languages::sameLanguage("KO","KO"));
+        QVERIFY(!Languages::sameLanguage("JA","KO")); QVERIFY(!Languages::sameLanguage("","KO"));
+        QCOMPARE(Languages::languageName("EN-US"),QStringLiteral("영어"));
     }
     void freeKeySuffix() {
         QVERIFY(TranslationService::isFreeKey("fixture-key:fx"));

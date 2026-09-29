@@ -1,0 +1,15 @@
+********* Start testing of WindowChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : WindowChecks::initTestCase()
+PASS   : WindowChecks::actualImagePipelineAndRetry()
+PASS   : WindowChecks::actualScreenCaptureThroughHotkeyMessage()
+PASS   : WindowChecks::overlayStaysOutsideSourceAndOnItsMonitor()
+PASS   : WindowChecks::overlayHasTransparentBackgroundAndPreservesFocus()
+PASS   : WindowChecks::cancelledCaptureDoesNotResurrectCaption()
+PASS   : WindowChecks::autoTranslateReadsEachNewLineOnce()
+PASS   : WindowChecks::regionIsRememberedForTheNextLaunch()
+PASS   : WindowChecks::autoWithoutRegionWaitsForSelection()
+PASS   : WindowChecks::cancelInvalidatesPendingResult()
+PASS   : WindowChecks::cleanupTestCase()
+Totals: 11 passed, 0 failed, 0 skipped, 0 blacklisted, 6608ms
+********* Finished testing of WindowChecks *********

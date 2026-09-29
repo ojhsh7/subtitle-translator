@@ -29,7 +29,12 @@ if(Test-Path -LiteralPath "$ToolchainRoot\ocr\tesseract.exe") {
     New-Item -ItemType Directory -Force -Path "$ocrDist\tessdata" | Out-Null
     Copy-Item -LiteralPath "$ToolchainRoot\ocr\tesseract.exe" -Destination $ocrDist -Force
     Get-ChildItem -LiteralPath "$ToolchainRoot\ocr" -Filter '*.dll' | Copy-Item -Destination $ocrDist -Force
-    Copy-Item -LiteralPath "$ToolchainRoot\ocr\tessdata\jpn.traineddata" -Destination "$ocrDist\tessdata" -Force
+    # Models offered in the app's language list (tessdata_fast, Apache-2.0).
+    foreach($model in 'jpn','eng','kor','chi_sim','chi_tra') {
+        $path="$ToolchainRoot\ocr\tessdata\$model.traineddata"
+        if(Test-Path -LiteralPath $path) { Copy-Item -LiteralPath $path -Destination "$ocrDist\tessdata" -Force }
+        else { Write-Warning "Missing OCR model: $model.traineddata" }
+    }
 }
 Copy-Item -LiteralPath "$projectRoot\docs\THIRD_PARTY_NOTICES.md" -Destination $dist -Force
 Write-Output "Runnable prototype: $dist\SubtitleTranslator.exe"
