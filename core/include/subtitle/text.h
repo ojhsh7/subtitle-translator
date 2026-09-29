@@ -2,10 +2,17 @@
 #include <string>
 #include <vector>
 namespace subtitle {
-// Writing systems a reader of the target language already understands.
-enum Script : unsigned { Hangul = 1, Latin = 2, Kana = 4, Han = 8, OtherLetters = 16 };
+// Writing systems, not language identification.
+enum Script : unsigned {
+    Hangul = 1, Latin = 2, Kana = 4, Han = 8, Cyrillic = 16, Thai = 32, Arabic = 64, Devanagari = 128,
+    OtherLetters = 256 // Greek, Hebrew and other scripts without their own OCR model
+};
 // "ko", "en", "ja", "zh" (lowercase language prefix). 0 means unknown: translate everything.
 unsigned nativeScripts(const std::string& language);
+// Scripts safe to preserve without a translation request. Lowercase language prefixes.
+// Shared scripts (Latin, Han, etc.) need an explicit matching source language.
+// Example: ("en", "fr") and ("en", "") both return 0; ("en", "en") returns Latin.
+unsigned preservableScripts(const std::string& target, const std::string& explicitSource);
 struct TextSegment {
     std::string utf8;
     bool translate = false;

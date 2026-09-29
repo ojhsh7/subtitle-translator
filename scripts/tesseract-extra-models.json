@@ -1,0 +1,9 @@
+[
+  {
+    "file": "vie.traineddata",
+    "bytes": 531275,
+    "sha256": "79df64caf7bcfb2a27df5042ecb6121e196eada34da774956995747636d5bfa1",
+    "gitBlobSha": "e54a5912fb634c581c4a45ae9f37cbc021ec7140",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/vie.traineddata"
+  }
+]

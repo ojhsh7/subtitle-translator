@@ -10,6 +10,11 @@ This is a personal development prototype. No public release has been performed.
   - https://github.com/UB-Mannheim/tesseract/wiki
 - tessdata_fast models jpn, eng, kor, chi_sim, chi_tra: Apache-2.0. Downloaded from the official repository and checked against its git blob hashes (recorded in docs/validation.md).
   - https://github.com/tesseract-ocr/tessdata_fast
+- ONNX Runtime 1.30.0 (onnxruntime-win-x64, CPU): MIT. Runs the PaddleOCR recognition models; `onnxruntime.dll` ships next to the app. The package's ThirdPartyNotices.txt applies to redistribution.
+  - https://github.com/microsoft/onnxruntime/releases/tag/v1.30.0 (zip SHA-256 c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949)
+- PaddleOCR PP-OCRv5 recognition models `korean_PP-OCRv5_rec_mobile.onnx` and `ch_PP-OCRv5_rec_mobile.onnx` (ONNX conversions published by RapidAI/RapidOCR v3.9.2): Apache-2.0, from PaddlePaddle/PaddleOCR. SHA-256 cd6e2ea5…73c9b and 5825fc7e…742c5 (full values in docs/validation.md).
+  - https://github.com/PaddlePaddle/PaddleOCR
+  - https://www.modelscope.cn/models/RapidAI/RapidOCR
 - Android ML Kit text-recognition-japanese 16.0.1: Google SDK terms and data disclosure apply. A bundled model enables local inference but does not rule out SDK diagnostic traffic.
   - https://developers.google.com/ml-kit/terms
   - https://developers.google.com/ml-kit/android-data-disclosure

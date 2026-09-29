@@ -31,6 +31,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-windows.ps
 
 바로가기는 `--auto` 인수로 실행합니다. 설정과 자막 영역이 저장돼 있으면 앱 창은 최소화된 채 **바로 자동 번역**을 시작합니다. 처음이면 설정 → 자막 영역 선택을 마치는 즉시 자동 번역이 시작됩니다. 임시 폴더에서 한 번만 실행하려면 `scripts\launch-windows.ps1`을 사용합니다(자동 번역은 직접 켭니다).
 
+#### OCR 엔진: PaddleOCR (기본) + Tesseract (대체)
+
+기본 OCR은 **PaddleOCR PP-OCRv5** 인식 모델(ONNX Runtime으로 실행)입니다. 합성 게임 글씨 192장에서 문자 정확도 **96.7%**(Tesseract 방식 84.4%), 외곽선 글씨 96.0%(66.9%), 그림자 글씨 92.6%(78.3%), 일본어 94.2%(68.4%), 10px 글씨 94.8%(72.9%)였고, 모델을 불러온 뒤 한 줄에 약 16ms(Tesseract 약 0.5초)가 걸렸습니다.
+
+1. 선택한 자막 영역에서 글자 줄을 찾아 줄마다 잘라냅니다(밝기 변화가 많은 가로 띠).
+2. 줄마다 한국어 모델과 중국어·일본어·영어 모델이 읽고, 확신도가 높은 쪽을 씁니다(원문 언어를 한 언어로 고르면 해당 모델만 실행).
+3. PaddleOCR이 아무것도 읽지 못하거나 모델이 없으면 Tesseract가 대신 읽습니다(아래 전처리 포함).
+
+설정의 **OCR 엔진**에서 Tesseract만 쓰도록 바꿀 수 있습니다. 모델은 `dist/windows/ocr/paddle`에, `onnxruntime.dll`은 실행 파일 옆에 있습니다(Windows System32의 다른 버전 onnxruntime.dll보다 앱 폴더 것이 먼저 쓰입니다).
+
 #### 원문 언어와 번역 언어
 
 | 원문 언어 선택 | Tesseract 모델 | DeepL에 보내는 원문 언어 |
@@ -44,7 +54,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-windows.ps
 - "자동 감지"는 여러 Tesseract 모델을 함께 불러 단어마다 가장 잘 맞는 모델을 고르는 방식입니다. 한 언어만 고를 때보다 OCR이 느립니다(측정: 한 언어 약 0.08–0.12초, 자동 감지 약 0.2–0.26초). 게임 언어가 정해져 있으면 그 언어를 고르는 편이 빠르고 정확합니다.
 - **번역 언어로 이미 쓰인 글자는 번역하지 않습니다.** 번역 언어가 한국어면 한글 부분은 그대로 두고 일본어·영어·중국어 부분만 DeepL로 보냅니다(예: `채주아: Hello!` → `채주아: 안녕하세요!`). 한글만 있는 대사는 DeepL 요청 자체를 보내지 않습니다. 이 판단은 C++ 공통 코어(`core/src/text.cpp`)가 글자 종류(한글·라틴·가나·한자)로 합니다. 약어(HP, NPC)와 OCR이 잘못 읽은 한 글자는 주변 문장을 따릅니다.
 - 보내는 조각의 글자 종류로 DeepL 원문 언어를 알려 줍니다(라틴 → 영어, 가나 → 일본어). "you." 같은 짧은 조각을 DeepL이 엉뚱한 언어로 감지하는 것을 막기 위해서입니다. 한자만 있는데 일본어·중국어 모델이 모두 켜져 있으면 DeepL 감지에 맡깁니다.
-- **작은 글씨·외곽선·그림자 글씨:** 원본으로 먼저 읽고, Tesseract 신뢰도가 90 미만이면 흰 글씨만 뽑은 이미지(3배), 1픽셀 두껍게 한 이미지, 밝기만으로 뽑은 이미지(ClearType 색 번짐 대비)를 차례로 읽어 신뢰도가 가장 높은 결과를 씁니다. 추출 이미지는 원본보다 신뢰도가 5 이상 높을 때만 채택합니다. 어려운 글씨는 OCR이 최대 4회 실행되어 한 대사에 약 0.5–1초가 걸립니다.
+- **Tesseract(대체 엔진)의 작은 글씨·외곽선 처리:** 원본으로 먼저 읽고, Tesseract 신뢰도가 90 미만이면 흰 글씨만 뽑은 이미지(3배), 1픽셀 두껍게 한 이미지, 밝기만으로 뽑은 이미지(ClearType 색 번짐 대비)를 차례로 읽어 신뢰도가 가장 높은 결과를 씁니다. 추출 이미지는 원본보다 신뢰도가 5 이상 높을 때만 채택합니다. 어려운 글씨는 OCR이 최대 4회 실행되어 한 대사에 약 0.5–1초가 걸립니다.
 - 설정의 **자막 배치** 기본값은 "자동"입니다. 선택 영역 높이가 64픽셀 이하이면 한 줄로(PSM 7), 그보다 높으면 여러 줄로(PSM 6) 읽습니다.
 - 언어를 바꾸면 최근 번역 기억을 지우고, 자동 번역 중이면 현재 대사를 새 언어로 다시 읽습니다.
 
@@ -81,7 +91,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-windows.ps
 
 ### VS Code 빌드
 
-이 폴더를 Windows VS Code에서 엽니다. MSVC2022 C++ workload, Windows SDK, CMake3.21+, Qt6.8+ MSVC2022 x64, Tesseract5와 jpn 모델이 필요합니다.
+이 폴더를 Windows VS Code에서 엽니다. MSVC2022 C++ workload, Windows SDK, CMake3.21+, Qt6.8+ MSVC2022 x64가 필요합니다. 도구 폴더에 `onnxruntime`(공식 onnxruntime-win-x64 1.30.0 압축 해제), `paddle`(PP-OCRv5 인식 모델 2개), `ocr`(Tesseract5와 traineddata, 대체 엔진)을 둡니다.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1

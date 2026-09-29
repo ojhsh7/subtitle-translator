@@ -23,6 +23,12 @@ private slots:
         qApp->setQuitOnLastWindowClosed(false);
         QSettings().setValue("display/inlineCaptions", true);
     }
+    void init() {
+        // Language selection saves settings immediately. Isolate each test in the test-only namespace.
+        QSettings().clear();
+        QSettings().setValue("display/inlineCaptions", true);
+    }
+    void cleanupTestCase() { QSettings().clear(); }
     void actualImagePipelineAndRetry() {
         if(qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual engine not configured");
         MainWindow window;
@@ -201,6 +207,36 @@ private slots:
         QVERIFY2(window.resultStatus_->text().contains(QStringLiteral("이미")), qPrintable(window.resultStatus_->text()));
         QVERIFY(window.result_->toPlainText().isEmpty());
         QCOMPARE(st_state(window.session_),int(ST_COMPLETE));
+    }
+    void paddleReadsGameTextWithoutTesseract() {
+        if(qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        MainWindow window;
+        window.executable_.clear(); // no fallback: PaddleOCR alone must read it
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_=true; window.applyOcrEngine();
+        window.apiKey_.clear(); window.consent_=false;
+        QVERIFY(window.ocrReady());
+        window.processImage(QImage(QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath("outlined-ko-18px.png")),ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,20000);
+        QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("날씨")), window.original_->toPlainText().toUtf8().constData());
+        QCOMPARE(window.ocr_.engineUsed(),QStringLiteral("PaddleOCR"));
+        window.paddleEngine_=false; window.applyOcrEngine();
+        QVERIFY(!window.ocrReady()); // Tesseract-only with no tesseract.exe: nothing can read
+    }
+    void foreignLatinIsNotSkippedForEnglish() {
+        if(qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        MainWindow window;
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_=true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData(QStringLiteral("fra")));
+        window.targetLanguageBox_->setCurrentIndex(window.targetLanguageBox_->findData(QStringLiteral("EN-US")));
+        window.apiKey_.clear(); window.consent_=false;
+        window.processImage(QImage(QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath("multilang/fr-0-24-dark-on-light-tight.png")),ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,20000);
+        QVERIFY(window.original_->toPlainText().startsWith(QStringLiteral("Voulez")));
+        QVERIFY(!window.segments_.empty());
+        QVERIFY(window.segments_.front().translate);
+        QVERIFY(!window.resultStatus_->text().contains(QStringLiteral("이미")));
+        QVERIFY(window.resultStatus_->text().contains(QStringLiteral("OCR 완료")));
+        QVERIFY(!window.translation_.isBusy()); // no key or consent; no live API request
     }
     void autoWithoutRegionWaitsForSelection() {
         MainWindow window;

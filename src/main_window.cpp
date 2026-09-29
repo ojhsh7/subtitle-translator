@@ -2,6 +2,7 @@
 #include "capture_service.h"
 #include "credential_store.h"
 #include "languages.h"
+#include "paddle_ocr.h"
 #include "region_selector.h"
 #include "subtitle/text.h"
 #include "subtitle_overlay.h"
@@ -212,7 +213,8 @@ MainWindow::MainWindow() {
         // Only foreign-script runs are translated; text already in the target language stays.
         const QString target = Languages::targetLabel(targetLanguage());
         segments_ = subtitle::splitForTranslation(st_source_text(session_),
-            subtitle::nativeScripts(targetLanguage().section('-', 0, 0).toLower().toStdString()));
+            subtitle::preservableScripts(targetLanguage().section('-', 0, 0).toLower().toStdString(),
+                Languages::deeplSource(ocrLanguages()).toLower().toStdString()));
         QStringList pieces;
         unsigned scripts = 0;
         for (const auto& segment : segments_)
@@ -300,6 +302,10 @@ MainWindow::MainWindow() {
         const QString adjacent = QFileInfo(executable_).absolutePath() + "/tessdata";
         if (QDir(adjacent).exists()) tessdata_ = adjacent;
     }
+    // PaddleOCR is the default engine (measured far more accurate on game text); Tesseract stays as fallback.
+    paddleDir_ = QCoreApplication::applicationDirPath() + "/ocr/paddle";
+    paddleEngine_ = saved.value("ocr/engine", QStringLiteral("paddle")).toString() != QLatin1String("tesseract");
+    applyOcrEngine();
     refreshScreens();
     restoreRegion();
     const HWND handle = reinterpret_cast<HWND>(winId());
@@ -366,6 +372,11 @@ void MainWindow::settings() {
     };
     form->addRow(QStringLiteral("tesseract.exe"), pathRow(exe, false));
     form->addRow(QStringLiteral("tessdata 폴더"), pathRow(tessdataEdit, true));
+    auto* engine = new QComboBox;
+    engine->addItem(QStringLiteral("PaddleOCR · 게임 자막용 (권장)"), true);
+    engine->addItem(QStringLiteral("Tesseract · 기존 방식"), false);
+    engine->setCurrentIndex(paddleEngine_ ? 0 : 1);
+    form->addRow(QStringLiteral("OCR 엔진"), engine);
     auto* mode = new QComboBox;
     mode->addItem(QStringLiteral("자동 · 선택 영역 높이로 판단"), 0);
     mode->addItem(QStringLiteral("여러 줄 자막 (PSM 6)"), 6);
@@ -374,11 +385,26 @@ void MainWindow::settings() {
     form->addRow(QStringLiteral("자막 배치"), mode);
     layout->addLayout(form);
     auto* probe = new QPushButton(QStringLiteral("OCR 설치·언어 모델 확인"));
-    auto* probeStatus = new QLabel(QStringLiteral("Tesseract 5와 선택한 원문 언어의 traineddata가 필요합니다. 원문 언어는 메인 창에서 고릅니다. 키 없이 OCR만 사용할 수 있습니다."));
+    auto* probeStatus = new QLabel(ocrLanguages() == QLatin1String("vie")
+        ? QStringLiteral("베트남어는 성조 문자를 읽는 Tesseract vie 모델을 사용합니다. OCR은 로컬에서 처리합니다.")
+        : PaddleOcr::available(paddleDir_, ocrLanguages())
+        ? QStringLiteral("PaddleOCR 모델이 앱에 들어 있습니다. PaddleOCR이 읽지 못하면 Tesseract가 대신 읽습니다. 키 없이 OCR만 사용할 수 있습니다.")
+        : QStringLiteral("PaddleOCR 모델이 없어 Tesseract로 읽습니다. Tesseract 5와 선택한 원문 언어의 traineddata가 필요합니다."));
     probeStatus->setWordWrap(true);
     layout->addWidget(probe); layout->addWidget(probeStatus);
     OcrService checker;
     connect(probe, &QPushButton::clicked, &dialog, [&] {
+        if (engine->currentData().toBool() && ocrLanguages() != QLatin1String("vie")) {
+            const bool ready = PaddleOcr::available(paddleDir_, ocrLanguages());
+            probeStatus->setText(ready
+                ? QStringLiteral("선택 언어의 PaddleOCR 모델 파일을 확인했습니다. 실제 인식은 이미지로 시험하세요.")
+                : QStringLiteral("선택 언어의 PaddleOCR 모델이 없습니다. 앱의 ocr/paddle 폴더를 확인하세요."));
+            return;
+        }
+        if (ocrLanguages() == QLatin1String("multi")) {
+            probeStatus->setText(QStringLiteral("다국어 자동 감지는 PaddleOCR에서만 지원합니다. 원문 언어 하나를 선택하세요."));
+            return;
+        }
         probe->setEnabled(false);
         probeStatus->setText(QStringLiteral("언어 모델 확인 중…"));
         checker.probe(exe->text().trimmed(), tessdataEdit->text().trimmed(), ocrLanguages());
@@ -439,7 +465,7 @@ void MainWindow::settings() {
     remember->setChecked(remember_);
     layout->addWidget(remember);
     auto* privacy = new QLabel(QStringLiteral(
-        "화면 이미지는 PC 메모리에서 Tesseract로 전달하며 파일로 저장하거나 서버에 보내지 않습니다.\n"
+        "화면 이미지는 PC 메모리에서 OCR로 처리하며 파일로 저장하거나 서버에 보내지 않습니다.\n"
         "번역 시 인식한 원문 텍스트와 API 인증 정보가 HTTPS로 DeepL에 전송됩니다.\n"
         "자동 번역을 켜면 대사가 바뀔 때마다 새 원문이 전송됩니다. 바로 앞과 같은 원문은 다시 보내지 않습니다.\n"
         "요금제와 사용량에 따라 비용이 발생하거나 무료 한도가 소진될 수 있습니다. 계정의 한도를 확인하세요.\n"
@@ -479,7 +505,10 @@ void MainWindow::settings() {
         apiKey_ = enteredKey; freeApi_ = plan->currentIndex() == 0;
         consent_ = consent->isChecked(); remember_ = remember->isChecked() && !apiKey_.isEmpty();
         psm_ = mode->currentData().toInt();
+        paddleEngine_ = engine->currentData().toBool();
+        applyOcrEngine();
         QSettings saved;
+        saved.setValue("ocr/engine", paddleEngine_ ? QStringLiteral("paddle") : QStringLiteral("tesseract"));
         saved.setValue("ocr/executable", executable_); saved.setValue("ocr/tessdata", tessdata_);
         saved.setValue("ocr/layout", psm_); saved.setValue("translation/freeApi", freeApi_);
         saved.setValue("translation/consent", consent_); saved.setValue("translation/rememberKey", remember_);
@@ -537,8 +566,8 @@ void MainWindow::startCapture() {
         subtitleOverlay_->hide();
         status_->setText(QStringLiteral("모니터 해상도나 배율이 바뀌었습니다. 영역을 다시 선택하세요.")); return;
     }
-    if (executable_.isEmpty() || !QFileInfo::exists(executable_)) {
-        status_->setText(QStringLiteral("설정에서 올바른 tesseract.exe 경로를 지정하세요.")); return;
+    if (!ocrReady()) {
+        status_->setText(QStringLiteral("OCR 엔진이 없습니다. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요.")); return;
     }
     setBusy(true);
     resetOutput();
@@ -710,9 +739,9 @@ void MainWindow::autoTick() {
         status_->setText(QStringLiteral("모니터 구성이 바뀌어 자동 번역을 멈췄습니다. 영역을 다시 선택하세요."));
         return;
     }
-    if (executable_.isEmpty() || !QFileInfo::exists(executable_)) {
+    if (!ocrReady()) {
         setAutoTranslate(false);
-        status_->setText(QStringLiteral("설정에서 올바른 tesseract.exe 경로를 지정하세요."));
+        status_->setText(QStringLiteral("OCR 엔진이 없습니다. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
         return;
     }
     // Polling does not hide windows (that would flicker), so skip frames our own windows cover.
@@ -765,3 +794,10 @@ void MainWindow::restoreRegion() {
 }
 QString MainWindow::ocrLanguages() const { return ocrLanguageBox_->currentData().toString(); }
 QString MainWindow::targetLanguage() const { return targetLanguageBox_->currentData().toString(); }
+void MainWindow::applyOcrEngine() {
+    ocr_.setPaddleModelDir(paddleEngine_ && QDir(paddleDir_).exists() ? paddleDir_ : QString());
+}
+bool MainWindow::ocrReady() const {
+    return (paddleEngine_ && PaddleOcr::available(paddleDir_, ocrLanguages())) ||
+           (ocrLanguages() != QLatin1String("multi") && !executable_.isEmpty() && QFileInfo::exists(executable_));
+}

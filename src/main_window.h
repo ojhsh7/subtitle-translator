@@ -50,6 +50,8 @@ private:
     void saveRegion();
     void restoreRegion();
     QString ocrLanguages() const;
+    void applyOcrEngine();
+    bool ocrReady() const;
     QString targetLanguage() const;
     QComboBox* screens_;
     QComboBox* ocrLanguageBox_;
@@ -87,6 +89,8 @@ private:
     OcrService ocr_;
     TranslationService translation_;
     QString executable_;
+    QString paddleDir_;        // bundled PaddleOCR models: <app>/ocr/paddle
+    bool paddleEngine_ = true; // false: Tesseract only
     QString tessdata_;
     QString apiKey_;
     bool freeApi_ = true;

@@ -1,0 +1,128 @@
+[
+  {
+    "file": "en-0-24-dark-on-light-tight.png",
+    "lang": "en",
+    "ocr": "eng",
+    "truth": "Press any key to continue.",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "ko-0-24-dark-on-light-tight.png",
+    "lang": "ko",
+    "ocr": "kor",
+    "truth": "오늘은 날씨가 좋습니다.",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "ja-0-24-dark-on-light-tight.png",
+    "lang": "ja",
+    "ocr": "jpn",
+    "truth": "今日はいい天気です。",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "zh-Hans-0-24-dark-on-light-tight.png",
+    "lang": "zh-Hans",
+    "ocr": "chi_sim",
+    "truth": "今天天气很好。",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "zh-Hant-0-24-dark-on-light-tight.png",
+    "lang": "zh-Hant",
+    "ocr": "chi_tra",
+    "truth": "今天天氣很好。",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "fr-0-24-dark-on-light-tight.png",
+    "lang": "fr",
+    "ocr": "fra",
+    "truth": "Voulez-vous sauvegarder la partie ?",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "de-0-24-dark-on-light-tight.png",
+    "lang": "de",
+    "ocr": "deu",
+    "truth": "Möchtest du den Spielstand speichern?",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "es-0-24-dark-on-light-tight.png",
+    "lang": "es",
+    "ocr": "spa",
+    "truth": "¿Quieres guardar la partida?",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "pt-0-24-dark-on-light-tight.png",
+    "lang": "pt",
+    "ocr": "por",
+    "truth": "Deseja salvar o progresso?",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "vi-0-24-dark-on-light-tight.png",
+    "lang": "vi",
+    "ocr": "vie",
+    "truth": "Bạn có muốn lưu tiến trình không?",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "ru-0-24-dark-on-light-tight.png",
+    "lang": "ru",
+    "ocr": "rus",
+    "truth": "Сохранить прогресс игры?",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "th-0-24-dark-on-light-tight.png",
+    "lang": "th",
+    "ocr": "tha",
+    "truth": "คุณต้องการบันทึกเกมหรือไม่",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "ar-0-24-dark-on-light-tight.png",
+    "lang": "ar",
+    "ocr": "ara",
+    "truth": "هل تريد حفظ اللعبة؟",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  },
+  {
+    "file": "hi-0-24-dark-on-light-tight.png",
+    "lang": "hi",
+    "ocr": "hin",
+    "truth": "क्या आप गेम सेव करना चाहते हैं?",
+    "size": 24,
+    "style": "dark-on-light",
+    "layout": "tight"
+  }
+]

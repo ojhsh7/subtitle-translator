@@ -1,5 +1,6 @@
 #include "ocr_service.h"
 #include "languages.h"
+#include "paddle_ocr.h"
 #include <QBuffer>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -143,9 +144,48 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
                              "-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=1", "-c", "page_separator="};
     if (!data.isEmpty()) arguments_ << "--tessdata-dir" << data;
     busy_ = true; elapsed_.start(); peakMemory_ = 0; elapsedMs_ = 0;
-    attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false;
+    attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false; engineUsed_.clear();
     deadline_.start(20000);
     const auto ticket = ++generation_;
+    if (paddle_ && PaddleOcr::available(paddleDir_, languages)) runPaddle(image, ticket);
+    else runTesseract(image, ticket);
+}
+void OcrService::setPaddleModelDir(const QString& dir) {
+    if (dir == paddleDir_) return;
+    paddleDir_ = dir;
+    paddle_ = dir.isEmpty() ? nullptr : std::make_shared<PaddleOcr>(dir); // models load on first use
+}
+void OcrService::runPaddle(const QImage& image, quint64 ticket) {
+    struct Outcome { PaddleOcr::Result result; QString error; };
+    auto* watcher = new QFutureWatcher<Outcome>(this);
+    connect(watcher, &QFutureWatcher<Outcome>::finished, this, [this, watcher, ticket, image] {
+        const Outcome outcome = watcher->result(); watcher->deleteLater();
+        if (!busy_ || generation_ != ticket) return;
+        attemptsUsed_ = outcome.result.modelRuns;
+        if (!outcome.result.text.isEmpty()) {
+            engineUsed_ = QStringLiteral("PaddleOCR");
+            const QString text = outcome.result.text;
+            cancel();
+            emit recognized(cleanText(text));
+            return;
+        }
+        // Nothing read (or the models failed to load): let Tesseract try the same image.
+        if (QFileInfo(executable_).isFile()) { runTesseract(image, ticket); return; }
+        fail(outcome.error.isEmpty() ? QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요.") : outcome.error);
+    });
+    const auto paddle = paddle_;
+    const QString languages = languages_;
+    watcher->setFuture(QtConcurrent::run([paddle, image, languages] {
+        Outcome outcome;
+        outcome.result = paddle->read(image, languages, outcome.error);
+        return outcome;
+    }));
+}
+void OcrService::runTesseract(const QImage& image, quint64 ticket) {
+    if (languages_ == QLatin1String("multi")) {
+        fail(QStringLiteral("다국어 자동 감지는 PaddleOCR 모델 7개가 필요합니다. 모델을 설치하거나 원문 언어 하나를 선택하세요."));
+        return;
+    }
     auto* watcher = new QFutureWatcher<QList<QByteArray>>(this);
     connect(watcher, &QFutureWatcher<QList<QByteArray>>::finished, this, [this, watcher, ticket] {
         const auto candidates = watcher->result(); watcher->deleteLater();
@@ -195,6 +235,7 @@ void OcrService::attemptFinished(const QString& output) {
     }
     const Reading best = best_;
     cancel();
+    engineUsed_ = QStringLiteral("Tesseract");
     if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
     else emit recognized(cleanText(best.text));
 }

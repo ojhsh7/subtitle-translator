@@ -26,14 +26,20 @@ char32_t decode(const std::string& s, std::size_t& i) {
 unsigned scriptOf(char32_t c) {
     if ((c >= 0xac00 && c <= 0xd7a3) || (c >= 0x1100 && c <= 0x11ff) || (c >= 0x3131 && c <= 0x318e) ||
         (c >= 0xa960 && c <= 0xa97f) || (c >= 0xd7b0 && c <= 0xd7ff)) return Hangul;
+    // Latin includes Vietnamese letters (U+1E00-1EFF) and combining accents after a base letter.
     if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= 0xc0 && c <= 0x24f && c != 0xd7 && c != 0xf7) ||
-        (c >= 0xff21 && c <= 0xff3a) || (c >= 0xff41 && c <= 0xff5a)) return Latin;
+        (c >= 0x300 && c <= 0x36f) || (c >= 0x1e00 && c <= 0x1eff) || (c >= 0x2c60 && c <= 0x2c7f) ||
+        (c >= 0xa720 && c <= 0xa7ff) || (c >= 0xff21 && c <= 0xff3a) || (c >= 0xff41 && c <= 0xff5a)) return Latin;
     if ((c >= 0x3041 && c <= 0x309f) || (c >= 0x30a1 && c <= 0x30ff && c != 0x30fb) ||
         (c >= 0x31f0 && c <= 0x31ff) || (c >= 0xff66 && c <= 0xff9f)) return Kana;
     if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3400 && c <= 0x4dbf) || (c >= 0xf900 && c <= 0xfaff) ||
         (c >= 0x20000 && c <= 0x2ffff) || c == 0x3005) return Han;
-    if ((c >= 0x370 && c <= 0x3ff) || (c >= 0x400 && c <= 0x52f) || (c >= 0x590 && c <= 0x6ff) ||
-        (c >= 0xe00 && c <= 0xe7f)) return OtherLetters;
+    if ((c >= 0x400 && c <= 0x52f) || (c >= 0x1c80 && c <= 0x1c8f)) return Cyrillic;
+    if (c >= 0xe01 && c <= 0xe5b) return Thai;
+    if ((c >= 0x600 && c <= 0x6ff && !(c >= 0x660 && c <= 0x669)) || (c >= 0x750 && c <= 0x77f) ||
+        (c >= 0xfb50 && c <= 0xfdff) || (c >= 0xfe70 && c <= 0xfeff)) return Arabic; // Arabic-Indic digits stay neutral
+    if (c >= 0x900 && c <= 0x97f && !(c >= 0x966 && c <= 0x96f) && c != 0x964 && c != 0x965) return Devanagari;
+    if ((c >= 0x370 && c <= 0x3ff) || (c >= 0x590 && c <= 0x5ff)) return OtherLetters;
     return 0; // spaces, digits, punctuation, symbols
 }
 bool isSpace(unsigned char c) { return c <= 0x20; }
@@ -44,6 +50,12 @@ unsigned nativeScripts(const std::string& language) {
     if (language == "ja") return Kana | Han;
     if (language == "zh") return Han;
     return 0;
+}
+unsigned preservableScripts(const std::string& target, const std::string& source) {
+    const unsigned scripts = nativeScripts(target);
+    if (!source.empty() && source == target) return scripts;
+    // Hangul and kana distinguish the supported languages; Han and Latin do not.
+    return scripts & (Hangul | Kana);
 }
 std::vector<TextSegment> splitForTranslation(const std::string& text, unsigned native) {
     std::vector<TextSegment> result;

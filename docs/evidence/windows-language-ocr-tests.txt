@@ -19,5 +19,5 @@ PASS   : LocalChecks::rejectInvalidCapture()
 PASS   : LocalChecks::nonexistentOcrExecutable()
 PASS   : LocalChecks::japaneseOcrActualEngine()
 PASS   : LocalChecks::cleanupTestCase()
-Totals: 19 passed, 0 failed, 0 skipped, 0 blacklisted, 4955ms
+Totals: 19 passed, 0 failed, 0 skipped, 0 blacklisted, 5234ms
 ********* Finished testing of LocalChecks *********

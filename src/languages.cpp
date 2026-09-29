@@ -25,13 +25,20 @@ QString deeplSource(const QString& ocrCode) {
     if (ocrCode == "eng") return "EN";
     if (ocrCode == "kor") return "KO";
     if (ocrCode == "chi_sim" || ocrCode == "chi_tra") return "ZH";
+    const std::pair<const char*, const char*> extra[] = {
+        {"fra", "FR"}, {"deu", "DE"}, {"spa", "ES"}, {"por", "PT"}, {"vie", "VI"},
+        {"rus", "RU"}, {"tha", "TH"}, {"ara", "AR"}, {"hin", "HI"}};
+    for (const auto& [ocr, source] : extra) if (ocrCode == QLatin1String(ocr)) return QLatin1String(source);
     return {};
 }
 QString sourceForScripts(unsigned scripts, const QString& ocrCode) {
     const QString fixed = deeplSource(ocrCode);
     if (!fixed.isEmpty()) return fixed; // the user chose one language
     const bool japanese = ocrCode.contains("jpn"), chinese = ocrCode.contains("chi_");
-    if (scripts == subtitle::Latin) return "EN"; // English is the only Latin-script model offered
+    if (scripts == subtitle::Latin && ocrCode != "multi") return "EN"; // limited JA/EN/KO mode only
+    if (scripts == subtitle::Thai) return "TH";
+    if (scripts == subtitle::Cyrillic) return "RU"; // only Russian is offered in this selection
+    if (scripts == subtitle::Devanagari) return "HI";
     if (scripts == subtitle::Hangul) return "KO";
     if ((scripts & subtitle::Kana) && !(scripts & ~(subtitle::Kana | subtitle::Han))) return "JA";
     if (scripts == subtitle::Han) return japanese && !chinese ? "JA" : chinese && !japanese ? "ZH" : QString();
@@ -43,6 +50,10 @@ QString languageName(const QString& deeplCode) {
     if (base == "EN") return QStringLiteral("영어");
     if (base == "KO") return QStringLiteral("한국어");
     if (base == "ZH") return QStringLiteral("중국어");
+    const std::pair<const char*, const char*> extra[] = {
+        {"FR", "프랑스어"}, {"DE", "독일어"}, {"ES", "스페인어"}, {"PT", "포르투갈어"},
+        {"VI", "베트남어"}, {"RU", "러시아어"}, {"TH", "태국어"}, {"AR", "아랍어"}, {"HI", "힌디어"}};
+    for (const auto& [code, name] : extra) if (base == QLatin1String(code)) return QString::fromUtf8(name);
     return deeplCode;
 }
 bool sameLanguage(const QString& detected, const QString& target) {

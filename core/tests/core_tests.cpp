@@ -64,5 +64,22 @@ int main() {
     check(subtitle::scriptsIn("今日はいい天気") == (subtitle::Kana | subtitle::Han), "kana and kanji");
     check(subtitle::scriptsIn("HP 100 회복") == (subtitle::Latin | subtitle::Hangul), "digits are ignored");
     check(subtitle::scriptsIn("123 !?") == 0, "no letters");
+    check(subtitle::scriptsIn("Tôi đã bảo bạn đừng mở cánh cửa đó.") == subtitle::Latin, "Vietnamese is Latin");
+    check(subtitle::scriptsIn("Сохранить прогресс?") == subtitle::Cyrillic, "Cyrillic");
+    check(subtitle::scriptsIn("บันทึกเกม") == subtitle::Thai, "Thai with its combining marks");
+    check(subtitle::scriptsIn("هل تريد حفظ اللعبة؟") == subtitle::Arabic, "Arabic");
+    check(subtitle::scriptsIn("क्या आप गेम सेव करना चाहते हैं?") == subtitle::Devanagari, "Devanagari with danda-free text");
+    check(pieces(splitForTranslation("Tôi đã bảo bạn", korean)) == "[T:Tôi đã bảo bạn]", "Vietnamese stays one piece");
+    check(pieces(splitForTranslation("채주아: Сохранить?", korean)) == "[K:채주아: ][T:Сохранить?]", "Cyrillic is foreign for Korean");
+    using subtitle::preservableScripts;
+    check(pieces(splitForTranslation("Bonjour le monde.", preservableScripts("en", "fr"))) == "[T:Bonjour le monde.]",
+          "French must be translated even for an English target");
+    check(pieces(splitForTranslation("Möchtest du speichern?", preservableScripts("en", ""))) == "[T:Möchtest du speichern?]",
+          "Unknown Latin text must not be labelled English");
+    check(pieces(splitForTranslation("Press any key", preservableScripts("en", "en"))) == "[K:Press any key]",
+          "Explicit English source and target may skip the request");
+    check(pieces(splitForTranslation("保存", preservableScripts("ja", "zh"))) == "[T:保存]",
+          "Han text must not be silently treated as Japanese");
+    check(preservableScripts("ko", "") == subtitle::Hangul, "Korean mixed-script preservation still works");
     std::cout << "shared core: all checks passed\n";
 }

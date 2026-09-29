@@ -24,13 +24,15 @@ int main(int argc, char** argv) {
         {{"i","input"}, "Saved image to OCR.", "path"},
         {"tesseract", "Path to tesseract.exe.", "path"},
         {"tessdata", "Folder containing the traineddata models.", "path"},
-        {"lang", "Tesseract language code from the app list (default jpn+eng+kor).", "code", Languages::DefaultOcr},
+        {"lang", "OCR language code from the app list, or multi (default jpn+eng+kor).", "code", Languages::DefaultOcr},
         {"target", "DeepL target language (default KO).", "code", Languages::DefaultTarget},
         {"translate", "Send OCR text to DeepL using the user's credential or SUBTITLE_TRANSLATOR_API_KEY."},
-        {"pro", "Use the DeepL API Pro endpoint."}
+        {"pro", "Use the DeepL API Pro endpoint."},
+        {"paddle", "Folder with the PaddleOCR models (default: ocr/paddle next to this program).", "path"},
+        {"engine", "OCR engine: paddle (default, falls back to Tesseract) or tesseract.", "name", "paddle"}
     });
     parser.process(app);
-    if (!parser.isSet("input") || !parser.isSet("tesseract")) parser.showHelp(2);
+    if (!parser.isSet("input")) parser.showHelp(2); // --tesseract is optional: it is the fallback engine
     const QString languages = parser.value("lang"), target = parser.value("target");
     if (!Languages::isOcrCode(languages) || !Languages::isTargetCode(target)) {
         QTextStream(stderr) << "Unsupported --lang or --target\n"; return 2;
@@ -44,13 +46,16 @@ int main(int argc, char** argv) {
     st_session* session = st_create();
     const auto request = st_begin(session, ST_IMAGE_FILE, image.width(), image.height());
     OcrService ocr;
+    const QString paddleDir = parser.isSet("paddle") ? parser.value("paddle")
+                                                    : QCoreApplication::applicationDirPath() + "/ocr/paddle";
+    if (parser.value("engine") != "tesseract") ocr.setPaddleModelDir(paddleDir);
     TranslationService translation;
     QElapsedTimer total, phase;
     total.start(); phase.start();
     QJsonObject report{
         {"schema", "subtitle.pipeline.v1"}, {"measurementPlatform", "Windows host"},
         {"inputType", "saved-image"}, {"width", image.width()}, {"height", image.height()},
-        {"ocrEngine", "Tesseract CLI"}, {"ocrLanguages", languages}, {"targetLanguage", target},
+        {"ocrLanguages", languages}, {"targetLanguage", target},
         {"imageUploaded", false}, {"translationNetworkUsed", false},
         {"mobilePerformance", "Not measured; no mobile estimate provided"},
         {"ocrTestData", "Actual image input; no synthetic OCR result"}
@@ -77,6 +82,7 @@ int main(int argc, char** argv) {
     QObject::connect(&ocr, &OcrService::recognized, &app, [&](const QString& text) {
         report["ocrMs"] = phase.elapsed();
         report["ocrAttempts"] = ocr.attemptsUsed();
+        report["ocrEngine"] = ocr.engineUsed();
         report["ocrChildPeakWorkingSetBytes"] = qint64(ocr.peakWorkingSetBytes());
         const int decision = st_accept_ocr(session, request, text.toUtf8().constData());
         report["sourceText"] = QString::fromUtf8(st_source_text(session));
@@ -85,7 +91,8 @@ int main(int argc, char** argv) {
         }
         // Same rule as the app: only foreign-script runs go to DeepL.
         segments = subtitle::splitForTranslation(st_source_text(session),
-            subtitle::nativeScripts(target.section('-', 0, 0).toLower().toStdString()));
+            subtitle::preservableScripts(target.section('-', 0, 0).toLower().toStdString(),
+                Languages::deeplSource(languages).toLower().toStdString()));
         QStringList pieces;
         for (const auto& segment : segments)
             if (segment.translate) { pieces << QString::fromStdString(segment.utf8); scripts |= subtitle::scriptsIn(segment.utf8); }

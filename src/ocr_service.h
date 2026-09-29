@@ -4,16 +4,22 @@
 #include <QProcess>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <memory>
+class PaddleOcr;
 class OcrService final : public QObject {
     Q_OBJECT
 public:
     explicit OcrService(QObject* parent = nullptr);
     ~OcrService() override;
     // languages: a Tesseract code from Languages::Ocr, e.g. "jpn+eng+kor".
-    // Reads the image as it is first; when Tesseract is unsure it also tries light-text masks
-    // (white game text with outlines or shadows) and keeps the most confident reading.
+    // With PaddleOCR models set (setPaddleModelDir) they read the image first: measured far more
+    // accurate on game text. Tesseract is the fallback when Paddle finds nothing or is missing;
+    // it reads the image as it is, then light-text masks, keeping the most confident reading.
     void recognize(const QImage&, const QString& executable, const QString& tessdataDir, int psm = 0,
                    const QString& languages = QStringLiteral("jpn+eng+kor"));
+    // Folder with the PP-OCRv5 recognition models; empty disables PaddleOCR.
+    void setPaddleModelDir(const QString& dir);
+    QString engineUsed() const { return engineUsed_; } // "PaddleOCR" or "Tesseract" for the last result
     void probe(const QString& executable, const QString& tessdataDir,
                const QString& languages = QStringLiteral("jpn+eng+kor"));
     // psm 0 = automatic: a short strip is read as one line (PSM 7), anything taller as a block (PSM 6).
@@ -43,6 +49,8 @@ signals:
     void failed(QString message);
 private:
     void launch(const QString& executable, const QStringList& args, QByteArray bytes);
+    void runPaddle(const QImage& image, quint64 ticket);
+    void runTesseract(const QImage& image, quint64 ticket);
     void runAttempt();
     void attemptFinished(const QString& tsv);
     void releaseProcess();
@@ -55,7 +63,8 @@ private:
     QElapsedTimer elapsed_;
     QByteArray output_, errors_;
     bool busy_ = false, probing_ = false;
-    QString languages_, executable_;
+    QString languages_, executable_, engineUsed_, paddleDir_;
+    std::shared_ptr<PaddleOcr> paddle_; // shared with the worker thread, which may outlive a cancel
     QStringList arguments_;
     QList<QByteArray> attempts_; // PNG candidates: original, light mask, thickened mask, bright mask
     int attempt_ = 0, attemptsUsed_ = 0;

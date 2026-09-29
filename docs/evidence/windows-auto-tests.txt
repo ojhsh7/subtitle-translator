@@ -7,8 +7,9 @@ PASS   : WindowChecks::overlayHasTransparentBackgroundAndPreservesFocus()
 PASS   : WindowChecks::cancelledCaptureDoesNotResurrectCaption()
 PASS   : WindowChecks::regionIsRememberedForTheNextLaunch()
 PASS   : WindowChecks::koreanLineIsNotSentWhenTranslatingIntoKorean()
+PASS   : WindowChecks::paddleReadsGameTextWithoutTesseract()
 PASS   : WindowChecks::autoWithoutRegionWaitsForSelection()
 PASS   : WindowChecks::cancelInvalidatesPendingResult()
 PASS   : WindowChecks::cleanupTestCase()
-Totals: 10 passed, 0 failed, 0 skipped, 0 blacklisted, 1717ms
+Totals: 11 passed, 0 failed, 0 skipped, 0 blacklisted, 2079ms
 ********* Finished testing of WindowChecks *********

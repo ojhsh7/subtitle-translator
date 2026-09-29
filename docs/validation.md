@@ -229,3 +229,33 @@ C++ 공통 코어에 `subtitle::splitForTranslation`을 추가했습니다(`core
 빌드 환경 변경: C: 드라이브 여유 공간이 약 4GB이고 Windows 저장 공간 센스(임시 파일 정리)가 켜져 있어 `%TEMP%`의 Qt 설치가 삭제됐습니다. `D:\SubtitleTranslatorToolchain`으로 옮겨 Qt 6.8.3 MSVC2022를 aqtinstall로 다시 설치했고, 빌드 스크립트 기본 위치를 `%LOCALAPPDATA%`로 바꿨습니다.
 
 원자료: [OCR 테스트 로그](evidence/windows-language-ocr-tests.txt), [번역 프로토콜 로그](evidence/windows-translation-protocol-tests.txt), [UI 테스트 로그](evidence/windows-auto-tests.txt), 합성 이미지 생성 스크립트 `scripts/make-ocr-fixtures.py`와 이미지 `tests/fixtures/ocr/`.
+
+### OCR 엔진 교체: PaddleOCR PP-OCRv5 — 추가 검증
+
+사용자 요청: 인식 정확도 개선, 화면 자동 번역이 가장 중요한 기능. Tesseract 전처리로는 합성 게임 글씨에서 84.4%가 한계였고(외곽선 67%, 일본어 68%), 원인이 엔진이라고 보고 다른 엔진을 같은 이미지 199장(벤치마크 192장 + 얇은 Qt 렌더링 6장 + 사용자 스크린샷 대사 1줄)으로 비교했습니다.
+
+| 엔진 | 전체 | 외곽선 | 그림자 | 일본어 | 10px | 얇은 Qt 글씨 6장 | 사용자 스크린샷 |
+|---|---|---|---|---|---|---|---|
+| Tesseract + 전처리(이전) | 84.4% | 66.9% | 78.3% | 68.4% | 72.9% | 45–77% | 94% |
+| Windows.Media.Ocr(3배 확대, 언어 지정) | 54.9% | 22.1% | 3.2% | 49.7% | 54.3% | 0–93% | 59% |
+| PaddleOCR 검출+인식(RapidOCR 기본) | 56.2% | 52.8% | 48.7% | 46.5% | 46.4% | 0–78% | 91% |
+| PaddleOCR 인식만, 선택 영역 그대로 | 49.3%(딱 맞는 영역 97.0%, 여백 많은 영역 1.7%) | | | | | | |
+| **채택: 줄 잘라내기 + PaddleOCR 인식(한국어 vs 중일영 확신도 비교)** | **96.8%** | **96.1%** | **92.7%** | **94.2%** | **95.1%** | **95–100%** | 94% |
+
+Windows OCR은 일반 글씨는 확대 시 97%였지만 외곽선·그림자 글씨를 거의 읽지 못했습니다. PaddleOCR의 검출 모델은 작은 줄 이미지에서 글자를 놓쳤고, PP-OCRv6 다국어 모델은 한국어를 읽지 못해(1–4%) 제외했습니다. 일본어만 고른 Tesseract는 70.4%로 2점 개선에 그쳤습니다.
+
+구현(Windows 어댑터 `src/paddle_ocr.cpp`): ONNX Runtime 1.30.0으로 `korean_PP-OCRv5_rec_mobile.onnx`(13.5MB)와 `ch_PP-OCRv5_rec_mobile.onnx`(16.6MB, 중국어·일본어·영어)를 실행합니다. 문자 목록은 모델 메타데이터(`character`)에서 읽습니다. 전처리·디코딩은 RapidOCR 3.9.2 코드와 같게 맞췄습니다(짧은 변 30px로 확대 후 32의 배수 반올림, 높이 48·폭 최소 320, BGR, [-1,1] 정규화, 오른쪽 0 채움, CTC 탐욕 디코딩, 확신도는 남은 글자 확률의 평균). 줄 찾기는 밝기 차이가 60을 넘는 픽셀이 많은 가로 띠(최대치의 25% 이상, 4px 이상, 줄 높이 1/3 미만의 틈은 합침)를 찾아 줄 높이의 1/4만큼 여백을 둡니다. PaddleOCR이 아무것도 읽지 못하면 Tesseract가 대신 읽습니다.
+
+C++ 구현 확인: 빌드한 `subtitle_cli.exe`로 같은 192장을 읽어 **96.7%**, 정확히 일치 118/192장이었습니다(Python 기준 96.8%, 118/192). 한 장(그림자 영어 14px)은 C++와 Python 모두 "continue"를 "conunue"로 읽었습니다. 모델을 불러온 뒤 한 줄 읽기는 중앙값 **16ms**(두 모델 비교, 7회), CLI는 실행마다 모델을 불러와 약 280ms였습니다.
+
+| 모델·패키지 | 크기 | SHA-256 |
+|---|---|---|
+| onnxruntime-win-x64-1.30.0.zip (GitHub 공식 릴리스) | 82,645,522 | c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949 |
+| korean_PP-OCRv5_rec_mobile.onnx (RapidOCR v3.9.2) | 13,488,748 | cd6e2ea50f6943ca7271eb8c56a877a5a90720b7047fe9c41a2e541a25773c9b |
+| ch_PP-OCRv5_rec_mobile.onnx (RapidOCR v3.9.2) | 16,631,306 | 5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5 |
+
+테스트: paddle_ocr 18개 통과(CTC 디코딩, RapidOCR과 같은 입력 텐서, 줄 찾기, 언어별 모델 선택, 합성 게임 글씨 9장 — 여백 많은 영역 3장 포함, 한 언어 모델만 실행, 서비스가 PaddleOCR을 쓰고 모델이 없으면 Tesseract로 대체, 준비된 뒤 읽기 속도). windows_flow에 Tesseract 없이 PaddleOCR만으로 앱 창에서 읽는 테스트를 추가했습니다(11개 통과, 단축키 테스트 2개는 사용자가 관리자 권한으로 실행한 앱 때문에 제외). translation_protocol 13, local_checks 19, change_detection 9, shared_core 통과.
+
+한계: 모두 합성 이미지와 스크린샷 한 줄 기준이며 실제 게임 화면에서의 정확도는 사용자 확인이 필요합니다. 한국어 모델은 쉼표 뒤 띄어쓰기를 빠뜨리는 경우가 있습니다("으음,제"). 세로쓰기, 한 영역 안의 여러 언어 줄 혼합, 줄 찾기가 어려운 복잡한 배경은 따로 측정하지 않았습니다. 앱 크기가 ONNX Runtime(16MB)과 모델(30MB)만큼 커졌습니다.
+
+원자료: [PaddleOCR 테스트 로그](evidence/windows-paddle-tests.txt), [UI 테스트 로그](evidence/windows-auto-tests.txt), 합성 이미지 `tests/fixtures/ocr/`와 생성 스크립트 `scripts/make-ocr-fixtures.py`.

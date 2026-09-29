@@ -86,7 +86,8 @@ private slots:
     void languageTables() {
         QVERIFY(Languages::isOcrCode("jpn+eng+kor"));
         QVERIFY(!Languages::isOcrCode("jpn -c tessedit_write_images=1"));
-        QVERIFY(!Languages::isOcrCode("fra"));
+        QVERIFY(Languages::isOcrCode("fra"));
+        QVERIFY(!Languages::isOcrCode("unsupported"));
         QVERIFY(Languages::isTargetCode("EN-US")); QVERIFY(!Languages::isTargetCode("EN-XX"));
         QCOMPARE(Languages::deeplSource("jpn"),QString("JA"));
         QCOMPARE(Languages::deeplSource("chi_tra"),QString("ZH"));
@@ -101,6 +102,12 @@ private slots:
         QVERIFY(Languages::sourceForScripts(subtitle::Han, "jpn+eng+kor+chi_sim").isEmpty()); // kanji or hanzi
         QVERIFY(Languages::sourceForScripts(subtitle::Latin | subtitle::Kana, "jpn+eng+kor").isEmpty()); // mixed
         QCOMPARE(Languages::sourceForScripts(subtitle::Latin, "jpn"), QString("JA")); // a fixed choice wins
+        QVERIFY(Languages::sourceForScripts(subtitle::Latin, "multi").isEmpty());
+        QVERIFY(Languages::sourceForScripts(subtitle::Han, "multi").isEmpty());
+        QCOMPARE(Languages::sourceForScripts(subtitle::Latin, "fra"), QString("FR"));
+        QCOMPARE(Languages::sourceForScripts(subtitle::Cyrillic, "rus"), QString("RU"));
+        QCOMPARE(Languages::sourceForScripts(subtitle::Arabic, "ara"), QString("AR"));
+        QCOMPARE(Languages::sourceForScripts(subtitle::Devanagari, "hin"), QString("HI"));
     }
     void freeKeySuffix() {
         QVERIFY(TranslationService::isFreeKey("fixture-key:fx"));
