@@ -1,0 +1,28 @@
+********* Start testing of LocalChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : LocalChecks::initTestCase()
+FAIL!  : LocalChecks::blankImageNeverProducesText(tesseract-white-small) 'recognized.first().first().toString().isEmpty()' returned FALSE. (Se)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(61) : failure location
+FAIL!  : LocalChecks::blankImageNeverProducesText(tesseract-black-small) 'recognized.first().first().toString().isEmpty()' returned FALSE. (a)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(61) : failure location
+FAIL!  : LocalChecks::blankImageNeverProducesText(tesseract-gray) 'failed.isEmpty()' returned FALSE. (A blank image is empty input, not an engine failure.)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(58) : failure location
+FAIL!  : LocalChecks::blankImageNeverProducesText(tesseract-white-large) 'failed.isEmpty()' returned FALSE. (A blank image is empty input, not an engine failure.)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(58) : failure location
+FAIL!  : LocalChecks::blankImageNeverProducesText(paddle-white-small) 'recognized.first().first().toString().isEmpty()' returned FALSE. (Se)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(61) : failure location
+FAIL!  : LocalChecks::blankImageNeverProducesText(paddle-black-small) 'recognized.first().first().toString().isEmpty()' returned FALSE. (a)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(61) : failure location
+FAIL!  : LocalChecks::blankImageNeverProducesText(paddle-gray) 'failed.isEmpty()' returned FALSE. (A blank image is empty input, not an engine failure.)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(58) : failure location
+FAIL!  : LocalChecks::blankImageNeverProducesText(paddle-white-large) 'recognized.first().first().toString().isEmpty()' returned FALSE. ([)
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(61) : failure location
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-yes-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-no-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-ok-en)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-yes-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-no-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-ok-en)
+PASS   : LocalChecks::cleanupTestCase()
+Totals: 8 passed, 8 failed, 0 skipped, 0 blacklisted, 4845ms
+********* Finished testing of LocalChecks *********

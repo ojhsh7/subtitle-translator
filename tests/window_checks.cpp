@@ -22,6 +22,82 @@
 class WindowChecks : public QObject {
     Q_OBJECT
 private slots:
+
+    void fallbackResultWindowDoesNotBlockAutoCapture() {
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        if (!window.ocrReady()) QSKIP("Actual engine not configured");
+        window.apiKey_.clear(); window.consent_=false;
+        window.selectedScreen_=QGuiApplication::primaryScreen();
+        window.selectedGeometry_=window.selectedScreen_->geometry();
+        window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+        window.region_=QRect(80,100,600,50);
+        window.inlineCaptions_->setChecked(false);
+        window.setAutoTranslate(true);
+        window.activeSource_=ST_SCREEN_CAPTURE;
+        window.captionArea_=window.selectedArea();
+        window.result_->setPlainText(QStringLiteral("위치 검증용 표시 · API 번역 아님"));
+        window.resultWindow_->move(window.selectedGeometry_.topLeft()+QPoint(80,100));
+        window.presentTranslation();
+        QTest::qWait(100);
+        const QRect source=window.region_.translated(window.selectedGeometry_.topLeft());
+        QVERIFY(window.resultWindow_->isVisible());
+        QVERIFY(!window.resultWindow_->frameGeometry().intersects(source));
+        QVERIFY(window.autoTranslating());
+        // Also recover when a user later drags the window onto the source.
+        window.resultWindow_->move(source.topLeft());
+        window.autoTick();
+        QVERIFY(!window.resultWindow_->frameGeometry().intersects(source));
+        QVERIFY(window.autoTranslating());
+        window.setAutoTranslate(false);
+    }
+    void noRoomForResultStopsAutoWithExplanation() {
+        if (QGuiApplication::screens().size()!=1) QSKIP("No-room test requires one physical monitor");
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        if (!window.ocrReady()) QSKIP("Actual engine not configured");
+        window.apiKey_.clear(); window.consent_=false;
+        window.selectedScreen_=QGuiApplication::primaryScreen();
+        window.selectedGeometry_=window.selectedScreen_->geometry();
+        window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+        window.region_=QRect(QPoint(),window.selectedGeometry_.size());
+        window.setAutoTranslate(true);
+        window.activeSource_=ST_SCREEN_CAPTURE;
+        window.captionArea_=window.selectedArea();
+        window.result_->setPlainText(QStringLiteral("배치 검증용 표시 · API 번역 아님"));
+        window.presentTranslation(); // Caption placement fails for a full-monitor source.
+        QVERIFY(window.resultWindow_->isVisible());
+        QVERIFY(!window.autoTranslating());
+        QVERIFY(window.resultStatus_->text().contains(QStringLiteral("자동 번역을 멈")));
+        QVERIFY(window.status_->text().contains(QStringLiteral("영역")));
+        // A later completion status must not erase the actionable reason.
+        window.finish(QStringLiteral("번역 완료"));
+        QVERIFY(window.status_->text().contains(QStringLiteral("영역")));
+    }
+    void blankAutoFrameNeverStartsTranslation() {
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        window.tessdata_=qEnvironmentVariable("SUBTITLE_TEST_TESSDATA");
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.applyOcrEngine();
+        window.apiKey_.clear(); window.consent_=false;
+        window.selectedScreen_=QGuiApplication::primaryScreen();
+        window.selectedGeometry_=window.selectedScreen_->geometry();
+        window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+        window.region_=QRect(80,100,600,50);
+        window.setAutoTranslate(true);
+        // Keep auto mode active but do not poll unrelated desktop pixels during this image-path test.
+        window.autoTimer_->setInterval(60000);
+        QImage image(200,60,QImage::Format_RGB32); image.fill(Qt::white);
+        window.processImage(image,ST_SCREEN_CAPTURE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,5000);
+        QVERIFY(window.original_->toPlainText().isEmpty());
+        QVERIFY(window.result_->toPlainText().isEmpty());
+        QVERIFY(!window.translation_.isBusy());
+        QVERIFY(!window.subtitleOverlay_->isVisible());
+        QVERIFY(window.autoTranslating());
+        QVERIFY(window.status_->text().contains(QStringLiteral("글자")));
+        window.setAutoTranslate(false);
+    }
     void initTestCase() {
         qApp->setProperty("testMode",true);
         qApp->setOrganizationName("SubtitleTranslatorChecks");

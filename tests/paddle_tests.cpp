@@ -143,9 +143,11 @@ private slots:
     void multiMissingModelsHasActionableError() {
         OcrService service;
         QSignalSpy failed(&service, &OcrService::failed);
-        QImage image(200,50,QImage::Format_RGB32); image.fill(Qt::white);
+        // Missing-engine diagnostics need a nonblank input; flat images now finish without OCR.
+        const QImage image(fixture("outlined-en-18px.png"));
+        QVERIFY(!image.isNull());
         service.recognize(image, "C:/unused/tesseract.exe", {}, 0, "multi");
-        QCOMPARE(failed.count(), 1);
+        QTRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 3000);
         QVERIFY(failed.first().first().toString().contains(QStringLiteral("PaddleOCR")));
         QVERIFY(!service.isBusy());
     }

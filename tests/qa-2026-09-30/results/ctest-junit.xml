@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-MSBuild"
+	tests="7"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-98R3U4P"
+	time="38"
+	timestamp="2026-10-01T00:10:36"
+	>
+	<testcase name="translation_protocol" classname="translation_protocol" time="0.0798596" status="run">
+		<properties/>
+		<system-out></system-out>
+	</testcase>
+	<testcase name="local_checks" classname="local_checks" time="6.26956" status="run">
+		<properties/>
+		<system-out></system-out>
+	</testcase>
+	<testcase name="paddle_ocr" classname="paddle_ocr" time="8.67592" status="run">
+		<properties/>
+		<system-out></system-out>
+	</testcase>
+	<testcase name="change_detection" classname="change_detection" time="0.175587" status="run">
+		<properties/>
+		<system-out></system-out>
+	</testcase>
+	<testcase name="game_windows" classname="game_windows" time="0.197921" status="run">
+		<properties/>
+		<system-out></system-out>
+	</testcase>
+	<testcase name="windows_flow" classname="windows_flow" time="22.5649" status="run">
+		<properties/>
+		<system-out></system-out>
+	</testcase>
+	<testcase name="shared_core" classname="shared_core" time="0.0372879" status="run">
+		<properties/>
+		<system-out>shared core: all checks passed
+</system-out>
+	</testcase>
+</testsuite>

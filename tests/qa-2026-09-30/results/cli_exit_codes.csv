@@ -1,0 +1,8 @@
+﻿"id","expected","actual","pass","state","ocrEngine","attempts","text","pieces","args"
+"X-01","2","2","True",,,,"",,""
+"X-02","2","2","True",,,,"",,"--input <repo>\tests\fixtures\ocr\outlined-en-18px.png --lang xxx"
+"X-03","2","2","True",,,,"",,"--input <repo>\tests\fixtures\ocr\outlined-en-18px.png --target KR"
+"X-04","2","2","True",,,,"",,"--input <repo>\tests\qa-2026-09-30\results\not-image.png"
+"X-05","2","2","True",,,,"",,"--input <repo>\tests\qa-2026-09-30\results\missing.png"
+"X-06","3","0","False","ocr_complete_translation_not_requested","Tesseract","3","Se","1","--input <repo>\tests\qa-2026-09-30\results\blank-200x60.png --tesseract D:\qa-build\2026-09-30\dist\ocr\tesseract.exe --tessdata D:\qa-build\2026-09-30\dist\ocr\tessdata"
+"X-07","0","0","True","ocr_complete_translation_not_requested","PaddleOCR","2","Press any key to continue.","1","--input <repo>\tests\fixtures\ocr\outlined-en-18px.png --tesseract D:\qa-build\2026-09-30\dist\ocr\tesseract.exe --tessdata D:\qa-build\2026-09-30\dist\ocr\tessdata"

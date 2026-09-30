@@ -128,6 +128,18 @@ QString OcrService::cleanText(const QString& text) {
     cleaned.replace(standalonePipe, QStringLiteral("\\1I"));
     return cleaned.replace(cjkGap, QString());
 }
+bool OcrService::isUniformImage(const QImage& image) {
+    if (image.isNull()) return false; // Invalid input has a separate error path.
+    const QImage pixels = image.convertToFormat(QImage::Format_ARGB32);
+    if (pixels.isNull()) return false;
+    const QRgb first = reinterpret_cast<const QRgb*>(pixels.constScanLine(0))[0];
+    for (int y = 0; y < pixels.height(); ++y) {
+        const auto* row = reinterpret_cast<const QRgb*>(pixels.constScanLine(y));
+        for (int x = 0; x < pixels.width(); ++x)
+            if (row[x] != first) return false;
+    }
+    return true;
+}
 void OcrService::recognize(const QImage& image, const QString& executable, const QString& data, int psm,
                            const QString& languages) {
     if (busy_) return;
@@ -147,8 +159,20 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
     attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false; engineUsed_.clear();
     deadline_.start(20000);
     const auto ticket = ++generation_;
-    if (paddle_ && PaddleOcr::available(paddleDir_, languages)) runPaddle(image, ticket);
-    else runTesseract(image, ticket);
+    // Inspect full-resolution pixels off the UI thread before either OCR engine runs.
+    // A completely flat image contains no text, but both engines can hallucinate short strings.
+    auto* watcher = new QFutureWatcher<bool>(this);
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, image, ticket] {
+        const bool blank = watcher->result(); watcher->deleteLater();
+        if (!busy_ || generation_ != ticket) return;
+        if (blank) {
+            engineUsed_ = QStringLiteral("blank-image");
+            cancel();
+            emit recognized(QString()); // The common core classifies this as ST_EMPTY; never translate.
+        } else if (paddle_ && PaddleOcr::available(paddleDir_, languages_)) runPaddle(image, ticket);
+        else runTesseract(image, ticket);
+    });
+    watcher->setFuture(QtConcurrent::run([image] { return isUniformImage(image); }));
 }
 void OcrService::setPaddleModelDir(const QString& dir) {
     if (dir == paddleDir_) return;

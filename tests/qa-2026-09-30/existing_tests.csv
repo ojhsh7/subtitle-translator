@@ -1,0 +1,8 @@
+﻿test,result,seconds,qt_passed,qt_failed,qt_skipped,failure_message,tag
+translation_protocol,passed,0.0798596,13,0,0,,[측정함]
+local_checks,passed,6.26956,20,0,0,,[측정함]
+paddle_ocr,passed,8.67592,42,0,0,,[측정함]
+change_detection,passed,0.175587,14,0,0,,[측정함]
+game_windows,passed,0.197921,7,0,0,,[측정함]
+windows_flow,passed,22.5649,22,0,0,,[측정함]
+shared_core,passed,0.0372879,,,,,[측정함]

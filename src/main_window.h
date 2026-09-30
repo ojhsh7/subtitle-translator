@@ -54,6 +54,9 @@ private:
     void refreshScreens();
     void restoreWindows();
     void showResult();
+    bool moveResultOutside(const QRect& source);
+    void stopAutoForResultOverlap();
+    QString resultPlacementWarning_;
     void presentTranslation();
     void previewSubtitle();
     bool showSubtitle(const QString& text, bool selectionPreview = false);

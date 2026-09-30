@@ -1,0 +1,28 @@
+E01 empty | segs=0 translate=0 | 6us | | roundtrip=ok
+E02 spaces | segs=1 translate=0 | 107us | [K:   ] | roundtrip=ok
+E03 hangul only | segs=1 translate=0 | 73us | [K:안녕하세요 반가워요] | roundtrip=ok
+E04 mixed | segs=2 translate=1 | 14us | [K:채주아: ] [T:Hello!] | roundtrip=ok
+E05 acronym | segs=1 translate=0 | 81us | [K:HP가 부족합니다. NPC에게 가세요] | roundtrip=ok
+E06 long acronym | segs=2 translate=1 | 8us | [T:HPMPXP] [K: 회복] | roundtrip=ok
+E07 emoji | segs=3 translate=1 | 37us | [K:😀 ] [T:Hello] [K: 😀] | roundtrip=ok
+E08 emoji+ko | segs=1 translate=0 | 5us | [K:좋아요 😀] | roundtrip=ok
+E09 single misread | segs=1 translate=0 | 6us | [K:안녕 a 하세요] | roundtrip=ok
+E10 jp line | segs=1 translate=1 | 9us | [T:こんにちは、世界] | roundtrip=ok
+E11 ja target keeps kanji | segs=2 translate=1 | 43us | [K:こんにちは、世界
+] [T:你好世界] | roundtrip=ok
+E12 en target, en source | segs=2 translate=1 | 7us | [K:Hello ] [T:世界] | roundtrip=ok
+E13 zh only line target ko | segs=1 translate=1 | 4us | [T:你好世界] | roundtrip=ok
+E14 ko 2-letter inside foreign | segs=1 translate=1 | 5us | [T:I love 김치 so much] | roundtrip=ok
+E15 newline mix | segs=1 translate=1 | 8us | [T:Hello
+안녕
+World] | roundtrip=ok
+E16 60 alternations | segs=2 translate=1 | 147us | | roundtrip=ok
+E17 6000B english | segs=2 translate=1 | 651us | | roundtrip=ok
+E18 invalid utf8 | segs=2 translate=1 | 11us | [T:abc��] [K: 한글 �] | roundtrip=ok
+C01 accept empty=3 (ST_EMPTY expected)
+C02 accept=1
+C03 same text cached=2
+C04 A-B-A cached=1 (re-sends A)
+C05 too long=0
+C06 begin while translating=0
+bytes=840 translate_segments=60 (MaxTexts=50)

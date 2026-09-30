@@ -1,0 +1,13 @@
+♪★※…「」→←■●♥ translate_pieces=0 scripts=0
+――― ・・・ ！？     translate_pieces=0 scripts=0
+▶ 다음                     translate_pieces=0 scripts=1
+Ⅰ Ⅱ Ⅲ ① ②            translate_pieces=0 scripts=0
+ⓐ Ⓑ                        translate_pieces=0 scripts=0
+™ © ®                      translate_pieces=0 scripts=0
+ℓ ℃ №                    translate_pieces=0 scripts=0
+I                              translate_pieces=1 scripts=2
+l                              translate_pieces=1 scripts=2
+ー                            translate_pieces=1 scripts=4
+〜                            translate_pieces=0 scripts=0
+Ω α β                       translate_pieces=1 scripts=256
+× ÷ ±                       translate_pieces=0 scripts=0

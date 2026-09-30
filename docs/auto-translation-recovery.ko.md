@@ -36,7 +36,7 @@
 - Windows UI: 19개 통과(초기화·정리 포함). 실패 테스트에서는 테스트용 잘못된 모델 파일로 실제 ONNX 로딩 실패를 유발하고, 정상 모델 복원 후 **동일한 화면**을 재캡처하여 PaddleOCR이 일본어 `天気`를 실제로 읽는지 확인했습니다. 성공 후 불필요한 추가 요청이 없는지도 확인했습니다.
 - 나머지: translation_protocol 13, local_checks 20, paddle_ocr 42, game_windows 7, shared_core 통과.
 - 기존 마우스 테스트는 사용자의 포인터 이동과 큐에 넣은 이벤트가 경쟁하지 않도록 실제 커서를 옮긴 직후 nativeEvent를 동기 호출합니다. 물리 키보드 입력 검증으로 해석하지 않습니다.
-- DeepL 외부 요청은 이번 검증에서 보내지 않았습니다. 번역 프로토콜 테스트는 로컬 서버입니다.
+- DeepL 외부 요청은 이번 검증에서 보내지 않았습니다. 번역 프로토콜 테스트는 준비된 JSON 응답과 요청 본문을 검사하는 단위 테스트입니다. 로컬 HTTP 서버와 실제 HTTP 시간 초과·취소·429 응답 경로는 검증하지 않았습니다.
 
 [검증 요약](evidence/windows-auto-recovery-checks.json), [변경 전 재현](evidence/windows-auto-recovery-before.txt), [변화 감지 결과](evidence/windows-auto-recovery-change_detection.txt), [UI 통합 결과](evidence/windows-auto-recovery-windows-flow.txt).
 

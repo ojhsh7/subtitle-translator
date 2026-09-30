@@ -29,6 +29,89 @@ QString readWith(OcrService& service, const QImage& image) {
 class LocalChecks : public QObject {
     Q_OBJECT
 private slots:
+
+    void uniformCheckPreservesFaintPixelsAndTinyText() {
+        QImage image(400,80,QImage::Format_RGB32); image.fill(qRgb(128,128,128));
+        QVERIFY(OcrService::isUniformImage(image));
+        image.setPixel(399,79,qRgb(128,128,129)); // One faint pixel, even at the last position, is not blank.
+        QVERIFY(!OcrService::isUniformImage(image));
+        QVERIFY(!OcrService::isUniformImage(rendered(QStringLiteral("はい"),"Yu Gothic")));
+        QVERIFY(!OcrService::isUniformImage(QImage()));
+        QImage gray(17,9,QImage::Format_Grayscale8); gray.fill(40);
+        QVERIFY(OcrService::isUniformImage(gray)); // Padding bytes must not affect equality.
+    }
+    void cancelledBlankCheckNeverEmitsStaleResult() {
+        OcrService service;
+        QSignalSpy recognized(&service,&OcrService::recognized);
+        QSignalSpy failed(&service,&OcrService::failed);
+        QImage image(300,100,QImage::Format_RGB32); image.fill(Qt::white);
+        service.recognize(image,{},{});
+        service.cancel();
+        QTest::qWait(200);
+        QCOMPARE(recognized.size(),0);
+        QCOMPARE(failed.size(),0);
+        QVERIFY(!service.isBusy());
+    }
+
+    void blankImageNeverProducesText_data() {
+        QTest::addColumn<QSize>("size");
+        QTest::addColumn<QColor>("colour");
+        QTest::addColumn<bool>("paddle");
+        for (bool paddle : {false, true}) {
+            const QByteArray prefix = paddle ? "paddle-" : "tesseract-";
+            QTest::newRow((prefix+"white-small").constData()) << QSize(200,60) << QColor(Qt::white) << paddle;
+            QTest::newRow((prefix+"black-small").constData()) << QSize(200,60) << QColor(Qt::black) << paddle;
+            QTest::newRow((prefix+"gray").constData()) << QSize(600,120) << QColor(32,32,32) << paddle;
+            QTest::newRow((prefix+"white-large").constData()) << QSize(1200,300) << QColor(Qt::white) << paddle;
+        }
+    }
+    void blankImageNeverProducesText() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual Tesseract not configured");
+        QFETCH(QSize,size); QFETCH(QColor,colour); QFETCH(bool,paddle);
+        if (paddle && qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("Actual Paddle models not configured");
+        OcrService service;
+        if (paddle) service.setPaddleModelDir(qEnvironmentVariable("SUBTITLE_TEST_PADDLE"));
+        QImage image(size,QImage::Format_RGB32); image.fill(colour);
+        for (int repeat=0; repeat<3; ++repeat) {
+            QSignalSpy recognized(&service,&OcrService::recognized);
+            QSignalSpy failed(&service,&OcrService::failed);
+            service.recognize(image,qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"),
+                              qEnvironmentVariable("SUBTITLE_TEST_TESSDATA"));
+            QTRY_VERIFY_WITH_TIMEOUT(!recognized.isEmpty() || !failed.isEmpty(),25000);
+            QVERIFY2(failed.isEmpty(),"A blank image is empty input, not an engine failure.");
+            QCOMPARE(recognized.size(),1);
+            QVERIFY2(recognized.first().first().toString().isEmpty(),
+                     qPrintable(recognized.first().first().toString()));
+            QCOMPARE(service.attemptsUsed(),0); // Do not ask either engine to invent text from a flat image.
+            QVERIFY(!service.isBusy());
+        }
+    }
+    void shortRealTextIsPreserved_data() {
+        QTest::addColumn<QString>("text");
+        QTest::addColumn<QString>("language");
+        QTest::addColumn<bool>("paddle");
+        for (bool paddle : {false,true}) {
+            const QByteArray prefix = paddle ? "paddle-" : "tesseract-";
+            QTest::newRow((prefix+"yes-ja").constData()) << QStringLiteral("はい") << QString("jpn") << paddle;
+            QTest::newRow((prefix+"no-ja").constData()) << QStringLiteral("いいえ") << QString("jpn") << paddle;
+            QTest::newRow((prefix+"ok-en").constData()) << QStringLiteral("OK") << QString("eng") << paddle;
+        }
+    }
+    void shortRealTextIsPreserved() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual Tesseract not configured");
+        QFETCH(QString,text); QFETCH(QString,language); QFETCH(bool,paddle);
+        if (paddle && qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("Actual Paddle models not configured");
+        OcrService service;
+        if (paddle) service.setPaddleModelDir(qEnvironmentVariable("SUBTITLE_TEST_PADDLE"));
+        QSignalSpy recognized(&service,&OcrService::recognized);
+        QSignalSpy failed(&service,&OcrService::failed);
+        service.recognize(rendered(text,language=="eng" ? "Segoe UI" : "Yu Gothic"),
+                          qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"),
+                          qEnvironmentVariable("SUBTITLE_TEST_TESSDATA"),7,language);
+        QTRY_VERIFY_WITH_TIMEOUT(!recognized.isEmpty() || !failed.isEmpty(),25000);
+        QVERIFY(failed.isEmpty());
+        QCOMPARE(recognized.first().first().toString(),text);
+    }
     void cursorRegionUsesLogicalCoordinatesAndStaysOnOneScreen() {
         const QRect primary(0,0,1920,1080);
         const QSize box(640,160);
@@ -151,7 +234,7 @@ private slots:
     void nonexistentOcrExecutable() {
         OcrService service;
         QSignalSpy failed(&service, &OcrService::failed);
-        QImage image(300,100,QImage::Format_RGB32); image.fill(Qt::white);
+        const QImage image = rendered(QStringLiteral("Missing OCR engine"), QStringLiteral("Segoe UI"));
         service.recognize(image, "Z:/subtitle-missing/tesseract.exe", {}, 6);
         QTRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 3000);
         QVERIFY(!service.isBusy());

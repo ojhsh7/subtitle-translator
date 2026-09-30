@@ -38,6 +38,8 @@ public:
     static constexpr double MaskMargin = 5;       // a mask must beat the original clearly
     // Tesseract often reads a standalone English "I" as "|".
     static QString cleanText(const QString& text);
+    // Conservative blank check: every pixel must match, with no resizing or contrast threshold.
+    static bool isUniformImage(const QImage& image);
     void cancel();
     bool isBusy() const { return busy_; }
     qint64 elapsedMs() const { return elapsedMs_; }

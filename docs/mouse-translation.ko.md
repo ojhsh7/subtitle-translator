@@ -37,7 +37,7 @@ Windows 11, MSVC 2022, Qt 6.8.3, ONNX Runtime 1.30.0에서 Release 빌드 및 CT
 - 키 없는 경로는 OCR 원문만 표시하며 실제 번역 성공으로 표시하지 않음.
 - 설치본 `--smoke-test` 실행 종료 코드 0, [실행 화면](evidence/windows-mouse-ui.png)으로 UI 확인.
 
-이번 변경에서는 외부 번역 API를 새로 호출하지 않았습니다. 기존 실제 연결 검증은 README에 구분되어 있고, 이번 번역 프로토콜 검증은 로컬 테스트 서버를 사용했습니다. 실제 키보드의 물리 입력, 실제 게임별 전체화면 호환성, 복수 모니터/서로 다른 배율 조합은 별도 사용자 테스트가 필요합니다. Android/iOS에는 마우스 기능을 구현하거나 테스트하지 않았습니다.
+이번 변경에서는 외부 번역 API를 새로 호출하지 않았습니다. 기존 실제 연결 검증은 README에 구분되어 있고, 이번 번역 프로토콜 검증은 준비된 JSON 응답과 요청 본문을 검사하는 단위 테스트였습니다. 로컬 HTTP 서버나 실제 HTTP 시간 초과·취소·429 응답 경로를 검증한 것은 아닙니다. 실제 키보드의 물리 입력, 실제 게임별 전체화면 호환성, 복수 모니터/서로 다른 배율 조합은 별도 사용자 테스트가 필요합니다. Android/iOS에는 마우스 기능을 구현하거나 테스트하지 않았습니다.
 
 증거: [검증 요약](evidence/windows-mouse-checks.json), [UI 테스트](evidence/windows-mouse-windows-flow.txt), [캡처·OCR 테스트](evidence/windows-mouse-local_checks.txt).
 

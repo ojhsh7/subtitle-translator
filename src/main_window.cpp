@@ -726,7 +726,7 @@ void MainWindow::updateHover(const QPoint& point, qint64 nowMs, bool mousePresse
     const QRect local = screen ? Capture::aroundPoint(screen->geometry(), point, cursorSizeBox_->currentData().toSize()) : QRect();
     const QRect global = screen ? local.translated(screen->geometry().topLeft()) : QRect();
     const bool ownWindow = (isVisible() && !isMinimized() && frameGeometry().intersects(global)) ||
-        (resultWindow_->isVisible() && resultWindow_->frameGeometry().intersects(global));
+        (resultWindow_->isVisible() && !resultWindow_->isMinimized() && resultWindow_->frameGeometry().intersects(global));
     const bool overCaption = subtitleOverlay_->isVisible() && subtitleOverlay_->geometry().contains(point);
     if (modal_ || mousePressed || !screen || local.isEmpty() || ownWindow || overCaption) {
         hoverSince_ = -1; hoverConsumed_ = false;
@@ -799,7 +799,7 @@ void MainWindow::setBusy(bool busy) {
     cursorCapture_->setEnabled(!busy); cursorSizeBox_->setEnabled(!busy);
 }
 void MainWindow::finish(const QString& status) {
-    setBusy(false); status_->setText(status);
+    setBusy(false); status_->setText(resultPlacementWarning_.isEmpty() ? status : resultPlacementWarning_);
     if (activeSource_ == ST_SCREEN_CAPTURE && inlineCaptions_->isChecked() && result_->toPlainText().isEmpty())
         showSubtitle(QStringLiteral("번역 없음 · ") + status);
 }
@@ -822,7 +822,44 @@ void MainWindow::cancel() {
         resultStatus_->setText(QStringLiteral("처리 취소 · 번역 결과 없음"));
     }
 }
-void MainWindow::showResult() { resultWindow_->show(); }
+bool MainWindow::moveResultOutside(const QRect& source) {
+    if (!resultWindow_->isVisible() || resultWindow_->isMinimized() ||
+        !resultWindow_->frameGeometry().intersects(source)) return true;
+    auto screens = QGuiApplication::screens();
+    if (selectedScreen_) { screens.removeAll(selectedScreen_.data()); screens.prepend(selectedScreen_.data()); }
+    for (QScreen* screen : screens) {
+        const QRect available = screen->availableGeometry().adjusted(4,4,-4,-4);
+        const QSize size = resultWindow_->frameGeometry().size(); // Includes native borders/title bar.
+        if (size.width() > available.width() || size.height() > available.height()) continue;
+        const QList<QPoint> candidates{
+            QPoint(source.left(), source.bottom()+5),
+            QPoint(source.left(), source.top()-size.height()-4),
+            QPoint(source.right()+5, source.top()),
+            QPoint(source.left()-size.width()-4, source.top()),
+            available.topLeft()
+        };
+        for (const QPoint& point : candidates) {
+            const QPoint clamped(std::clamp(point.x(), available.left(), available.right()-size.width()+1),
+                                 std::clamp(point.y(), available.top(), available.bottom()-size.height()+1));
+            const QRect target(clamped,size);
+            if (target.intersects(source)) continue;
+            resultWindow_->move(target.topLeft());
+            if (!resultWindow_->frameGeometry().intersects(source)) return true;
+        }
+    }
+    return false;
+}
+void MainWindow::stopAutoForResultOverlap() {
+    setAutoTranslate(false);
+    resultPlacementWarning_ = QStringLiteral("결과 창을 놓을 빈 공간이 없어 자동 번역을 멈췄습니다. 자막 영역을 줄이거나 결과 창을 다른 모니터로 옮긴 뒤 Ctrl+Alt+P로 다시 시작하세요.");
+    status_->setText(resultPlacementWarning_);
+    resultStatus_->setText(resultPlacementWarning_);
+}
+void MainWindow::showResult() {
+    resultWindow_->show();
+    if (autoTranslating() && !moveResultOutside(region_.translated(selectedGeometry_.topLeft())))
+        stopAutoForResultOverlap();
+}
 bool MainWindow::showSubtitle(const QString& text, bool selectionPreview) {
     const auto area = selectionPreview || captionArea_.rect.isEmpty() ? selectedArea() : captionArea_;
     if (!inlineCaptions_->isChecked() || !area.screen || area.rect.isEmpty() ||
@@ -872,11 +909,13 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 }
 
 void MainWindow::resetOutput() {
+    resultPlacementWarning_.clear();
     original_->clear(); result_->clear(); preview_->clear();
     subtitleOverlay_->hide(); restoreOverlay_ = false;
     resultStatus_->setText(QStringLiteral("새 이미지 처리 중 · 아직 번역 결과가 없습니다."));
 }
 void MainWindow::processImage(const QImage& image, int source) {
+    resultPlacementWarning_.clear();
     activeSource_ = source;
     // Every image source enters here. The core sees only portable metadata and UTF-8 OCR.
     request_ = st_begin(session_, source, image.width(), image.height());
@@ -943,6 +982,7 @@ void MainWindow::setAutoTranslate(bool enabled) {
         return;
     }
     autoPending_ = false;
+    resultPlacementWarning_.clear();
     auto_->setChecked(true);
     autoTimer_->start();
     showMinimized(); // Keep the app window off the game's subtitle.
@@ -963,8 +1003,14 @@ void MainWindow::autoTick() {
         status_->setText(QStringLiteral("OCR 엔진이 없습니다. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
         return;
     }
+    const QRect source = region_.translated(selectedGeometry_.topLeft());
+    if (resultWindow_->isVisible() && !resultWindow_->isMinimized() &&
+        resultWindow_->frameGeometry().intersects(source)) {
+        if (!moveResultOutside(source)) stopAutoForResultOverlap();
+        return; // Let the compositor repaint before the next capture; never OCR our old result.
+    }
     // Polling does not hide windows (that would flicker), so skip frames our own windows cover.
-    if (coversRegion(region_.translated(selectedGeometry_.topLeft()))) {
+    if (coversRegion(source)) {
         status_->setText(QStringLiteral("앱 창이 자막 영역을 가리고 있어 자동 번역을 잠시 건너뜁니다. 창을 옮기거나 최소화하세요."));
         return;
     }
@@ -983,7 +1029,7 @@ void MainWindow::autoTick() {
 }
 bool MainWindow::coversRegion(const QRect& global) const {
     return (isVisible() && !isMinimized() && frameGeometry().intersects(global)) ||
-           (resultWindow_->isVisible() && resultWindow_->frameGeometry().intersects(global)) ||
+           (resultWindow_->isVisible() && !resultWindow_->isMinimized() && resultWindow_->frameGeometry().intersects(global)) ||
            (subtitleOverlay_->isVisible() && subtitleOverlay_->geometry().intersects(global));
 }
 void MainWindow::saveRegion() {

@@ -1,0 +1,12 @@
+********* Start testing of WindowChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : WindowChecks::initTestCase()
+FAIL!  : WindowChecks::fallbackResultWindowDoesNotBlockAutoCapture() '!window.resultWindow_->frameGeometry().intersects(source)' returned FALSE. ()
+D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(45) : failure location
+FAIL!  : WindowChecks::noRoomForResultStopsAutoWithExplanation() '!window.autoTranslating()' returned FALSE. ()
+D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(70) : failure location
+FAIL!  : WindowChecks::blankAutoFrameNeverStartsTranslation() 'window.original_->toPlainText().isEmpty()' returned FALSE. ()
+D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(93) : failure location
+PASS   : WindowChecks::cleanupTestCase()
+Totals: 2 passed, 3 failed, 0 skipped, 0 blacklisted, 929ms
+********* Finished testing of WindowChecks *********

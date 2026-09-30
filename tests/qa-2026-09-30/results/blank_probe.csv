@@ -1,0 +1,9 @@
+﻿"id","engine","exitCode","ocrEngine","attempts","state","text","pieces"
+"B-white-200x60","paddle","0","Tesseract","3","ocr_complete_translation_not_requested","Se","1"
+"B-white-200x60","tesseract","0","Tesseract","1","ocr_complete_translation_not_requested","Se","1"
+"B-black-200x60","paddle","0","Tesseract","3","ocr_complete_translation_not_requested","a","1"
+"B-black-200x60","tesseract","0","Tesseract","1","ocr_complete_translation_not_requested","a","1"
+"B-gray-600x120","paddle","3",,,"failed",,
+"B-gray-600x120","tesseract","3",,,"failed",,
+"B-white-1200x300","paddle","0","PaddleOCR","2","ocr_complete_translation_not_requested","[","0"
+"B-white-1200x300","tesseract","3",,,"failed",,

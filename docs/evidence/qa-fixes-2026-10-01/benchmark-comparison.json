@@ -1,0 +1,98 @@
+{
+  "bench": {
+    "before": {
+      "images": 672,
+      "characters": 17544,
+      "edits": 402,
+      "cerPercent": 2.291,
+      "cerWithoutSpacesPercent": 2.455,
+      "exact": 479,
+      "warmMedianMs": 45.61,
+      "warmP95Ms": 95.19,
+      "coldReadsMs": [
+        174.41,
+        98.15,
+        102.59,
+        107.16,
+        67.1,
+        94.72,
+        90.3,
+        100.26,
+        85.17
+      ]
+    },
+    "after": {
+      "images": 672,
+      "characters": 17544,
+      "edits": 402,
+      "cerPercent": 2.291,
+      "cerWithoutSpacesPercent": 2.455,
+      "exact": 479,
+      "warmMedianMs": 44.78,
+      "warmP95Ms": 93.01,
+      "coldReadsMs": [
+        176.52,
+        99.4,
+        99.98,
+        105.89,
+        85.23,
+        92.64,
+        88.6,
+        98.64,
+        81.44
+      ]
+    },
+    "changedReadings": [],
+    "hostPeakMiB": 155.02,
+    "networkUsed": false,
+    "beforeHostPeakMiB": 153.84
+  },
+  "scene": {
+    "before": {
+      "images": 168,
+      "characters": 10284,
+      "edits": 749,
+      "cerPercent": 7.283,
+      "cerWithoutSpacesPercent": 6.381,
+      "exact": 56,
+      "warmMedianMs": 203.31,
+      "warmP95Ms": 477.4,
+      "coldReadsMs": [
+        318.9,
+        242.51,
+        261.03,
+        267.32,
+        127.31,
+        259.92,
+        213.8,
+        262.59,
+        201.61
+      ]
+    },
+    "after": {
+      "images": 168,
+      "characters": 10284,
+      "edits": 749,
+      "cerPercent": 7.283,
+      "cerWithoutSpacesPercent": 6.381,
+      "exact": 56,
+      "warmMedianMs": 217.27,
+      "warmP95Ms": 510.98,
+      "coldReadsMs": [
+        317.79,
+        238.11,
+        224.97,
+        247.65,
+        137.84,
+        252.73,
+        258.18,
+        317.42,
+        222.26
+      ]
+    },
+    "changedReadings": [],
+    "hostPeakMiB": 304.69,
+    "networkUsed": false,
+    "beforeHostPeakMiB": 303.11
+  }
+}
