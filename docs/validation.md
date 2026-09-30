@@ -393,3 +393,9 @@ C++ 구현 확인: 빌드한 `subtitle_cli.exe`로 같은 192장을 읽어 **96.
 - 화면 번역 글자 크기는 선택 영역 높이 기준(16–36px)이라 대사창 전체를 고르면 보통 36px로 표시됩니다.
 
 원자료: [게임 장면 측정 요약](evidence/windows-scene-summary.json), [672장 측정 요약](evidence/windows-multilang-summary.json), [PaddleOCR 테스트 로그](evidence/windows-paddle-tests.txt), 생성 스크립트 `scripts/make-scene-fixtures.py`.
+
+## 자동 번역의 변화 감지 누락과 OCR 실패 복구 (2026-09-30)
+
+Claude 작업 로그를 확인한 뒤 기존 글자 위치 탐지 모델은 유지했습니다. 큰 캡처에서 작은 문장 끝 변화를 지워 버리던 160px 비교 이미지, 간헐적 배경 움직임에서 계속 초기화되던 대기 타이머, OCR 실패 후 같은 화면을 영구히 건너뛰던 상태를 수정했습니다. OCR 실패는 3초 간격 최대 2회 재확인하며 번역 API 오류에는 자동 재전송하지 않습니다.
+
+CTest 7개 그룹 통과. 자동 감지 14개, UI 19개 통과(초기화·정리 포함). 실제 잘못된 모델 로딩 실패 → 정상 모델 복원 → 같은 일본어 화면 재캡처·실제 OCR 복구를 검증했습니다. 사용자 게임의 실패 화면 재검증과 게임 창 추적 연결은 미완료입니다. [상세 인계·검증 기록](auto-translation-recovery.ko.md).

@@ -1,0 +1,37 @@
+{
+  "recorded_at": "2026-09-29T17:56:04.072477+00:00",
+  "status": "built; installation pending running app closure",
+  "new_hover_tests": {
+    "hover-targeted": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    "hover-unblocked-ui": {
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "packaged_smoke_exit_code": 0,
+  "packaged_exe_sha256": "7d3d562fa692ae14cd77dd0fb3aa07b0cabf8bb9b598e9b0aa380995c931a217",
+  "installed_exe_sha256": "5d189450cc1d16e3cc5a851699f13848747d045b7274688325de4392c4a90817",
+  "installed_matches_package": false,
+  "external_translation_requests": 0,
+  "input_test_method": "Injected pointer positions and elapsed times; actual Windows screen capture and PaddleOCR",
+  "passed_non_ui_groups": [
+    "translation_protocol",
+    "local_checks",
+    "paddle_ocr",
+    "change_detection",
+    "shared_core"
+  ],
+  "pending_hotkey_tests": [
+    "actualScreenCaptureThroughHotkeyMessage",
+    "actualCursorCaptureKeepsSavedRegionAndRetryAnchor",
+    "autoTranslateReadsEachNewLineOnce"
+  ],
+  "existing_game_window_test": "Failed to identify its test window in an interactive run; no product changes to game_window; recheck after old app closes",
+  "physical_keyboard_and_live_hover_timer_tested": false,
+  "mobile_tested": false
+}

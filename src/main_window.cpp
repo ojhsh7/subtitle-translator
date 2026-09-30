@@ -46,7 +46,7 @@ QString describeRegion(const QScreen* screen, const QRect& region) {
 
 MainWindow::MainWindow() {
     setWindowTitle(QStringLiteral("자막 번역"));
-    resize(760, 840);
+    resize(760, 880);
     setMinimumSize(640, 760);
     setAttribute(Qt::WA_ShowWithoutActivating);
     auto* central = new QWidget(this);
@@ -112,9 +112,22 @@ MainWindow::MainWindow() {
     cursorRow->addWidget(cursorShortcutLabel);
     cursorRow->addWidget(cursorSizeBox_, 1);
     layout->addLayout(cursorRow);
+    hoverMode_ = new QCheckBox(QStringLiteral("마우스 올려두기 번역"));
+    hoverMode_->setToolTip(QStringLiteral("글자 위에서 1초 멈추면 한 번 번역합니다. 이동하면 다시 준비합니다. 앱을 다시 열면 꺼진 상태로 시작합니다."));
+    auto* hoverRow = new QHBoxLayout;
+    hoverRow->addWidget(hoverMode_);
+    auto* hoverHint = new QLabel(QStringLiteral("1초 정지 → 1회 번역 · 전송·비용 설정 적용"));
+    hoverHint->setWordWrap(true);
+    hoverRow->addWidget(hoverHint, 1);
+    layout->addLayout(hoverRow);
+    hoverTimer_ = new QTimer(this);
+    hoverTimer_->setInterval(150);
+    connect(hoverMode_, &QCheckBox::toggled, this, &MainWindow::setHoverTranslate);
+    connect(hoverTimer_, &QTimer::timeout, this, &MainWindow::hoverTick);
     connect(cursorCapture_, &QPushButton::clicked, this, &MainWindow::scheduleCursorCapture);
     connect(cursorSizeBox_, &QComboBox::currentIndexChanged, this, [this] {
         QSettings().setValue("cursor/size", cursorSizeBox_->currentData());
+        hoverSince_ = -1; hoverConsumed_ = false;
     });
     autoTimer_ = new QTimer(this);
     autoTimer_->setInterval(400);
@@ -128,6 +141,7 @@ MainWindow::MainWindow() {
     connect(import_, &QPushButton::clicked, this, &MainWindow::importImage);
     connect(retry_, &QPushButton::clicked, this, [this] {
         if (!busy_ && !lastImage_.isNull()) {
+            setHoverTranslate(false);
             captionArea_ = lastCaptionArea_;
             resetOutput(); processImage(lastImage_, lastSource_);
         }
@@ -196,15 +210,23 @@ MainWindow::MainWindow() {
     connect(ocrLanguageBox_, &QComboBox::currentIndexChanged, this, [this] {
         QSettings().setValue("ocr/languages", ocrLanguages());
         st_reset_cache(session_); detector_.reset();
+        if (hoverRequest_ && busy_) cancel();
+        hoverSince_ = -1; hoverConsumed_ = false; hoverRequest_ = false;
     });
     connect(targetLanguageBox_, &QComboBox::currentIndexChanged, this, [this] {
         QSettings().setValue("translation/target", targetLanguage());
         st_reset_cache(session_); detector_.reset();
+        if (hoverRequest_ && busy_) cancel();
+        hoverSince_ = -1; hoverConsumed_ = false; hoverRequest_ = false;
     });
     connect(autoTimer_, &QTimer::timeout, this, &MainWindow::autoTick);
-    connect(cancel_, &QPushButton::clicked, this, &MainWindow::cancel);
+    connect(cancel_, &QPushButton::clicked, this, [this] {
+        if (hoverMode_->isChecked()) setHoverTranslate(false);
+        else cancel();
+    });
     connect(qApp, &QGuiApplication::screenAdded, this, [this] { refreshScreens(); });
     connect(qApp, &QGuiApplication::screenRemoved, this, [this] {
+        setHoverTranslate(false);
         cancel(); subtitleOverlay_->hide(); selectedScreen_ = nullptr; region_ = {}; refreshScreens();
         regionLabel_->setText(QStringLiteral("모니터 구성이 바뀌었습니다. 영역을 다시 선택하세요."));
     });
@@ -219,7 +241,10 @@ MainWindow::MainWindow() {
             if (decision == ST_EMPTY && autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE) {
                 // An empty dialogue box is normal while playing: hide the old caption quietly.
                 subtitleOverlay_->hide(); setBusy(false);
-                status_->setText(QStringLiteral("자동 번역 중 · 자막이 없어 다음 대사를 기다립니다."));
+                const bool retry = detector_.retryAfterFailure(autoClock_.elapsed());
+                status_->setText(retry
+                    ? QStringLiteral("자동 번역 중 · 글자가 없어 3초 뒤 다시 확인합니다.")
+                    : QStringLiteral("자동 번역 중 · 글자를 찾지 못했습니다. 다음 대사를 기다리며, 캡처 영역도 확인해 주세요."));
                 return;
             }
             resultStatus_->setText(QStringLiteral("OCR 결과를 번역할 수 없습니다."));
@@ -268,7 +293,9 @@ MainWindow::MainWindow() {
         if (!busy_) return;
         st_fail(session_, request_);
         resultStatus_->setText(QStringLiteral("OCR 실패 · 번역 없음"));
-        finish(error);
+        const bool retry = autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE &&
+                           detector_.retryAfterFailure(autoClock_.elapsed());
+        finish(retry ? error + QStringLiteral("\n자동 번역: 3초 뒤 다시 확인합니다 (같은 화면에서 최대 2회).") : error);
     });
     connect(&translation_, &TranslationService::translated, this, [this](const QStringList& pieces, const QString& detected) {
         if (!busy_) return;
@@ -348,12 +375,20 @@ MainWindow::MainWindow() {
         cursorCapture_->setToolTip(QStringLiteral("버튼을 누른 뒤 3초 안에 글자 위로 마우스를 옮기세요."));
         note->setText(note->text().replace(QStringLiteral("글자 위에서 Ctrl+Alt+M"), QStringLiteral("3초 준비 버튼 사용")));
     }
+    hoverRegistered_ = RegisterHotKey(handle, 4, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'H') != 0;
+    if (!hoverRegistered_) {
+        hoverRegistered_ = RegisterHotKey(handle, 4, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_F9) != 0;
+        if (hoverRegistered_) hoverShortcut_ = QStringLiteral("Ctrl+Alt+F9");
+    }
+    if (hoverRegistered_)
+        hoverMode_->setText(QStringLiteral("마우스 올려두기 번역 · %1").arg(hoverShortcut_));
     QString ready = registered_ ? QStringLiteral("준비됨 · 먼저 설정을 확인하고 자막 영역을 선택하세요.")
         : QStringLiteral("Ctrl+Alt+T 등록 실패: 다른 앱에서 사용 중일 수 있습니다. 캡처 버튼을 사용하세요.");
     if (!autoRegistered_) ready += QStringLiteral("\nCtrl+Alt+P 등록 실패: 자동 번역 버튼을 사용하세요.");
     if (!cursorRegistered_) ready += QStringLiteral("\nCtrl+Alt+M/F8 등록 실패: 마우스 번역 · 3초 준비 버튼을 사용하세요.");
     else if (cursorShortcut_ != QLatin1String("Ctrl+Alt+M"))
         ready += QStringLiteral("\nCtrl+Alt+M 사용 중: 마우스 번역은 Ctrl+Alt+F8로 실행하세요.");
+    if (!hoverRegistered_) ready += QStringLiteral("\n마우스 올려두기 단축키 등록 실패: 체크 상자로 켜고 끄세요.");
     status_->setText(ready);
     const bool setupComplete = saved.value("setupComplete", false).toBool();
     // The desktop shortcut passes --auto: the user chose to start translating right away.
@@ -370,11 +405,13 @@ MainWindow::MainWindow() {
         QTimer::singleShot(0, this, &MainWindow::settings);
 }
 MainWindow::~MainWindow() {
+    hoverTimer_->stop();
     autoTimer_->stop();
     cancel();
     if (registered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 1);
     if (autoRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 2);
     if (cursorRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 3);
+    if (hoverRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 4);
     delete subtitleOverlay_;
     delete resultWindow_;
     st_destroy(session_);
@@ -567,6 +604,7 @@ void MainWindow::settings() {
 }
 void MainWindow::chooseRegion() {
     if (busy_ || modal_) return;
+    setHoverTranslate(false);
     const auto list = QGuiApplication::screens();
     if (screens_->currentIndex() < 0 || screens_->currentIndex() >= list.size()) return;
     QPointer<QScreen> screen = list[screens_->currentIndex()];
@@ -603,6 +641,7 @@ MainWindow::CaptureArea MainWindow::selectedArea() const {
 }
 void MainWindow::startCapture() {
     if (busy_ || modal_) return;
+    setHoverTranslate(false);
     if (!selectedScreen_ || region_.isEmpty()) {
         status_->setText(QStringLiteral("먼저 자막 영역을 선택하세요.")); return;
     }
@@ -610,6 +649,7 @@ void MainWindow::startCapture() {
 }
 void MainWindow::scheduleCursorCapture() {
     if (busy_ || modal_) return;
+    setHoverTranslate(false);
     setAutoTranslate(false);
     setBusy(true);
     const quint64 ticket = ++generation_;
@@ -622,6 +662,7 @@ void MainWindow::scheduleCursorCapture() {
 }
 void MainWindow::startCursorCapture() {
     if (modal_) return;
+    setHoverTranslate(false);
     // Freeze the point now: cursor movement during OCR must not move the source or result.
     const QPoint point = QCursor::pos();
     QScreen* screen = QGuiApplication::screenAt(point);
@@ -638,6 +679,79 @@ void MainWindow::startCursorCapture() {
     }
     beginScreenCapture({screen, screen->geometry(), rect, screen->devicePixelRatio()},
                        QStringLiteral("마우스 주변 캡처 중… · 자동 번역은 Ctrl+Alt+P로 다시 켤 수 있습니다."));
+}
+void MainWindow::setHoverTranslate(bool enabled) {
+    const bool wasEnabled = hoverMode_->isChecked() || hoverTimer_->isActive();
+    const QSignalBlocker blocker(hoverMode_);
+    if (enabled && modal_) {
+        hoverMode_->setChecked(wasEnabled);
+        return;
+    }
+    if (enabled && !ocrReady()) {
+        hoverMode_->setChecked(false);
+        status_->setText(QStringLiteral("OCR 엔진을 먼저 준비하세요. 설정에서 모델과 실행 파일을 확인할 수 있습니다."));
+        return;
+    }
+    hoverMode_->setChecked(enabled);
+    if (!enabled) {
+        hoverTimer_->stop();
+        hoverSince_ = -1; hoverConsumed_ = false;
+        if (!wasEnabled) return;
+        if (hoverRequest_ && busy_) cancel();
+        hoverRequest_ = false;
+        subtitleOverlay_->hide();
+        status_->setText(QStringLiteral("마우스 올려두기 번역을 껐습니다."));
+        return;
+    }
+    setAutoTranslate(false);
+    if (busy_) cancel();
+    hoverSince_ = -1; hoverConsumed_ = false; hoverRequest_ = false;
+    subtitleOverlay_->hide();
+    hoverTimer_->start();
+    // Keep the target visible. If no global stop key was registered, leave the checkbox visible.
+    if (hoverRegistered_) showMinimized();
+    status_->setText(QStringLiteral("마우스 번역 켜짐 · 글자 위에서 1초 멈추세요. 같은 위치는 한 번만 읽습니다.%1")
+        .arg(hoverRegistered_ ? QStringLiteral(" %1로 끕니다.").arg(hoverShortcut_) : QStringLiteral(" 체크를 해제하면 꺼집니다.")));
+}
+void MainWindow::hoverTick() {
+    // Query global physical button state even while the game owns mouse input.
+    bool pressed = false;
+    for (const int button : {VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_XBUTTON1, VK_XBUTTON2})
+        pressed = pressed || (GetAsyncKeyState(button) & 0x8000) != 0;
+    updateHover(QCursor::pos(), autoClock_.elapsed(), pressed);
+}
+void MainWindow::updateHover(const QPoint& point, qint64 nowMs, bool mousePressed) {
+    if (!hoverMode_->isChecked()) return;
+    QScreen* screen = QGuiApplication::screenAt(point);
+    const QRect local = screen ? Capture::aroundPoint(screen->geometry(), point, cursorSizeBox_->currentData().toSize()) : QRect();
+    const QRect global = screen ? local.translated(screen->geometry().topLeft()) : QRect();
+    const bool ownWindow = (isVisible() && !isMinimized() && frameGeometry().intersects(global)) ||
+        (resultWindow_->isVisible() && resultWindow_->frameGeometry().intersects(global));
+    const bool overCaption = subtitleOverlay_->isVisible() && subtitleOverlay_->geometry().contains(point);
+    if (modal_ || mousePressed || !screen || local.isEmpty() || ownWindow || overCaption) {
+        hoverSince_ = -1; hoverConsumed_ = false;
+        if (hoverRequest_ && busy_) { cancel(); hoverRequest_ = false; }
+        return;
+    }
+    constexpr int MovementTolerance = 12; // logical pixels; small hand tremors do not restart the wait.
+    constexpr qint64 DwellMs = 1000;
+    if (hoverSince_ < 0 || (point - hoverAnchor_).manhattanLength() > MovementTolerance) {
+        if (hoverRequest_ && busy_) cancel();
+        if (hoverRequest_) subtitleOverlay_->hide();
+        hoverRequest_ = false;
+        hoverAnchor_ = point; hoverSince_ = nowMs; hoverConsumed_ = false;
+        return;
+    }
+    if (hoverConsumed_ || busy_ || nowMs - hoverSince_ < DwellMs) return;
+    hoverConsumed_ = true;
+    if (!ocrReady()) {
+        setHoverTranslate(false);
+        status_->setText(QStringLiteral("OCR 엔진을 찾지 못해 마우스 번역을 껐습니다. 설정을 확인하세요."));
+        return;
+    }
+    hoverRequest_ = true;
+    beginScreenCapture({screen, screen->geometry(), local, screen->devicePixelRatio()},
+        QStringLiteral("마우스 주변 캡처 중… · 마우스를 옮기면 현재 처리를 취소합니다."));
 }
 void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& status) {
     if (busy_ || modal_) return;
@@ -743,9 +857,13 @@ bool MainWindow::nativeEvent(const QByteArray&, void* message, qintptr* result) 
     if (msg->message == WM_HOTKEY && msg->wParam == 3) {
         startCursorCapture(); *result = 0; return true;
     }
+    if (msg->message == WM_HOTKEY && msg->wParam == 4) {
+        setHoverTranslate(!hoverMode_->isChecked()); *result = 0; return true;
+    }
     return false;
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
+    hoverTimer_->stop();
     autoTimer_->stop();
     cancel();
     resultWindow_->hide(); subtitleOverlay_->hide();
@@ -772,6 +890,7 @@ void MainWindow::processImage(const QImage& image, int source) {
 }
 void MainWindow::importImage() {
     if (busy_ || modal_) return;
+    setHoverTranslate(false);
     modal_ = true;
     const QString path = QFileDialog::getOpenFileName(this, QStringLiteral("번역할 이미지 선택"), {},
         QStringLiteral("Images (*.png *.jpg *.jpeg *.bmp *.webp)"));
@@ -800,6 +919,7 @@ void MainWindow::importImage() {
 }
 bool MainWindow::autoTranslating() const { return autoTimer_->isActive(); }
 void MainWindow::setAutoTranslate(bool enabled) {
+    if (enabled) setHoverTranslate(false);
     const QSignalBlocker blocker(auto_);
     if (enabled && (busy_ || modal_)) {
         auto_->setChecked(autoTranslating());

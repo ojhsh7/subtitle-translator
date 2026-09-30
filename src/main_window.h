@@ -41,6 +41,9 @@ private:
     void startCapture();
     void startCursorCapture();
     void scheduleCursorCapture();
+    void setHoverTranslate(bool enabled);
+    void hoverTick();
+    void updateHover(const QPoint& point, qint64 nowMs, bool mousePressed = false);
     void beginScreenCapture(const CaptureArea& area, const QString& status);
     void importImage();
     void processImage(const QImage& image, int source);
@@ -73,6 +76,12 @@ private:
     QPushButton* capture_;
     QPushButton* cursorCapture_;
     QComboBox* cursorSizeBox_;
+    QCheckBox* hoverMode_;
+    QTimer* hoverTimer_;
+    QPoint hoverAnchor_;
+    qint64 hoverSince_ = -1;
+    bool hoverConsumed_ = false;
+    bool hoverRequest_ = false; // Only hover-owned work may be cancelled when the pointer moves.
     QPushButton* settings_;
     QPushButton* cancel_;
     QPushButton* import_;
@@ -115,6 +124,8 @@ private:
     bool registered_ = false;
     bool autoRegistered_ = false;
     bool cursorRegistered_ = false;
+    bool hoverRegistered_ = false;
+    QString hoverShortcut_ = QStringLiteral("Ctrl+Alt+H");
     QString cursorShortcut_ = QStringLiteral("Ctrl+Alt+M");
     bool autoPending_ = false;  // --auto launch waiting for setup or a region
     bool restoreMain_ = false;

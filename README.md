@@ -12,6 +12,7 @@ Windows는 파일·자막 영역 캡처와 자동 번역, Android는 이미지 �
 
 - [멀티플랫폼 설계·지원표·흐름](docs/product-design.ko.md)
 - [검증 결과와 제한](docs/validation.md)
+- [자동 번역 누락 수정·클로드 인계 확인](docs/auto-translation-recovery.ko.md)
 - [다국어 OCR 재개 후 최종 확인·재현](docs/multilang-recheck.ko.md)
 - [공통 데이터·오류](core/include/subtitle/models.h)
 - [공통 코어 C ABI](core/include/subtitle/core.h)
@@ -82,6 +83,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-windows.ps
 이미지·원문·번역 내역을 기본적으로 파일에 저장하지 않습니다. 선택한 키 저장소는 Windows Credential Manager이고, 일반 설정과 자막 영역 좌표는 현재 사용자 레지스트리의 PersonalTools/SubtitleTranslator입니다. 모니터 해상도나 배율이 바뀌면 저장된 영역을 쓰지 않고 다시 선택하도록 안내합니다.
 
 보이는 픽셀을 캡처하므로 보호 콘텐츠·보안 데스크톱·독점 전체화면·가려진 자막은 성공을 보장하지 않습니다. 창 모드·테두리 없는 창 모드로 확인하세요.
+
+#### 마우스를 올려두면 번역
+
+**마우스 올려두기 번역**을 체크하거나 **Ctrl+Alt+H**로 켭니다. 글자 위에서 약 1초 멈추면 주변 영역을 한 번 읽고 가까이에 번역을 표시합니다. 같은 키로 끌 수 있으며, H가 다른 앱에서 사용 중이면 F9로 대체합니다. 메인 창에 실제 단축키가 표시됩니다.
+
+- 같은 위치에서 반복하지 않습니다. 다른 글자로 옮긴 뒤 멈추면 다시 번역합니다.
+- 주변 범위는 기존 좁게·보통·넓게 선택을 사용합니다. 드래그 중과 이 앱의 창 위에서는 읽지 않습니다.
+- 고정 영역 자동 번역(Ctrl+Alt+P)과 동시에 켜지지 않습니다. 저장한 자막 영역은 유지합니다.
+- 앱을 다시 열면 꺼진 상태입니다. 번역 시 OCR 원문 전송·서비스 비용은 기존 키와 동의 설정을 따릅니다.
+- 문장 끝이 범위 밖으로 잘리면 범위를 넓히거나 고정 자막 영역을 사용하세요.
+
+[마우스 올려두기 구현·검증](docs/mouse-hover.ko.md)
 
 #### 마우스 주변 번역
 

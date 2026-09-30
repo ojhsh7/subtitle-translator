@@ -1,5 +1,8 @@
 #include "main_window.h"
 #include "capture_service.h"
+#include "paddle_ocr.h"
+#include <QTemporaryDir>
+#include <QFile>
 #include <QCursor>
 #include <QScopeGuard>
 #include "region_selector.h"
@@ -125,10 +128,14 @@ private slots:
         const QRect expected=Capture::aroundPoint(fixture.screen()->geometry(),point,QSize(640,160));
         window.setAutoTranslate(true);
         QVERIFY(window.autoTranslating());
-        QCursor::setPos(point);
         QVERIFY(window.cursorRegistered_);
-        QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()),WM_HOTKEY,3,0));
-        QTRY_VERIFY_WITH_TIMEOUT(window.busy_,1000);
+        MSG mouseHotkey{}; mouseHotkey.message=WM_HOTKEY; mouseHotkey.wParam=3;
+        qintptr handled=0;
+        // Dispatch immediately after moving the real cursor; a queued message races with
+        // the user moving their mouse while the test waits for the event loop.
+        QCursor::setPos(point);
+        QVERIFY(window.nativeEvent({},&mouseHotkey,&handled));
+        QVERIFY(window.busy_);
         QCursor::setPos(point + QPoint(300,200)); // Source stays at the point sampled at the hotkey.
         QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,20000);
         QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")), qPrintable(window.original_->toPlainText()));
@@ -189,6 +196,119 @@ private slots:
         QVERIFY(window.lastImage_.isNull());
         QVERIFY(window.cursorSizeBox_->isEnabled());
         QCOMPARE(st_state(window.session_),int(ST_CANCELLED));
+    }
+    void hoverReadsOncePerStopAndCancelsWhenMoved() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:32px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(840,220); fixture.move(30,30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        QTest::qWait(150);
+        MainWindow window;
+        window.executable_.clear();
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE");
+        window.paddleEngine_=true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_.clear(); window.consent_=false;
+        QVERIFY(!window.hoverMode_->isChecked()); // No automatic capture on launch.
+        QVERIFY(window.hoverRegistered_);
+        MSG hotkey{}; hotkey.message=WM_HOTKEY; hotkey.wParam=4;
+        qintptr handled=0;
+        QVERIFY(window.nativeEvent({},&hotkey,&handled));
+        QVERIFY(window.hoverMode_->isChecked());
+        window.hoverTimer_->stop(); // Feed deterministic pointer/time samples; capture/OCR remain real.
+        const QPoint point=fixture.mapToGlobal(fixture.rect().center());
+        window.updateHover(point,0);
+        window.updateHover(point+QPoint(3,2),450); // Small hand tremor does not restart the dwell.
+        window.updateHover(point,999);
+        QVERIFY(!window.busy_);
+        QVERIFY(window.lastImage_.isNull());
+        window.updateHover(point,1000);
+        QVERIFY(window.busy_);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,20000);
+        QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")),qPrintable(window.original_->toPlainText()));
+        QCOMPARE(window.ocr_.engineUsed(),QStringLiteral("PaddleOCR"));
+        QVERIFY(window.result_->toPlainText().isEmpty()); // No key: never fake a translation.
+        QVERIFY(window.region_.isEmpty()); // No saved game region needed or overwritten.
+        const auto firstRequest=window.request_;
+        window.updateHover(point,3000); window.updateHover(point,7000);
+        QCOMPARE(window.request_,firstRequest);
+        QVERIFY(!window.busy_);
+
+        const QPoint second=point+QPoint(30,0);
+        window.updateHover(second,8000);
+        window.updateHover(second,9000);
+        QVERIFY(window.busy_); // A new location allows one more capture.
+        window.updateHover(point,9001); // Move before the deferred capture reads pixels.
+        QVERIFY(!window.busy_);
+        QTest::qWait(250);
+        QCOMPARE(window.request_,firstRequest);
+        QVERIFY(!window.subtitleOverlay_->isVisible());
+
+        window.updateHover(point,10001);
+        QVERIFY(window.busy_);
+        QVERIFY(window.nativeEvent({},&hotkey,&handled)); // Same key stops and cancels pending work.
+        QVERIFY(!window.hoverMode_->isChecked());
+        QVERIFY(!window.busy_);
+        QTest::qWait(250);
+        QCOMPARE(window.request_,firstRequest);
+    }
+    void hoverWaitsAfterDragAndDoesNotReadOwnWindow() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual engine not configured");
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        window.apiKey_.clear(); window.consent_=false;
+        window.setHoverTranslate(true); window.hoverTimer_->stop();
+        window.showNormal(); window.move(20,20);
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        const QPoint own=window.mapToGlobal(window.rect().center());
+        window.updateHover(own,0); window.updateHover(own,5000);
+        QVERIFY(window.lastImage_.isNull()); QVERIFY(!window.busy_);
+        window.hide();
+        const QPoint point=QGuiApplication::primaryScreen()->geometry().center();
+        window.updateHover(point,6000,true); // Held mouse button: do not capture.
+        window.updateHover(point,12000,true);
+        QVERIFY(!window.busy_);
+        window.updateHover(point,12001);
+        window.updateHover(point,13000);
+        QVERIFY(!window.busy_);
+        window.updateHover(point,13001);
+        QVERIFY(window.busy_);
+        window.cancel_->click(); // The cancel button also turns off hover mode.
+        QVERIFY(!window.hoverMode_->isChecked());
+        QVERIFY(!window.busy_);
+        QTest::qWait(250);
+        QVERIFY(window.lastImage_.isNull());
+        window.updateHover(point,20000);
+        QVERIFY(!window.busy_);
+    }
+    void hoverAndGameAutoAreExclusiveAndHoverIsNotSaved() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual engine not configured");
+        {
+            MainWindow window;
+            window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+            window.selectedScreen_=QGuiApplication::primaryScreen();
+            window.selectedGeometry_=window.selectedScreen_->geometry();
+            window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+            const QRect saved(80,100,600,50);
+            window.region_=saved; window.saveRegion();
+            window.setAutoTranslate(true);
+            QVERIFY(window.autoTranslating());
+            window.setHoverTranslate(true);
+            QVERIFY(window.hoverMode_->isChecked());
+            QVERIFY(!window.autoTranslating());
+            QCOMPARE(window.region_,saved);
+            window.setAutoTranslate(true);
+            QVERIFY(!window.hoverMode_->isChecked());
+            QVERIFY(window.autoTranslating());
+            window.setAutoTranslate(false);
+            window.setHoverTranslate(true);
+            QVERIFY(window.hoverMode_->isChecked());
+        }
+        MainWindow next;
+        QVERIFY(!next.hoverMode_->isChecked());
+        QVERIFY(!next.hoverTimer_->isActive());
     }
     void overlayStaysOutsideSourceAndOnItsMonitor() {
         const QRect monitor(-1920, 0, 1920, 1040);
@@ -281,6 +401,43 @@ private slots:
         QTRY_VERIFY(!window.autoTranslating());
         QVERIFY(!window.auto_->isChecked());
         QVERIFY(!window.subtitleOverlay_->isVisible());
+    }
+    void autoRetriesSameFrameAfterActualOcrFailure() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QTemporaryDir brokenModels;
+        QVERIFY(brokenModels.isValid());
+        QFile broken(QDir(brokenModels.path()).filePath(QLatin1String(PaddleOcr::CjkModel)));
+        QVERIFY(broken.open(QIODevice::WriteOnly));
+        broken.write("invalid model for failure-path test"); broken.close();
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:42px;");
+        fixture.setAlignment(Qt::AlignCenter);
+        fixture.resize(840,160); fixture.move(30,30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        QTest::qWait(150);
+        MainWindow window;
+        window.executable_.clear();
+        window.paddleDir_=brokenModels.path(); window.paddleEngine_=true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_.clear(); window.consent_=false;
+        window.selectedScreen_=fixture.screen(); window.selectedGeometry_=fixture.screen()->geometry();
+        window.selectedDpr_=fixture.screen()->devicePixelRatio();
+        window.region_=QRect(fixture.mapToGlobal(QPoint())-fixture.screen()->geometry().topLeft(),fixture.size());
+        window.setAutoTranslate(true);
+        QTRY_VERIFY_WITH_TIMEOUT(st_state(window.session_)==ST_FAILED && !window.busy_,15000);
+        QVERIFY(window.status_->text().contains(QStringLiteral("3초")));
+        const auto failedRequest=window.request_;
+        // Restore the real model while keeping every source pixel unchanged.
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.applyOcrEngine();
+        QTRY_VERIFY_WITH_TIMEOUT(window.request_!=failedRequest && !window.busy_ &&
+            window.original_->toPlainText().contains(QStringLiteral("天気")),20000);
+        QVERIFY(window.result_->toPlainText().isEmpty()); // No live translation request.
+        QVERIFY(window.autoTranslating());
+        const auto recoveredRequest=window.request_;
+        QTest::qWait(3600);
+        QCOMPARE(window.request_,recoveredRequest); // A successful static frame stops retrying.
+        window.setAutoTranslate(false);
     }
     void regionIsRememberedForTheNextLaunch() {
         const QRect region(80,100,600,50);

@@ -65,6 +65,67 @@ private slots:
         }
         QCOMPARE(processed, (QList<qint64>{3200, 6400}));
     }
+    void smallSentenceEndingInsideLargeRegionIsDetected_data() {
+        QTest::addColumn<QString>("text");
+        QTest::newRow("japanese") << QStringLiteral("。");
+        QTest::newRow("english") << QStringLiteral("!");
+    }
+    void smallSentenceEndingInsideLargeRegionIsDetected() {
+        QFETCH(QString,text);
+        QImage before(2200,420,QImage::Format_RGB32); before.fill(QColor(80,80,80));
+        QImage after=before;
+        QPainter p(&after);
+        QFont f("Yu Gothic"); f.setPixelSize(18); p.setFont(f); p.setPen(QColor(220,220,220));
+        p.drawText(QPoint(1820,260),text); p.end();
+        ChangeDetector detector;
+        detector.feed(before,0); detector.feed(before,400);
+        QCOMPARE(detector.feed(before,800),Decision::Process);
+        QCOMPARE(detector.feed(after,1200),Decision::Wait);
+        QCOMPARE(detector.feed(after,1600),Decision::Wait);
+        QCOMPARE(detector.feed(after,2000),Decision::Process);
+    }
+    void intermittentlyAnimatedBackgroundCannotWaitForever() {
+        ChangeDetector detector;
+        QList<qint64> processed;
+        // Each scene frame lasts two polls: never enough stable polls, but not changing every poll.
+        for (int i=0;i<=17;++i) {
+            if (detector.feed(line(QStringLiteral("今日はいい天気です。"),((i/2)*50)%900),i*400)==Decision::Process)
+                processed.append(i*400);
+        }
+        QCOMPARE(processed,(QList<qint64>{3200,6400}));
+    }
+    void failedOcrRetriesAreDelayedAndBounded() {
+        ChangeDetector detector;
+        const QImage frame=line(QStringLiteral("今日はいい天気です。"));
+        detector.feed(frame,0); detector.feed(frame,400);
+        QCOMPARE(detector.feed(frame,800),Decision::Process);
+        QVERIFY(detector.retryAfterFailure(900));
+        QVERIFY(!detector.retryAfterFailure(950)); // Duplicate failure cannot consume another retry.
+        QCOMPARE(detector.feed(frame,3800),Decision::Unchanged);
+        QCOMPARE(detector.feed(frame,3900),Decision::Process);
+        QVERIFY(detector.retryAfterFailure(4000));
+        QCOMPARE(detector.feed(frame,6999),Decision::Unchanged);
+        QCOMPARE(detector.feed(frame,7000),Decision::Process);
+        QVERIFY(!detector.retryAfterFailure(7100));
+        QCOMPARE(detector.feed(frame,20000),Decision::Unchanged);
+        const QImage next=line(QStringLiteral("明日は雨が降ります。"));
+        detector.feed(next,20400); detector.feed(next,20800);
+        QCOMPARE(detector.feed(next,21200),Decision::Process);
+        QVERIFY(detector.retryAfterFailure(21300)); // New dialogue gets its own retry allowance.
+        detector.reset();
+        QVERIFY(!detector.retryAfterFailure(21400));
+    }
+    void forcedPartialReadIsConfirmedOnceWhenSettled() {
+        ChangeDetector detector;
+        QImage last;
+        for(int i=0;i<=8;++i) {
+            last=line(QStringLiteral("今日はいい天気です。"),i*50);
+            detector.feed(last,i*400);
+        }
+        QCOMPARE(detector.feed(last,3600),Decision::Wait);
+        QCOMPARE(detector.feed(last,4000),Decision::Process);
+        QCOMPARE(detector.feed(last,4400),Decision::Unchanged);
+    }
     void resetForgetsTheProcessedLine() {
         ChangeDetector detector;
         const QImage frame = line(QStringLiteral("今日はいい天気です。"));
