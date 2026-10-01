@@ -9,7 +9,9 @@
 #include <QSignalSpy>
 #include <QRegularExpression>
 #include <QTemporaryDir>
+#include <QtConcurrent>
 #include <QtTest>
+#include <atomic>
 #include <cmath>
 namespace {
 QString fixture(const QString& name) { return QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath(name); }
@@ -267,6 +269,45 @@ private slots:
         std::sort(times.begin(), times.end());
         qInfo("warm read, auto-detect (2 models): median %lld ms", times[times.size() / 2]);
         QVERIFY(times[times.size() / 2] < 1000);
+    }
+    void cancelledReadReleasesModelsQuickly() {
+        // QA R-02: an abandoned read kept the model lock until the whole region was read, so the next
+        // request (mouse moved, new hotkey) waited for it. Compare the wait without and with the flag.
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        PaddleOcr ocr(models());
+        QImage page(1100, 1000, QImage::Format_RGB32); page.fill(Qt::white);
+        {
+            QPainter painter(&page); QFont font("Yu Gothic"); font.setPixelSize(34); painter.setFont(font);
+            for (int line = 0; line < 14; ++line)
+                painter.drawText(30, 60 + line * 68, QStringLiteral("今日はいい天気です。明日は雨が降ります。%1").arg(line));
+        }
+        const QImage small(fixture("outlined-ko-18px.png"));
+        QString error;
+        ocr.read(small, "jpn+eng+kor", error); // load models
+        QElapsedTimer full; full.start();
+        ocr.read(page, "jpn+eng+kor", error);
+        const qint64 fullMs = full.elapsed();
+        auto waitForNext = [&](bool useFlag, PaddleOcr::Result* abandoned) {
+            OcrCancel stop;
+            auto first = QtConcurrent::run([&] { QString e; return ocr.read(page, "jpn+eng+kor", e, useFlag ? &stop : nullptr); });
+            QThread::msleep(40);
+            if (useFlag) stop.cancel();
+            QElapsedTimer next; next.start();
+            QString e;
+            const auto result = ocr.read(small, "jpn+eng+kor", e);
+            const qint64 waited = next.elapsed();
+            *abandoned = first.result();
+            return result.text.contains(QStringLiteral("날씨")) ? waited : qint64(-1);
+        };
+        PaddleOcr::Result oldStyle, flagged;
+        const qint64 before = waitForNext(false, &oldStyle);
+        const qint64 after = waitForNext(true, &flagged);
+        qInfo("full page %lld ms; next request waited %lld ms without the flag, %lld ms with it", fullMs, before, after);
+        QVERIFY(before > 0 && after > 0);
+        QVERIFY(!oldStyle.cancelled);
+        QVERIFY(flagged.cancelled);
+        QVERIFY(flagged.text.isEmpty());
+        QVERIFY2(after * 2 < before, "cancelling must release the models well before the abandoned read would end");
     }
     void serviceUsesPaddleThenFallsBack() {
         if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");

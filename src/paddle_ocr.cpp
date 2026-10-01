@@ -40,6 +40,21 @@ void writePlanes(const QImage& scaled, int width, int height, std::vector<float>
 }
 }
 
+struct OcrCancel::Impl { Ort::RunOptions options; };
+OcrCancel::OcrCancel() : impl_(std::make_unique<Impl>()) {}
+OcrCancel::~OcrCancel() = default;
+void OcrCancel::cancel() {
+    flag_.store(true, std::memory_order_relaxed);
+    try { impl_->options.SetTerminate(); } catch (const Ort::Exception&) {} // ends a running inference
+}
+void* OcrCancel::runOptions() const { return &impl_->options; }
+namespace {
+const Ort::RunOptions& runOptionsFor(const OcrCancel* cancel) {
+    static const Ort::RunOptions none{nullptr};
+    return cancel ? *static_cast<const Ort::RunOptions*>(cancel->runOptions()) : none;
+}
+}
+
 struct PaddleRecognizer::Model {
     Ort::Session session{nullptr};
     QStringList dictionary; // index 0 = blank, last = space
@@ -117,8 +132,8 @@ PaddleRecognizer::Line PaddleRecognizer::decode(const float* probabilities, int 
     return line;
 }
 
-PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image) const {
-    if (!model_ || image.isNull()) return {};
+PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image, const OcrCancel* cancel) const {
+    if (!model_ || image.isNull() || (cancel && cancel->cancelled())) return {};
     int width = 0;
     std::vector<float> data = inputTensor(image, width);
     const std::array<int64_t, 4> shape{1, 3, 48, width};
@@ -127,7 +142,7 @@ PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image) const {
         Ort::Value input = Ort::Value::CreateTensor<float>(memory, data.data(), data.size(), shape.data(), shape.size());
         const char* inputs[] = {model_->input.c_str()};
         const char* outputs[] = {model_->output.c_str()};
-        auto result = model_->session.Run(Ort::RunOptions{nullptr}, inputs, &input, 1, outputs, 1);
+        auto result = model_->session.Run(runOptionsFor(cancel), inputs, &input, 1, outputs, 1);
         const auto out = result[0].GetTensorTypeAndShapeInfo().GetShape(); // [1, steps, classes]
         if (out.size() != 3) return {};
         auto line = decode(result[0].GetTensorData<float>(), int(out[1]), int(out[2]), model_->dictionary);
@@ -249,8 +264,8 @@ QList<QRect> PaddleDetector::joinLines(QList<QRect> boxes) {
     return lines;
 }
 
-QList<QRect> PaddleDetector::lines(const QImage& region) const {
-    if (!model_ || region.isNull()) return {};
+QList<QRect> PaddleDetector::lines(const QImage& region, const OcrCancel* cancel) const {
+    if (!model_ || region.isNull() || (cancel && cancel->cancelled())) return {};
     int width = 0, height = 0;
     std::vector<float> data = inputTensor(region, width, height);
     if (data.empty()) return {};
@@ -260,7 +275,7 @@ QList<QRect> PaddleDetector::lines(const QImage& region) const {
         Ort::Value input = Ort::Value::CreateTensor<float>(memory, data.data(), data.size(), shape.data(), shape.size());
         const char* inputs[] = {model_->input.c_str()};
         const char* outputs[] = {model_->output.c_str()};
-        auto result = model_->session.Run(Ort::RunOptions{nullptr}, inputs, &input, 1, outputs, 1);
+        auto result = model_->session.Run(runOptionsFor(cancel), inputs, &input, 1, outputs, 1);
         const auto out = result[0].GetTensorTypeAndShapeInfo().GetShape(); // [1, 1, height, width]
         if (out.size() != 4 || out[2] != height || out[3] != width) return {};
         return joinLines(boxes(result[0].GetTensorData<float>(), width, height, region.size()));
@@ -399,9 +414,12 @@ const Reading& choose(const std::vector<Reading>& readings, double* score = null
     return readings[best];
 }
 }
-PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages, QString& error) {
+PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages, QString& error,
+                                   const OcrCancel* cancel) {
+    const auto cancelled = [cancel] { return cancel && cancel->cancelled(); };
     std::lock_guard<std::mutex> lock(mutex_);
     error.clear();
+    if (cancelled()) { Result stopped; stopped.cancelled = true; return stopped; }
     const QStringList files = modelFiles(languages);
     if (files.isEmpty()) { error = QStringLiteral("지원하지 않는 OCR 언어입니다."); return {}; }
     // Release models no longer selected instead of retaining all seven after switching languages.
@@ -433,7 +451,10 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
     QList<QImage> lines, taller;
     // Crops as RapidOCR makes them: extra padding was measured as no better (horizontal) or worse (vertical).
     if (detector_)
-        for (const QRect& box : detector_->lines(region)) lines << region.copy(box);
+        for (const QRect& box : detector_->lines(region, cancel)) lines << region.copy(box);
+    // A model failure returns an empty result; a cancelled read says so instead of reporting an error.
+    const auto stop = [&result] { Result stopped; stopped.cancelled = result.cancelled; return stopped; };
+    if (cancelled()) { result.cancelled = true; return stop(); } // also when detection was terminated
     result.detected = !lines.isEmpty();
     if (!result.detected) {
         lines = textLines(region);
@@ -449,25 +470,27 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
         std::vector<Reading> readings;
         auto run = [&](const QString& file) {
             if (std::any_of(readings.begin(), readings.end(), [&](const Reading& r) { return r.file == file; })) return true;
+            if (cancelled()) { result.cancelled = true; return false; }
             PaddleRecognizer* recognizer = model(file);
             if (!recognizer) return false;
             // Devanagari vowel signs can sit above the dense stroke band; keep enough vertical padding.
             const QImage& input = file == QLatin1String(HindiModel) && index < taller.size() ? taller[index] : line;
-            readings.push_back({file, recognizer->recognize(input)});
+            readings.push_back({file, recognizer->recognize(input, cancel)});
+            if (cancelled()) { result.cancelled = true; return false; } // inference was terminated
             ++result.modelRuns;
             return true;
         };
         if (!staged) {
-            for (const QString& file : files) if (!run(file)) return {};
+            for (const QString& file : files) if (!run(file)) return stop();
         } else {
-            if (!run(QLatin1String(KoreanModel)) || !run(QLatin1String(CjkModel))) return {};
+            if (!run(QLatin1String(KoreanModel)) || !run(QLatin1String(CjkModel))) return stop();
             double score = 0;
             const Reading first = choose(readings, &score);
             if (score < StageTwoBelow) {
-                for (const QString& file : files) if (!run(file)) return {};
+                for (const QString& file : files) if (!run(file)) return stop();
             } else if (latinOnly(first.line.text)) {
                 // Cyrillic text often reads as confident look-alike Latin ("CoxpaHuTb" for "Сохранить").
-                if (!run(QLatin1String(LatinModel)) || !run(QLatin1String(CyrillicModel))) return {};
+                if (!run(QLatin1String(LatinModel)) || !run(QLatin1String(CyrillicModel))) return stop();
             }
         }
         const QString text = choose(readings).line.text.trimmed();

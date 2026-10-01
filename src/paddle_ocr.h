@@ -3,10 +3,29 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <atomic>
 #include <memory>
 #include <map>
 #include <mutex>
 #include <vector>
+
+// Stops a read from another thread (QA R-02). Checked before every model run, and it also ends a
+// running ONNX Runtime inference through the RunOptions terminate flag, so even a large detection
+// pass gives the models back within milliseconds.
+class OcrCancel {
+public:
+    OcrCancel();
+    ~OcrCancel();
+    OcrCancel(const OcrCancel&) = delete;
+    OcrCancel& operator=(const OcrCancel&) = delete;
+    void cancel(); // thread-safe
+    bool cancelled() const { return flag_.load(std::memory_order_relaxed); }
+    void* runOptions() const; // Ort::RunOptions*, used inside paddle_ocr.cpp only
+private:
+    std::atomic_bool flag_{false};
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
 
 // Windows adapter: PaddleOCR PP-OCRv5 text detection and line recognition through ONNX Runtime.
 // The detection model finds the text lines inside the selected area (a dialog box also holds a
@@ -18,7 +37,7 @@ public:
     ~PaddleRecognizer();
     bool load(const QString& modelPath, QString& error);
     bool isLoaded() const { return model_ != nullptr; }
-    Line recognize(const QImage& line) const;
+    Line recognize(const QImage& line, const OcrCancel* cancel = nullptr) const;
     // Model input, as RapidOCR prepares it: shorter side raised to 30 px (rounded to 32),
     // then height 48, width at least 320, BGR scaled to [-1, 1], zero padded on the right.
     static std::vector<float> inputTensor(const QImage& line, int& width);
@@ -36,7 +55,7 @@ public:
     ~PaddleDetector();
     bool load(const QString& modelPath, QString& error);
     // One box per text line in region coordinates, top to bottom; boxes on one line are joined.
-    QList<QRect> lines(const QImage& region) const;
+    QList<QRect> lines(const QImage& region, const OcrCancel* cancel = nullptr) const;
     // Model input: the region enlarged 1.5x (shorter side at least 64, at most 2 million pixels,
     // longest side 2560), sides rounded to multiples of 32, BGR scaled to [-1, 1].
     static std::vector<float> inputTensor(const QImage& region, int& width, int& height);
@@ -68,12 +87,15 @@ public:
     static constexpr const char* HindiModel = "devanagari_PP-OCRv5_rec_mobile.onnx";
     static constexpr const char* DetectionModel = "ch_PP-OCRv5_det_mobile.onnx"; // all scripts
     // detected: the lines came from the detection model (not the fallback line finder).
-    struct Result { QString text; double confidence = 0; int modelRuns = 0; bool detected = false; };
+    struct Result { QString text; double confidence = 0; int modelRuns = 0; bool detected = false; bool cancelled = false; };
     // Multi-language auto-detect runs the remaining five models when the first reading scores below this.
     static constexpr double StageTwoBelow = 0.85;
     explicit PaddleOcr(QString modelDir) : dir_(std::move(modelDir)) {}
     // Loads the needed models on first use. Safe to call from a worker thread.
-    Result read(const QImage& region, const QString& languages, QString& error);
+    // cancel: a cancelled read returns quickly with Result::cancelled set, so the next request does
+    // not wait for a whole abandoned dialogue box (QA R-02).
+    Result read(const QImage& region, const QString& languages, QString& error,
+                const OcrCancel* cancel = nullptr);
     static QStringList modelFiles(const QString& languages);
     static bool needsKorean(const QString& languages) { return modelFiles(languages).contains(QLatin1String(KoreanModel)); }
     static bool needsCjk(const QString& languages) { return modelFiles(languages).contains(QLatin1String(CjkModel)); }
