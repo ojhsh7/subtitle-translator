@@ -1,6 +1,7 @@
 ﻿# Shared helpers for the QA suite. Dot-source: . "$PSScriptRoot\qa-common.ps1"
-# Never reads or prints the DeepL key. Settings are changed only through Set-QaSettings and
-# always restored by Restore-UserSettings (called from each suite's finally block).
+# Never reads or prints the DeepL key. The app runs with SUBTITLE_TRANSLATOR_PROFILE=qa, so it reads
+# and writes HKCU\...\SubtitleTranslator-qa only; the user's own settings key is never modified.
+# Restore-UserSettings (called from each suite's finally block) deletes that QA key.
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes
@@ -73,8 +74,11 @@ $Qa.Cli = "$($Qa.Dist)\subtitle_cli.exe"
 $Qa.Tess = "$($Qa.Dist)\ocr\tesseract.exe"
 $Qa.Tessdata = "$($Qa.Dist)\ocr\tessdata"
 $Qa.Backup = Join-Path $Qa.Root 'settings-backup\before.reg'
-$Qa.RegKey = 'HKCU\Software\PersonalTools\SubtitleTranslator'
-$Qa.RegPath = 'HKCU:\Software\PersonalTools\SubtitleTranslator'
+# Isolated settings namespace (applications built before the profile switch ignore it: do not run them here).
+$env:SUBTITLE_TRANSLATOR_PROFILE = 'qa'
+$Qa.RegKey = 'HKCU\Software\PersonalTools\SubtitleTranslator-qa'
+$Qa.RegPath = 'HKCU:\Software\PersonalTools\SubtitleTranslator-qa'
+$Qa.UserRegPath = 'HKCU:\Software\PersonalTools\SubtitleTranslator' # read-only: monitor name
 New-Item -ItemType Directory -Force -Path $Qa.Results | Out-Null
 Remove-Item Env:DEEPL_API_KEY, Env:SUBTITLE_TRANSLATOR_API_KEY -ErrorAction SilentlyContinue
 
@@ -101,8 +105,7 @@ function Get-DeeplTotals { if (!(Test-Path $Qa.Ledger)) { return @(0, 0) }; $r =
 function Restore-UserSettings {
     Stop-App
     reg delete $Qa.RegKey /f *> $null
-    reg import $Qa.Backup *> $null
-    Log "settings restored from before.reg (import exit=$LASTEXITCODE)"
+    Log "QA settings key removed; user settings were not touched"
 }
 function Set-QaSettings([hashtable]$values) {
     # values: 'group/name' = string. Unlisted values keep what is there.
@@ -116,10 +119,11 @@ function Set-QaSettings([hashtable]$values) {
 }
 function Use-QaBaseSettings([string]$region, [bool]$withKey = $false, [string]$languages = 'jpn+eng+kor') {
     reg delete $Qa.RegKey /f *> $null
-    reg import $Qa.Backup *> $null
+    $screenName = (Get-ItemProperty "$($Qa.UserRegPath)\capture" -ErrorAction SilentlyContinue).screen
+    if ($env:QA_SCREEN_NAME) { $screenName = $env:QA_SCREEN_NAME }
     Set-QaSettings @{
         'setupComplete' = 'true'
-        'capture/screen' = (Get-ItemProperty "$($Qa.RegPath)\capture" -ErrorAction SilentlyContinue).screen
+        'capture/screen' = $screenName
         'capture/screenGeometry' = "@Rect(0 0 $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width) $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height))"
         'capture/devicePixelRatio' = '1'
         'capture/region' = $region

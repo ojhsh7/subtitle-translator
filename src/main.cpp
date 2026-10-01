@@ -4,10 +4,16 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("PersonalTools");
-    app.setApplicationName("SubtitleTranslator");
+    // QA and automated checks run the real executable with their own settings so the user's
+    // saved region, languages and consent stay untouched. Only a short plain name is accepted.
+    const QString profile = qEnvironmentVariable("SUBTITLE_TRANSLATOR_PROFILE");
+    static const QRegularExpression safeProfile(QStringLiteral("^[A-Za-z0-9_-]{1,32}$"));
+    app.setApplicationName(safeProfile.match(profile).hasMatch()
+        ? QStringLiteral("SubtitleTranslator-") + profile : QStringLiteral("SubtitleTranslator"));
     app.setApplicationVersion("0.1.0");
     app.setFont(QFont("Malgun Gothic", 10));
     MainWindow window;
