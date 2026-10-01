@@ -34,11 +34,16 @@ QString statusMessage(int status) {
 }
 }
 TranslationService::TranslationService(QObject* parent, QNetworkAccessManager* transport)
-    : QObject(parent), network_(this), transport_(transport ? transport : &network_) {
+    : ITranslator(parent), network_(this), transport_(transport ? transport : &network_) {
     deadline_.setSingleShot(true);
     connect(&deadline_, &QTimer::timeout, this, [this] {
+        transportFailure_ = true;
         failCurrent(QStringLiteral("번역 시간이 30초를 초과했습니다. 네트워크를 확인하세요."));
     });
+}
+bool TranslationService::ready() const { return validKey(apiKey_.trimmed()); }
+void TranslationService::translateTexts(const QStringList& texts, const TranslateOptions& options) {
+    translate(texts, apiKey_, freeApi_, options);
 }
 TranslationService::~TranslationService() { cancel(); }
 void TranslationService::cancel() {
@@ -59,14 +64,35 @@ bool TranslationService::readAvailable() {
     return true;
 }
 QByteArray TranslationService::requestBody(const QStringList& texts, const QString& targetLang, const QString& sourceLang) {
-    QJsonObject object{{"text",QJsonArray::fromStringList(texts)},{"target_lang",targetLang}};
-    if (!sourceLang.isEmpty()) object.insert("source_lang", sourceLang);
+    TranslateOptions options;
+    options.target = targetLang; options.source = sourceLang;
+    return requestBody(texts, options);
+}
+QByteArray TranslationService::requestBody(const QStringList& texts, const TranslateOptions& options) {
+    QJsonObject object{{"text",QJsonArray::fromStringList(texts)},{"target_lang",options.target}};
+    if (!options.source.isEmpty()) object.insert("source_lang", options.source);
+    // Not translated and, per DeepL, not billed: the previous subtitle line keeps pronouns consistent.
+    if (!options.context.trimmed().isEmpty()) object.insert("context", options.context);
+    // <x>…</x> marks names, links and subtitle tags that must come back unchanged.
+    if (options.xmlTags) {
+        object.insert("tag_handling", QStringLiteral("xml"));
+        object.insert("ignore_tags", QJsonArray{QStringLiteral("x")});
+    }
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 void TranslationService::translate(const QStringList& texts, const QString& apiKey, bool freeApi,
                                    const QString& targetLang, const QString& sourceLang) {
+    TranslateOptions options;
+    options.target = targetLang; options.source = sourceLang;
+    translate(texts, apiKey, freeApi, options);
+}
+void TranslationService::translate(const QStringList& texts, const QString& apiKey, bool freeApi,
+                                   const TranslateOptions& options) {
     if (isBusy()) return;
     lastHttpStatus_ = 0;
+    transportFailure_ = false;
+    const QString& targetLang = options.target;
+    const QString& sourceLang = options.source;
     const QString key = apiKey.trimmed();
     if (!validKey(key)) {
         emit failed(QStringLiteral("올바른 DeepL API 키를 설정하세요.")); return;
@@ -86,7 +112,8 @@ void TranslationService::translate(const QStringList& texts, const QString& apiK
     if (!validLanguage(targetLang) || (!sourceLang.isEmpty() && !validLanguage(sourceLang))) {
         emit failed(QStringLiteral("지원하지 않는 번역 언어 설정입니다.")); return;
     }
-    const QByteArray body = requestBody(texts, targetLang, sourceLang);
+    if (options.context.size() > 4000) { emit failed(QStringLiteral("번역 참고 문맥이 너무 깁니다.")); return; }
+    const QByteArray body = requestBody(texts, options);
     if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 큽니다.")); return; }
     QNetworkRequest request = deeplRequest(freeApi, "/v2/translate", key, requestTimeoutMs_);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -96,6 +123,7 @@ void TranslationService::translate(const QStringList& texts, const QString& apiK
 void TranslationService::checkUsage(const QString& apiKey, bool freeApi) {
     if (isBusy()) return;
     lastHttpStatus_ = 0;
+    transportFailure_ = false;
     const QString key = apiKey.trimmed();
     if (!validKey(key)) {
         emit failed(QStringLiteral("올바른 DeepL API 키를 설정하세요.")); return;
@@ -121,6 +149,7 @@ void TranslationService::start(QNetworkReply* reply, Kind kind) {
         reply_ = nullptr; response_.clear(); reply->deleteLater();
         // An HTTP error status is reported as-is; a transport error only matters without one.
         if((status == 0 || status == 200) && networkError != QNetworkReply::NoError) {
+            transportFailure_ = true;
             emit failed(networkError == QNetworkReply::TimeoutError
                 ? QStringLiteral("번역 연결 시간이 초과되었습니다.")
                 : QStringLiteral("번역 서버에 안전하게 연결하지 못했습니다. 네트워크와 시스템 날짜를 확인하세요."));
