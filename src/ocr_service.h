@@ -4,8 +4,10 @@
 #include <QProcess>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <atomic>
 #include <memory>
 class PaddleOcr;
+class OcrCancel;
 class OcrService final : public QObject {
     Q_OBJECT
 public:
@@ -45,6 +47,13 @@ public:
     static bool isFrameOnlyImage(const QImage& image);
     // Only very uncertain 1-2 letter Latin readings, measured on the symbol regression set.
     static bool isUncertainShortLatin(const QString& text, double confidence);
+    // Whole readings below this confidence (0..1) are noise: QA noise backgrounds read at 0.20-0.34,
+    // while the lowest correct reading in the 672 + 168 benchmark images scored 0.51 (Tesseract)
+    // and 0.61 (PaddleOCR). Such readings are rejected instead of translated.
+    static constexpr double RejectBelow = 0.40;
+    static bool isNoiseReading(const QString& text, double confidence) {
+        return !text.trimmed().isEmpty() && confidence >= 0 && confidence < RejectBelow;
+    }
     void cancel();
     bool isBusy() const { return busy_; }
     qint64 elapsedMs() const { return elapsedMs_; }
@@ -72,6 +81,7 @@ private:
     bool busy_ = false, probing_ = false;
     QString languages_, executable_, engineUsed_, paddleDir_;
     std::shared_ptr<PaddleOcr> paddle_; // shared with the worker thread, which may outlive a cancel
+    std::shared_ptr<OcrCancel> paddleCancel_; // tells the running worker read to stop early
     QStringList arguments_;
     QList<QByteArray> attempts_; // PNG candidates: original, light mask, thickened mask, bright mask
     int attempt_ = 0, attemptsUsed_ = 0;

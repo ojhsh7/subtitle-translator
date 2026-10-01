@@ -105,6 +105,35 @@ private slots:
         QVERIFY(!service.isBusy());
     }
 
+    void noiseReadingThreshold() {
+        QVERIFY(OcrService::isNoiseReading(QStringLiteral("し"),0.34));
+        QVERIFY(OcrService::isNoiseReading("ee ee 0 TI oo",0.196));
+        QVERIFY(!OcrService::isNoiseReading("Press any key",0.513)); // lowest correct benchmark reading
+        QVERIFY(!OcrService::isNoiseReading(QString(),0.1));         // empty is handled as empty, not noise
+        QVERIFY(!OcrService::isNoiseReading("text",-1));             // no engine confidence
+    }
+    void noisyBlankPanelsAreRejected_data() {
+        QTest::addColumn<QString>("file");
+        QTest::newRow("dark-noise") << QStringLiteral("empty-panels/N-dark-noise4-820x140.png");
+        QTest::newRow("white-noise") << QStringLiteral("empty-panels/N-white-noise2-200x60.png");
+    }
+    void noisyBlankPanelsAreRejected() {
+        // QA D-05 remainder: Tesseract read these empty panels as "し" (0.34) and random letters (0.20).
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT") || qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE"))
+            QSKIP("Actual engines not configured");
+        QFETCH(QString,file);
+        const QImage image(QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath(file));
+        QVERIFY(!image.isNull());
+        OcrService service;
+        service.setPaddleModelDir(qEnvironmentVariable("SUBTITLE_TEST_PADDLE"));
+        QSignalSpy recognized(&service,&OcrService::recognized);
+        QSignalSpy failed(&service,&OcrService::failed);
+        service.recognize(image,qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"),qEnvironmentVariable("SUBTITLE_TEST_TESSDATA"));
+        QTRY_VERIFY_WITH_TIMEOUT(!recognized.isEmpty() || !failed.isEmpty(),25000);
+        if (!failed.isEmpty()) return; // "nothing recognised" is also no translation request
+        QVERIFY2(recognized.first().first().toString().isEmpty(),
+                 qPrintable(recognized.first().first().toString() + " / " + service.engineUsed()));
+    }
     void blankImageNeverProducesText_data() {
         QTest::addColumn<QSize>("size");
         QTest::addColumn<QColor>("colour");

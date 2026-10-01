@@ -33,6 +33,7 @@ void OcrService::metrics() {
 }
 void OcrService::cancel() {
     ++generation_;
+    if (paddleCancel_) { paddleCancel_->cancel(); paddleCancel_.reset(); }
     deadline_.stop(); memoryTimer_.stop(); metrics();
     if (processHandle_) { CloseHandle(static_cast<HANDLE>(processHandle_)); processHandle_ = nullptr; }
     busy_ = false;
@@ -238,7 +239,8 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
         if (!busy_ || generation_ != ticket) return;
         attemptsUsed_ = outcome.result.modelRuns;
         confidence_ = outcome.result.confidence;
-        if (isUncertainShortLatin(outcome.result.text, outcome.result.confidence)) {
+        if (isUncertainShortLatin(outcome.result.text, outcome.result.confidence) ||
+            isNoiseReading(outcome.result.text, outcome.result.confidence)) {
             engineUsed_ = QStringLiteral("PaddleOCR-low-confidence");
             rejectedReading_ = true;
             cancel();
@@ -258,9 +260,11 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
     });
     const auto paddle = paddle_;
     const QString languages = languages_;
-    watcher->setFuture(QtConcurrent::run([paddle, image, languages] {
+    paddleCancel_ = std::make_shared<OcrCancel>();
+    const auto stop = paddleCancel_;
+    watcher->setFuture(QtConcurrent::run([paddle, image, languages, stop] {
         Outcome outcome;
-        outcome.result = paddle->read(image, languages, outcome.error);
+        outcome.result = paddle->read(image, languages, outcome.error, stop.get());
         return outcome;
     }));
 }
@@ -321,6 +325,11 @@ void OcrService::attemptFinished(const QString& output) {
     cancel();
     engineUsed_ = QStringLiteral("Tesseract");
     if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
+    else if (isNoiseReading(best.text, confidence_)) {
+        engineUsed_ = QStringLiteral("Tesseract-low-confidence");
+        rejectedReading_ = true;
+        emit recognized(QString()); // Noise backgrounds read as "し" or random letters: never translate them.
+    }
     else emit recognized(cleanText(best.text, true));
 }
 void OcrService::releaseProcess() {
