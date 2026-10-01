@@ -19,13 +19,15 @@ public:
     void setProfile(const ChangeDetector::Profile& profile);
     // Physical pixels of the virtual desktop; dpr is stored on the frames like a Qt screen grab.
     // Returns false when a check is still running: the caller simply tries again on its next tick.
-    bool requestCheck(const QRect& physical, qreal dpr, qint64 nowMs, quint64 ticket);
+    // probe: optional larger physical rectangle (the whole video window) sampled every 2 s for the
+    // protected-video hint; DRM players are captured as pure black.
+    bool requestCheck(const QRect& physical, qreal dpr, qint64 nowMs, quint64 ticket, const QRect& probe = {});
     bool checking() const { return pending_.load(); }
     void reset();
     bool retryAfterFailure(qint64 nowMs);
     // Time of the last capture on the worker, in Diagnostics::nowMs() milliseconds.
     qint64 lastCaptureMs() const { return lastCaptureMs_.load(); }
-    // Fraction of pure black pixels in the last captured frame (0..1), for protected-video hints.
+    // Fraction of pure black pixels (0..1) in the last probe, or in the last frame without a probe.
     double lastBlackFraction() const { return lastBlack_.load(); }
 signals:
     // A settled new picture to read. `ticket` is echoed so callers can drop stale results.
@@ -34,7 +36,8 @@ signals:
     void checked(quint64 ticket); // every finished check, also when nothing changed
     void captureFailed(QString error, quint64 ticket);
 private:
-    void check(QRect physical, qreal dpr, qint64 nowMs, quint64 ticket);
+    void check(QRect physical, qreal dpr, qint64 nowMs, quint64 ticket, QRect probe);
+    static double blackFraction(const QImage& image);
     QThread thread_;
     QObject* runner_ = nullptr; // lives on thread_
     mutable QMutex mutex_;
@@ -42,4 +45,5 @@ private:
     std::atomic_bool pending_{false};
     std::atomic<qint64> lastCaptureMs_{-1};
     std::atomic<double> lastBlack_{0.0};
+    int probeCounter_ = 0; // worker thread only
 };

@@ -1,7 +1,11 @@
 #pragma once
-#include "change_detector.h"
+#include "capture_worker.h"
+#include "history_store.h"
+#include "hotkey_manager.h"
+#include "mode_profile.h"
 #include "ocr_service.h"
 #include "translation_service.h"
+#include "usage_meter.h"
 #include <QElapsedTimer>
 #include <QMainWindow>
 #include <QImage>
@@ -19,18 +23,36 @@ class QPlainTextEdit;
 class QCheckBox;
 class QScreen;
 class QCloseEvent;
+class QStackedWidget;
+class QSystemTrayIcon;
+class QTabBar;
+class QNetworkAccessManager;
 class SubtitleOverlay;
+class SubtitlePresenter;
+class TranslationQueue;
+class HistoryWindow;
+class VideoMode;
+class TextMode;
+class FileMode;
+struct ModeContext;
 class MainWindow : public QMainWindow {
 public:
     friend class WindowChecks;
+    friend class VideoChecks;
+    friend class ModeChecks;
     MainWindow();
     ~MainWindow() override;
     bool autoTranslating() const;
+    // A second launch handed over its command line (single instance).
+    void activateFromLaunch(const QStringList& arguments);
+    Mode mode() const { return mode_; }
+    void setMode(Mode mode);
 protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
     void closeEvent(QCloseEvent*) override;
 private:
     void settings();
+    void firstRun();
     void chooseRegion();
     struct CaptureArea {
         QPointer<QScreen> screen;
@@ -71,6 +93,22 @@ private:
     void applyOcrEngine();
     bool ocrReady() const;
     QString targetLanguage() const;
+    // Shell: modes, hotkeys, tray, usage, history.
+    QWidget* buildGamePage();
+    QWidget* page(Mode mode);
+    ModeContext context();
+    void stopScreenWork(); // one screen-watching activity at a time
+    void registerHotkeys();
+    void applyHotkeyTexts();
+    void createTray();
+    void updateTray();
+    void updateUsage();
+    void showHistory();
+    void toast(const QString& text);
+    QString translationBlocked() const;
+    void loadLanguages(Mode mode);
+    void hideOwnWindows();
+    void applyCaptureExclusion();
     QComboBox* screens_;
     QComboBox* ocrLanguageBox_;
     QComboBox* targetLanguageBox_;
@@ -80,6 +118,8 @@ private:
     QPushButton* select_;
     QPushButton* capture_;
     QPushButton* cursorCapture_;
+    QLabel* cursorShortcutLabel_ = nullptr;
+    QLabel* note_ = nullptr;
     QComboBox* cursorSizeBox_;
     QSpinBox* cursorWidth_;
     QSpinBox* cursorHeight_;
@@ -96,16 +136,19 @@ private:
     QPushButton* auto_;
     QTimer* autoTimer_;
     QElapsedTimer autoClock_;
-    ChangeDetector detector_;
+    CaptureWorker captureWorker_;
+    quint64 autoTicket_ = 0;
     QImage lastImage_;
     int lastSource_ = ST_IMAGE_FILE;
     int activeSource_ = ST_IMAGE_FILE;
     st_session* session_ = st_create();
     uint64_t request_ = 0;
     std::vector<subtitle::TextSegment> segments_; // pieces of the current line: kept or sent to DeepL
+    QStringList sentPieces_;
     QPlainTextEdit* original_;
     QWidget* resultWindow_;
-    SubtitleOverlay* subtitleOverlay_;
+    SubtitlePresenter* presenter_;
+    SubtitleOverlay* subtitleOverlay_; // the presenter's caption window
     QCheckBox* inlineCaptions_;
     QPushButton* captionPreview_;
     QLabel* resultStatus_;
@@ -118,6 +161,11 @@ private:
     CaptureArea lastCaptionArea_; // retry must use the last image's original anchor
     OcrService ocr_;
     TranslationService translation_;
+    UsageMeter usage_;
+    HistoryStore history_;
+    TranslationQueue* queue_ = nullptr;
+    QNetworkAccessManager* queueTransport_ = nullptr; // tests: loopback fixture
+    HotkeyManager hotkeys_;
     QString executable_;
     QString paddleDir_;        // bundled PaddleOCR models: <app>/ocr/paddle
     bool paddleEngine_ = true; // false: Tesseract only
@@ -140,4 +188,16 @@ private:
     bool restoreOverlay_ = false;
     int psm_ = 0; // 0 = automatic, 6 = block, 7 = single line
     quint64 generation_ = 0;
+    // Shell
+    Mode mode_ = Mode::Game;
+    QTabBar* modeTabs_ = nullptr;
+    QStackedWidget* pages_ = nullptr;
+    QWidget* gamePage_ = nullptr;
+    VideoMode* videoMode_ = nullptr;
+    TextMode* textMode_ = nullptr;
+    FileMode* fileMode_ = nullptr;
+    QLabel* usageLabel_ = nullptr;
+    QPointer<HistoryWindow> historyWindow_;
+    QSystemTrayIcon* tray_ = nullptr;
+    quint64 gameHistoryId_ = 0;
 };

@@ -8,6 +8,8 @@
 #include <QScopeGuard>
 #include "region_selector.h"
 #include "subtitle_overlay.h"
+#include "subtitle_presenter.h"
+#include "video_mode.h"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QSettings>
@@ -681,6 +683,105 @@ private slots:
         QVERIFY(!window.autoTranslating());
         QVERIFY(window.autoPending_);
         QVERIFY(!window.auto_->isChecked());
+    }
+    void modesRememberTheirOwnLanguages() {
+        MainWindow window;
+        QCOMPARE(window.mode(), Mode::Game);
+        window.targetLanguageBox_->setCurrentIndex(window.targetLanguageBox_->findData(QStringLiteral("JA")));
+        QCOMPARE(QSettings().value("translation/target").toString(), QStringLiteral("JA")); // game keeps its old key
+        window.setMode(Mode::Video);
+        QCOMPARE(window.targetLanguage(), QStringLiteral("KO")); // video starts from the default
+        window.targetLanguageBox_->setCurrentIndex(window.targetLanguageBox_->findData(QStringLiteral("EN-US")));
+        QCOMPARE(QSettings().value("modes/video/target").toString(), QStringLiteral("EN-US"));
+        window.setMode(Mode::Game);
+        QCOMPARE(window.targetLanguage(), QStringLiteral("JA"));
+        window.setMode(Mode::Video);
+        QCOMPARE(window.targetLanguage(), QStringLiteral("EN-US"));
+        MainWindow next; // the last mode is where the next launch starts
+        QCOMPARE(next.mode(), Mode::Video);
+        QCOMPARE(next.targetLanguage(), QStringLiteral("EN-US"));
+    }
+    void switchingModesStopsScreenWork() {
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.applyOcrEngine();
+        if (!window.ocrReady()) QSKIP("Actual engine not configured");
+        window.selectedScreen_=QGuiApplication::primaryScreen();
+        window.selectedGeometry_=window.selectedScreen_->geometry();
+        window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+        window.region_=QRect(80,100,600,50);
+        window.setAutoTranslate(true);
+        QVERIFY(window.autoTranslating());
+        MSG hotkey{}; hotkey.message=WM_HOTKEY; hotkey.wParam=HotkeyManager::ModeVideo;
+        qintptr handled=0;
+        QVERIFY(window.nativeEvent({},&hotkey,&handled));
+        QCOMPARE(window.mode(), Mode::Video);
+        QVERIFY(!window.autoTranslating()); // one screen-watching activity at a time
+        QVERIFY(window.videoMode_);
+        QVERIFY(!window.videoMode_->watching()); // no video region yet: explain instead of starting
+        QVERIFY(window.status_->text().contains(QStringLiteral("자막 위치")));
+        hotkey.wParam=HotkeyManager::Auto; // Ctrl+Alt+P acts on the current screen mode
+        QVERIFY(window.nativeEvent({},&hotkey,&handled));
+        QCOMPARE(window.mode(), Mode::Video);
+        hotkey.wParam=HotkeyManager::ModeGame;
+        QVERIFY(window.nativeEvent({},&hotkey,&handled));
+        QCOMPARE(window.mode(), Mode::Game);
+    }
+    void gameTranslationIsRecordedAndCounted() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        server.handler=[](const QByteArray&, const QByteArray& body) { return LocalHttpFixture::echo(body); };
+        LoopbackNetwork network(server.serverPort());
+        MainWindow window;
+        window.executable_.clear();
+        window.paddleDir_=qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_=true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_=QStringLiteral("fixture-key:fx"); window.consent_=true;
+        window.translation_.transport_=&network;
+        QImage image(1000,120,QImage::Format_RGB32); image.fill(Qt::white);
+        QPainter p(&image); QFont f("Yu Gothic"); f.setPixelSize(52); p.setFont(f);
+        p.drawText(image.rect(),Qt::AlignCenter,QStringLiteral("今日はいい天気です。")); p.end();
+        window.processImage(image,ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,25000);
+        QCOMPARE(server.requests.size(),1);
+        QVERIFY(window.result_->toPlainText().startsWith(QStringLiteral("[KO] ")));
+        QCOMPARE(window.history_.entries().size(),1);
+        QCOMPARE(window.history_.entries().first().mode,QStringLiteral("game"));
+        QVERIFY(window.history_.entries().first().source.contains(QStringLiteral("天気")));
+        QVERIFY(window.usage_.session()>0);
+        // The session cap is checked before sending: nothing goes out once it would be passed.
+        window.usage_.setCap(true,window.usage_.session()+3);
+        QImage other(image); QPainter q(&other); q.fillRect(other.rect(),Qt::white); q.setFont(f);
+        q.drawText(other.rect(),Qt::AlignCenter,QStringLiteral("明日は雨が降ります。")); q.end();
+        window.processImage(other,ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,25000);
+        QCOMPARE(server.requests.size(),1);
+        QVERIFY(window.status_->text().contains(QStringLiteral("상한")));
+    }
+    void captionsAndResultsAreHiddenFromCapture() {
+        if (!Capture::exclusionSupported()) QSKIP("Needs Windows 10 2004 or later");
+        MainWindow window;
+        window.selectedScreen_=QGuiApplication::primaryScreen();
+        window.selectedGeometry_=window.selectedScreen_->geometry();
+        window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+        window.region_=QRect(80,100,600,50);
+        window.previewSubtitle();
+        QVERIFY(window.subtitleOverlay_->isVisible());
+        QVERIFY(Capture::isExcludedFromCapture(window.subtitleOverlay_));
+        QVERIFY(Capture::isExcludedFromCapture(window.resultWindow_));
+        window.presenter_->setExcludeFromCapture(false); // user choice: visible in screenshots and streams
+        QVERIFY(!Capture::isExcludedFromCapture(window.subtitleOverlay_));
+        QVERIFY(!Capture::isExcludedFromCapture(window.resultWindow_));
+    }
+    void coverPlacementSitsOnTheOriginalLine() {
+        const QRect monitor(0, 0, 1920, 1040);
+        const QRect band(200, 860, 1200, 140);
+        const QRect cover = SubtitleOverlay::placement(band, monitor, QSize(1200, 140), SubtitleOverlay::Placement::Cover);
+        QCOMPARE(cover, band);
+        const QRect above = SubtitleOverlay::placement(band, monitor, QSize(800, 60), SubtitleOverlay::Placement::Above);
+        QVERIFY(above.bottom() < band.top());
+        const QRect topBand(200, 2, 800, 60); // no room above: falls back below
+        QVERIFY(SubtitleOverlay::placement(topBand, monitor, QSize(800, 60), SubtitleOverlay::Placement::Above).top() > topBand.bottom());
     }
     void cancelInvalidatesPendingResult() {
         MainWindow window; window.setBusy(true);

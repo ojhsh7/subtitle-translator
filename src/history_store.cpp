@@ -10,9 +10,9 @@
 
 HistoryStore::HistoryStore(QObject* parent) : QObject(parent) {}
 QString HistoryStore::defaultPath() {
-    const QString local = qEnvironmentVariable("LOCALAPPDATA");
-    const QString base = local.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) : local;
-    return QDir(base).filePath(QStringLiteral("SubtitleTranslator/history.jsonl"));
+    // %LOCALAPPDATA%\PersonalTools\SubtitleTranslator: follows the settings profile, so test and QA
+    // runs never read or delete the user's own history.
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)).filePath(QStringLiteral("history.jsonl"));
 }
 quint64 HistoryStore::add(const QString& mode, const QString& source, const QString& translation, qint64 startMs) {
     HistoryEntry entry;

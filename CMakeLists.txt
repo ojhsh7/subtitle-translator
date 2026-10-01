@@ -35,10 +35,22 @@ add_library(subtitle_services STATIC
 target_include_directories(subtitle_services PUBLIC src)
 target_include_directories(subtitle_services PRIVATE "${ONNXRUNTIME_ROOT}/include")
 target_link_libraries(subtitle_services PUBLIC Qt6::Widgets Qt6::Network subtitle_core PRIVATE Advapi32 Psapi User32 Gdi32 Dwmapi icu Qt6::Concurrent "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib")
-qt_add_executable(SubtitleTranslator WIN32
-  src/main.cpp src/main_window.cpp src/main_window.h
-  src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
-target_link_libraries(SubtitleTranslator PRIVATE subtitle_services subtitle_core Qt6::Concurrent User32)
+# Windows UI: the app window, mode pages and caption windows (shared by the app and window_checks).
+add_library(subtitle_ui STATIC
+  src/main_window.cpp src/main_window.h
+  src/region_selector.cpp src/region_selector.h
+  src/subtitle_overlay.cpp src/subtitle_overlay.h
+  src/subtitle_presenter.cpp src/subtitle_presenter.h
+  src/mode_profile.cpp src/mode_profile.h src/mode_context.h
+  src/widget_helpers.cpp src/widget_helpers.h
+  src/video_mode.cpp src/video_mode.h
+  src/text_mode.cpp src/text_mode.h
+  src/file_mode.cpp src/file_mode.h
+  src/history_window.cpp src/history_window.h
+  src/first_run_wizard.cpp src/first_run_wizard.h)
+target_link_libraries(subtitle_ui PUBLIC subtitle_services subtitle_core Qt6::Widgets Qt6::Concurrent PRIVATE User32)
+qt_add_executable(SubtitleTranslator WIN32 src/main.cpp)
+target_link_libraries(SubtitleTranslator PRIVATE subtitle_ui subtitle_services subtitle_core Qt6::Concurrent User32)
 # Windows ships an older onnxruntime.dll in System32; ours must sit next to every executable.
 add_custom_target(onnxruntime_runtime ALL
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
@@ -46,6 +58,7 @@ add_custom_target(onnxruntime_runtime ALL
 add_dependencies(onnxruntime_runtime SubtitleTranslator)
 if(MSVC)
   target_compile_options(subtitle_services PRIVATE /W4 /utf-8)
+  target_compile_options(subtitle_ui PRIVATE /W4 /utf-8)
   target_compile_options(SubtitleTranslator PRIVATE /W4 /utf-8)
 endif()
 include(CTest)
@@ -103,11 +116,17 @@ if(MSVC)
   target_compile_options(subtitle_cli PRIVATE /utf-8)
 endif()
 if(BUILD_TESTING)
-  qt_add_executable(window_checks tests/window_checks.cpp src/main_window.cpp src/main_window.h src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
-  target_link_libraries(window_checks PRIVATE subtitle_services subtitle_core Qt6::Concurrent Qt6::Test User32)
+  qt_add_executable(window_checks tests/window_checks.cpp)
+  target_link_libraries(window_checks PRIVATE subtitle_ui subtitle_services subtitle_core Qt6::Concurrent Qt6::Test User32)
   target_compile_definitions(window_checks PRIVATE OCR_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ocr")
   if(MSVC)
     target_compile_options(window_checks PRIVATE /utf-8)
   endif()
   add_test(NAME windows_flow COMMAND window_checks -o "${CMAKE_CURRENT_BINARY_DIR}/windows-flow.txt,txt")
+  qt_add_executable(video_checks tests/video_checks.cpp)
+  target_link_libraries(video_checks PRIVATE subtitle_ui subtitle_services subtitle_core Qt6::Test User32)
+  if(MSVC)
+    target_compile_options(video_checks PRIVATE /utf-8)
+  endif()
+  add_test(NAME video_flow COMMAND video_checks -o "${CMAKE_CURRENT_BINARY_DIR}/video-flow.txt,txt")
 endif()

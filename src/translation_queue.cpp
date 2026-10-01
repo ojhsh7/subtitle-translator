@@ -127,6 +127,7 @@ void TranslationQueue::send(Worker& worker, Job& job) {
         fail(job.id, usage_->capReachedMessage(), true);
         return;
     }
+    if (configure_) configure_(worker.translator);
     if (!worker.translator->ready()) {
         fail(job.id, QStringLiteral("번역하지 않았습니다 · DeepL API 키가 없습니다 · 설정에서 키와 전송 동의를 확인하세요."), true);
         return;

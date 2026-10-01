@@ -18,10 +18,10 @@ void CaptureWorker::setProfile(const ChangeDetector::Profile& profile) {
     QMutexLocker lock(&mutex_);
     detector_.setProfile(profile);
 }
-bool CaptureWorker::requestCheck(const QRect& physical, qreal dpr, qint64 nowMs, quint64 ticket) {
+bool CaptureWorker::requestCheck(const QRect& physical, qreal dpr, qint64 nowMs, quint64 ticket, const QRect& probe) {
     bool idle = false;
     if (!pending_.compare_exchange_strong(idle, true)) return false;
-    QMetaObject::invokeMethod(runner_, [this, physical, dpr, nowMs, ticket] { check(physical, dpr, nowMs, ticket); },
+    QMetaObject::invokeMethod(runner_, [this, physical, dpr, nowMs, ticket, probe] { check(physical, dpr, nowMs, ticket, probe); },
                               Qt::QueuedConnection);
     return true;
 }
@@ -33,7 +33,16 @@ bool CaptureWorker::retryAfterFailure(qint64 nowMs) {
     QMutexLocker lock(&mutex_);
     return detector_.retryAfterFailure(nowMs);
 }
-void CaptureWorker::check(QRect physical, qreal dpr, qint64 nowMs, quint64 ticket) {
+double CaptureWorker::blackFraction(const QImage& image) {
+    const QImage small = image.scaled(64, 32, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    int black = 0;
+    for (int y = 0; y < small.height(); ++y) {
+        const auto* row = reinterpret_cast<const QRgb*>(small.constScanLine(y));
+        for (int x = 0; x < small.width(); ++x) black += (row[x] & 0x00ffffffu) == 0;
+    }
+    return double(black) / (small.width() * small.height());
+}
+void CaptureWorker::check(QRect physical, qreal dpr, qint64 nowMs, quint64 ticket, QRect probe) {
     QString error;
     const qint64 started = Diagnostics::nowMs();
     const QImage image = Capture::physical(physical, dpr, error);
@@ -43,15 +52,13 @@ void CaptureWorker::check(QRect physical, qreal dpr, qint64 nowMs, quint64 ticke
         emit captureFailed(error, ticket);
         return;
     }
-    // Cheap protected-video probe: DRM-protected players are captured as pure black.
-    {
-        const QImage small = image.scaled(64, 32, Qt::IgnoreAspectRatio, Qt::FastTransformation);
-        int black = 0;
-        for (int y = 0; y < small.height(); ++y) {
-            const auto* row = reinterpret_cast<const QRgb*>(small.constScanLine(y));
-            for (int x = 0; x < small.width(); ++x) black += (row[x] & 0x00ffffffu) == 0;
-        }
-        lastBlack_ = double(black) / (small.width() * small.height());
+    // Protected-video probe: DRM-protected players are captured as pure black. The whole window is
+    // sampled every eighth check (2 s in video mode); without a probe the frame itself is used.
+    if (probe.isEmpty()) lastBlack_ = blackFraction(image);
+    else if (probeCounter_++ % 8 == 0) {
+        QString ignored;
+        const QImage whole = Capture::physical(probe, 1, ignored);
+        if (!whole.isNull()) lastBlack_ = blackFraction(whole);
     }
     ChangeDetector::Decision decision;
     {

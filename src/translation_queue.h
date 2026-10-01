@@ -30,6 +30,8 @@ public:
     void cancelAll();
     bool busy() const { return !jobs_.isEmpty(); }
     void setMaxParallel(int requests);
+    // Called before every request, e.g. to hand over the current API key and plan.
+    void setConfigurator(std::function<void(ITranslator*)> configure) { configure_ = std::move(configure); }
     void setRetryDelays(const QList<int>& delaysMs) { retryDelays_ = delaysMs; }
     void clearCache();
     int cachedCount() const { return int(cache_.size()); }
@@ -76,6 +78,7 @@ private:
     static QString key(const QString& text, const TranslateOptions& options);
     void remember(const QString& key, const QString& translation);
     Factory factory_;
+    std::function<void(ITranslator*)> configure_;
     UsageMeter* usage_;
     QList<Job> jobs_;
     QList<Worker> workers_;
