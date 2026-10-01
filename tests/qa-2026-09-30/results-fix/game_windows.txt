@@ -1,0 +1,12 @@
+********* Start testing of GameWindowChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : GameWindowChecks::initTestCase()
+PASS   : GameWindowChecks::keyIsCaseAndSeparatorInsensitive()
+PASS   : GameWindowChecks::regionFollowsTheWindow()
+PASS   : GameWindowChecks::regionScalesWithAResizedWindow()
+PASS   : GameWindowChecks::physicalAndLogicalRoundTrip()
+FAIL!  : GameWindowChecks::findsTheWindowUnderARegionAndAfterItMoves() '(info = GameWindow::at(inside, 0)).handle == quintptr(game.winId())' returned FALSE. ()
+D:\qa-build\2026-10-01\src\tests\game_window_tests.cpp(59) : failure location
+PASS   : GameWindowChecks::cleanupTestCase()
+Totals: 6 passed, 1 failed, 0 skipped, 0 blacklisted, 9564ms
+********* Finished testing of GameWindowChecks *********

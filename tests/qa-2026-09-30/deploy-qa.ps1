@@ -3,7 +3,8 @@ param([string]$ToolchainRoot = 'D:\SubtitleTranslatorToolchain', [string]$QaRoot
 $ErrorActionPreference = 'Continue'
 $here = $PSScriptRoot
 $repo = (Get-Item -LiteralPath "$here\..\..").FullName
-$results = Join-Path $here 'results'
+if ($env:QA_ROOT) { $QaRoot = $env:QA_ROOT }
+$results = if ($env:QA_RESULTS) { $env:QA_RESULTS } else { Join-Path $here 'results' }
 $QtRoot = Join-Path $ToolchainRoot 'Qt\6.8.3\msvc2022_64'
 $onnx = Join-Path $ToolchainRoot 'onnxruntime'
 $bld = Join-Path $QaRoot 'out'; $dist = Join-Path $QaRoot 'dist'

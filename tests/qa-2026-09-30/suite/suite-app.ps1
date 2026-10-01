@@ -2,6 +2,8 @@
 # Usage: suite-app.ps1 [-Cases A-01,A-03] [-Dist D:\...\dist] [-Tag current] [-WithKeyCases]
 param([string[]]$Cases = @(), [string]$Dist = '', [string]$Tag = 'current', [switch]$WithKeyCases, [switch]$NoRestore)
 . "$PSScriptRoot\qa-common.ps1"
+# powershell -File passes "A-01,C-01" as one string; split it.
+$Cases = @($Cases | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 if ($Dist) { $Qa.Dist = $Dist; $Qa.App = "$Dist\SubtitleTranslator.exe" }
 $Qa.Results = Join-Path $Qa.Results $Tag; New-Item -ItemType Directory -Force -Path $Qa.Results | Out-Null
 $script:LogFile = Join-Path $Qa.Results 'suite-app.log'
@@ -14,14 +16,25 @@ function Record($id, $result, $detail, $tag = '[측정함]') {
 function Sim([string]$a, [string]$b) {
     $a = Norm $a; $b = Norm $b
     if ($a.Length -eq 0 -and $b.Length -eq 0) { return 1.0 }
-    $d = New-Object 'int[,]' ($a.Length + 1), ($b.Length + 1)
-    for ($i = 0; $i -le $a.Length; $i++) { $d[$i, 0] = $i }
-    for ($j = 0; $j -le $b.Length; $j++) { $d[0, $j] = $j }
-    for ($i = 1; $i -le $a.Length; $i++) { for ($j = 1; $j -le $b.Length; $j++) {
-        $cost = if ($a[$i - 1] -eq $b[$j - 1]) { 0 } else { 1 }
-        $d[$i, $j] = [math]::Min([math]::Min($d[($i - 1), $j] + 1, $d[$i, ($j - 1)] + 1), $d[($i - 1), ($j - 1)] + $cost)
-    } }
-    1.0 - $d[$a.Length, $b.Length] / [math]::Max($a.Length, $b.Length)
+    # Levenshtein distance on a flat array (PS 5.1 cannot parse 2-D indexes inside method arguments).
+    $w = $b.Length + 1
+    $d = New-Object 'int[]' (($a.Length + 1) * $w)
+    for ($i = 0; $i -le $a.Length; $i++) { $d[$i * $w] = $i }
+    for ($j = 0; $j -le $b.Length; $j++) { $d[$j] = $j }
+    for ($i = 1; $i -le $a.Length; $i++) {
+        for ($j = 1; $j -le $b.Length; $j++) {
+            $cost = 1
+            if ($a[$i - 1] -eq $b[$j - 1]) { $cost = 0 }
+            $del = $d[($i - 1) * $w + $j] + 1
+            $ins = $d[$i * $w + $j - 1] + 1
+            $sub = $d[($i - 1) * $w + $j - 1] + $cost
+            $best = $del
+            if ($ins -lt $best) { $best = $ins }
+            if ($sub -lt $best) { $best = $sub }
+            $d[$i * $w + $j] = $best
+        }
+    }
+    1.0 - $d[$a.Length * $w + $b.Length] / [math]::Max($a.Length, $b.Length)
 }
 
 # Standard layout on a 2560x1440 primary screen (logical = physical at 100%).

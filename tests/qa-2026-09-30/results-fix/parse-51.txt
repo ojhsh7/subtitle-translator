@@ -1,0 +1,15 @@
+﻿powershell 5.1.26100.9549
+build-qa.ps1: OK
+deploy-qa.ps1: OK
+probe-blank.ps1: OK
+probe-symbols.ps1: OK
+rerun-ctest.ps1: OK
+verify-runtime.ps1: OK
+diag-uia.ps1: OK
+fake-game.ps1: OK
+hold-hotkeys.ps1: OK
+qa-common.ps1: OK
+suite-app.ps1: OK
+suite-leak.ps1: OK
+suite-regress.ps1: OK
+suite-translate.ps1: OK

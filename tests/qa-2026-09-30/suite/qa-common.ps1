@@ -66,8 +66,8 @@ public static class QaWin {
 $Qa = @{}
 $Qa.Root = Split-Path $PSScriptRoot -Parent                       # tests\qa-2026-09-30
 $Qa.Repo = (Get-Item -LiteralPath "$($Qa.Root)\..\..").FullName
-$Qa.Results = Join-Path $Qa.Root 'results\suite'
-$Qa.Dist = 'D:\qa-build\2026-09-30\dist'
+$Qa.Results = if ($env:QA_RESULTS) { Join-Path $env:QA_RESULTS 'suite' } else { Join-Path $Qa.Root 'results\suite' }
+$Qa.Dist = if ($env:QA_ROOT) { Join-Path $env:QA_ROOT 'dist' } else { 'D:\qa-build\2026-09-30\dist' }
 $Qa.App = "$($Qa.Dist)\SubtitleTranslator.exe"
 $Qa.Cli = "$($Qa.Dist)\subtitle_cli.exe"
 $Qa.Tess = "$($Qa.Dist)\ocr\tesseract.exe"
@@ -90,7 +90,7 @@ function Stat($values) {
 }
 
 # ---------- DeepL call ledger ----------
-$Qa.Ledger = Join-Path $Qa.Root 'deepl_calls.csv'
+$Qa.Ledger = Join-Path $Qa.Root 'deepl_calls.csv'  # shared across builds so the budget is counted once
 function Add-DeeplCall($case, $chars, $status) {
     if (!(Test-Path $Qa.Ledger)) { 'time,case,chars,status' | Set-Content -Encoding UTF8 $Qa.Ledger }
     "$(Get-Date -Format o),$case,$chars,$status" | Add-Content -Encoding UTF8 $Qa.Ledger
@@ -178,17 +178,33 @@ function Get-WinRect($h) { $r = New-Object QaWin+RECT; [void][QaWin]::GetWindowR
 
 # ---------- UI Automation ----------
 function Get-UiaMain {
-    if ($script:Uia -and $script:Uia.Main) { return $script:Uia }
+    # Qt exposes the minimized main window (auto mode calls showMinimized) only reliably through the raw tree walker,
+    # so walk instead of FindFirst, and re-validate the cached elements on every use.
+    if ($script:Uia -and $script:Uia.Main -and $script:Uia.Pid -eq $script:AppProc.Id) { return $script:Uia }
     if (!(App-Alive)) { return $null }
-    $cond = New-Object System.Windows.Automation.AndCondition(
-        (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $script:AppProc.Id)),
-        (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, '자막 번역')))
-    $main = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
-    if (!$main) { return $null }
-    $editCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
-    $edit = $main.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $editCond)
-    $script:Uia = @{ Main = $main; Edit = $edit }
-    return $script:Uia
+    $AE = [System.Windows.Automation.AutomationElement]
+    $pidCond = New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $script:AppProc.Id)
+    $walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+    foreach ($top in @($AE::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCond))) {
+        # Qt reports the minimized main window as 'SubtitleTranslator' instead of its title.
+        try { if (@('자막 번역', 'SubtitleTranslator') -notcontains $top.Current.Name) { continue } } catch { continue }
+        $edit = $null; $auto = $null; $all = New-Object System.Collections.ArrayList
+        $stack = New-Object System.Collections.Stack; $stack.Push($top)
+        while ($stack.Count) {
+            $el = $stack.Pop(); $ch = $walker.GetFirstChild($el)
+            while ($ch) {
+                try {
+                    $c = $ch.Current; [void]$all.Add($ch)
+                    if (!$edit -and $c.ControlType -eq [System.Windows.Automation.ControlType]::Edit) { $edit = $ch }
+                    if (!$auto -and $c.Name -and $c.Name.StartsWith('자동 번역') -and $c.ControlType -ne [System.Windows.Automation.ControlType]::Text) { $auto = $ch }
+                } catch { }
+                $stack.Push($ch); $ch = $walker.GetNextSibling($ch)
+            }
+        }
+        $script:Uia = @{ Main = $top; Edit = $edit; Auto = $auto; All = $all; Pid = $script:AppProc.Id }
+        return $script:Uia
+    }
+    return $null
 }
 function Get-OcrText {
     $u = Get-UiaMain; if (!$u -or !$u.Edit) { return $null }
@@ -201,14 +217,13 @@ function Get-OcrText {
     return $null
 }
 function Get-UiTexts {
-    $u = Get-UiaMain; if (!$u) { return @() }
-    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
-    try { @($u.Main.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond) | ForEach-Object { $_.Current.Name }) } catch { @() }
+    $script:Uia = $null; $u = Get-UiaMain; if (!$u) { return @() }
+    @($u.All | ForEach-Object { try { if ($_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Text) { $_.Current.Name } } catch { } })
 }
 function Find-UiButton([string]$prefix) {
-    $u = Get-UiaMain; if (!$u) { return $null }
-    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-    foreach ($b in $u.Main.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) { if ($b.Current.Name.StartsWith($prefix)) { return $b } }
+    # Any control type: the checkable auto button is exposed as a check box / toggle, not a Button.
+    $script:Uia = $null; $u = Get-UiaMain; if (!$u) { return $null }
+    foreach ($b in $u.All) { try { if ($b.Current.ControlType -ne [System.Windows.Automation.ControlType]::Text -and $b.Current.Name -and $b.Current.Name.StartsWith($prefix)) { return $b } } catch { } }
     return $null
 }
 function Invoke-UiButton([string]$prefix) {
@@ -218,7 +233,7 @@ function Invoke-UiButton([string]$prefix) {
     return $false
 }
 function Get-AutoOn {
-    $b = Find-UiButton '자동 번역'; if (!$b) { return $null }
+    $u = Get-UiaMain; $b = if ($u) { $u.Auto }; if (!$b) { return $null }
     $tp = $null
     if ($b.TryGetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern, [ref]$tp)) { return ($tp.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) }
     return $null

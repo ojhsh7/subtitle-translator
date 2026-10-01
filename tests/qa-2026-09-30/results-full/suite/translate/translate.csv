@@ -1,0 +1,14 @@
+﻿"case","run","target","exitCode","state","networkUsed","pieces","source","translated","detected","outboundBytes","reportedNetworkUsed","sourceSent","ocrMs","translationMs","totalMs","wallMs","message"
+"T-01","1","KO","0","complete","True","1","Press any key to continue.","계속하려면 아무 키나 누르세요.","EN","26","True","EN","186","1583","1770","1832",
+"T-01","2","KO","0","complete","True","1","Press any key to continue.","계속하려면 아무 키나 누르세요.","EN","26","True","EN","186","1188","1375","1417",
+"T-01","3","KO","0","complete","True","1","Press any key to continue.","계속하려면 아무 키나 누르세요.","EN","26","True","EN","184","1250","1435","1477",
+"T-01","4","KO","0","complete","True","1","Press any key to continue.","계속하려면 아무 키나 누르세요.","EN","26","True","EN","186","1170","1357","1399",
+"T-01","5","KO","0","complete","True","1","Press any key to continue.","계속하려면 아무 키나 누르십시오.","EN","26","True","EN","194","1202","1397","1437",
+"T-02","1","KO","0","complete","True","1","今日はいい天気です。","오늘은 날씨가 좋습니다.","JA","30","True","JA","180","1131","1312","1355",
+"T-03","1","KO","0","already_target_language","False","0","오늘은 날씨가 좋습니다.","",,,"False",,"183",,"183","220","No foreign-script text; no translation request sent."
+"T-04","1","KO","0","complete","True","1","채주아: Hello!","채주아: 안녕하세요!","EN","6","True","EN","266","1211","1478","1524",
+"T-05","1","EN-US","0","complete","True","1","오늘은 날씨가 좋습니다.","The weather is nice today.","KO","33","True","KO","175","1168","1343","1386",
+"T-06","1","JA","0","complete","True","1","Press any key to continue.","任意のキーを押して続行してください。","EN","26","True","EN","186","1292","1479","1522",
+"T-07","1","KO","0","complete","True","1","今天天气很好。","오늘 날씨가 정말 좋다.","ZH","21","True","ZH","180","1186","1367","1409",
+"T-08","1","KO","5","failed","True","1","Press any key to continue.","",,"26","True","EN","186","1117","1304","1346","DeepL 인증 실패. API 키와 Free/Pro 설정을 확인하세요."
+"T-09","1","KO","5","failed","False","60","abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다 abc 가나다","",,"180","True","EN","1726","0","1727","1774","번역할 텍스트가 비어 있거나 너무 깁니다."

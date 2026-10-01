@@ -1,0 +1,7 @@
+﻿"case","result","detail","tag"
+"A-01","PASS","overlay<=2s and text ok: 20/20","[측정함]"
+"C-01","MEASURED","Ctrl+Alt+T->overlay ms median=366.1 p95=830.1 max=830.1 n=20 (±10ms poll, no translation)","[측정함]"
+"A-02","PASS","after 20 toggles: alive=True autoOn=False overlayVisible=False","[측정함]"
+"A-05-panel","PASS","junk OCR during blank=[] overlayStillVisibleAtBlankEnd=0/4","[측정함]"
+"A-05-white","PASS","junk OCR during blank=[] overlayStillVisibleAtBlankEnd=0/4","[측정함]"
+"A-05-frame","FAIL","junk OCR during blank=[I ,] overlayStillVisibleAtBlankEnd=4/4","[측정함]"

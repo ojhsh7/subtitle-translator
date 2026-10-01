@@ -3,7 +3,8 @@ param([string]$QaRoot = 'D:\qa-build\2026-09-30', [int]$Repeat = 3)
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 Remove-Item Env:DEEPL_API_KEY, Env:SUBTITLE_TRANSLATOR_API_KEY -ErrorAction SilentlyContinue
-$results = Join-Path $PSScriptRoot 'results'; $img = Join-Path $results 'symbols'
+if ($env:QA_ROOT) { $QaRoot = $env:QA_ROOT }
+$results = if ($env:QA_RESULTS) { $env:QA_RESULTS } else { Join-Path $PSScriptRoot 'results' }; $img = Join-Path $results 'symbols'
 New-Item -ItemType Directory -Force -Path $img | Out-Null
 $dist = Join-Path $QaRoot 'dist'; $cli = "$dist\subtitle_cli.exe"; $tess = "$dist\ocr\tesseract.exe"; $tessdata = "$dist\ocr\tessdata"
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms

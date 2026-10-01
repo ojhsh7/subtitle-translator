@@ -1,0 +1,36 @@
+﻿{
+    "head":  "1c87bd4f947bcf345683e9d99d3886442c8b9d62",
+    "uncommitted":  6,
+    "qaRoot":  "D:\\qa-build\\2026-10-01",
+    "configureOk":  true,
+    "buildOk":  true,
+    "deployOk":  true,
+    "configureSeconds":  6,
+    "buildSeconds":  34.3,
+    "testSeconds":  51.1,
+    "warningsUnique":  0,
+    "warningsByCode":  {
+
+                       },
+    "exeBytes":  364544,
+    "cliBytes":  214528,
+    "dllBytes":  {
+                     "onnxruntime.dll":  16462648,
+                     "Qt6Network.dll":  1755784,
+                     "Qt6Widgets.dll":  6500488,
+                     "onnxruntime_providers_shared.dll":  21816,
+                     "Qt6Gui.dll":  9285768,
+                     "Qt6Core.dll":  6159496
+                 },
+    "paddleModelBytes":  {
+                             "ch_PP-OCRv5_det_mobile.onnx":  4819576,
+                             "ch_PP-OCRv5_rec_mobile.onnx":  16631306,
+                             "arabic_PP-OCRv5_rec_mobile.onnx":  8023828,
+                             "latin_PP-OCRv5_rec_mobile.onnx":  7904513,
+                             "th_PP-OCRv5_rec_mobile.onnx":  7915294,
+                             "korean_PP-OCRv5_rec_mobile.onnx":  13488748,
+                             "devanagari_PP-OCRv5_rec_mobile.onnx":  7940361,
+                             "eslav_PP-OCRv5_rec_mobile.onnx":  7911802
+                         },
+    "distTotalBytes":  228985369
+}

@@ -1,0 +1,19 @@
+﻿"id","engine","exitCode","ocrEngine","attempts","state","text","pieces"
+"B-white-200x60","paddle","3","blank-image","0","failed","",
+"B-white-200x60","tesseract","3","blank-image","0","failed","",
+"B-black-200x60","paddle","3","blank-image","0","failed","",
+"B-black-200x60","tesseract","3","blank-image","0","failed","",
+"B-gray-600x120","paddle","3","blank-image","0","failed","",
+"B-gray-600x120","tesseract","3","blank-image","0","failed","",
+"B-white-1200x300","paddle","3","blank-image","0","failed","",
+"B-white-1200x300","tesseract","3","blank-image","0","failed","",
+"N-white-border-200x60","paddle","0","Tesseract","3","ocr_complete_translation_not_requested","リー","1"
+"N-white-border-200x60","tesseract","0","Tesseract","1","ocr_complete_translation_not_requested","リー","1"
+"N-dark-frame-820x140","paddle","0","Tesseract","3","ocr_complete_translation_not_requested","I ,","1"
+"N-dark-frame-820x140","tesseract","0","Tesseract","1","ocr_complete_translation_not_requested","I ,","1"
+"N-white-noise2-200x60","paddle","0","Tesseract","3","ocr_complete_translation_not_requested","し","1"
+"N-white-noise2-200x60","tesseract","0","Tesseract","1","ocr_complete_translation_not_requested","し","1"
+"N-dark-noise4-820x140","paddle","0","Tesseract","3","ocr_complete_translation_not_requested","ee ee 0 の 0 TI oo 2 し. NT Mr 0 し 2 3 I 「 が cet 하오 ee rae DOR any ey estate","1"
+"N-dark-noise4-820x140","tesseract","0","Tesseract","1","ocr_complete_translation_not_requested","ee ee 0 の 0 TI oo 2 し. NT Mr 0 し 2 3 I 「 が cet 하오 ee rae DOR any ey estate","1"
+"N-gradient-820x140","paddle","3",,,"failed",,
+"N-gradient-820x140","tesseract","3",,,"failed",,

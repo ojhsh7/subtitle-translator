@@ -3,6 +3,8 @@
 param([string[]]$Commits = @('335dee3', 'e87e9c4', 'd5f87e1'), [string]$ToolchainRoot = 'D:\SubtitleTranslatorToolchain',
       [string[]]$Cases = @('A-01', 'C-01', 'A-03', 'C-02', 'A-05', 'C-03'))
 . "$PSScriptRoot\qa-common.ps1"
+$Commits = @($Commits | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$Cases = @($Cases | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $script:LogFile = Join-Path $Qa.Results 'suite-regress.log'
 $QtRoot = Join-Path $ToolchainRoot 'Qt\6.8.3\msvc2022_64'
 $found = Get-Command cmake -ErrorAction SilentlyContinue

@@ -1,0 +1,12 @@
+﻿time,case,chars,status
+2026-10-01T10:23:44.4713492+09:00,T-01,26,exit=0 state=complete
+2026-10-01T10:23:46.7167363+09:00,T-01,26,exit=0 state=complete
+2026-10-01T10:23:49.0079453+09:00,T-01,26,exit=0 state=complete
+2026-10-01T10:23:51.2107932+09:00,T-01,26,exit=0 state=complete
+2026-10-01T10:23:53.4515466+09:00,T-01,26,exit=0 state=complete
+2026-10-01T10:23:55.6184312+09:00,T-02,10,exit=0 state=complete
+2026-10-01T10:23:58.9899605+09:00,T-04,11,exit=0 state=complete
+2026-10-01T10:24:01.1794224+09:00,T-05,13,exit=0 state=complete
+2026-10-01T10:24:03.5207817+09:00,T-06,26,exit=0 state=complete
+2026-10-01T10:24:05.7386232+09:00,T-07,7,exit=0 state=complete
+2026-10-01T10:24:07.8929225+09:00,T-08,0,exit=5 state=failed

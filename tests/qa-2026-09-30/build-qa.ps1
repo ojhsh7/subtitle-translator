@@ -8,7 +8,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $repo = (Get-Item -LiteralPath "$here\..\..").FullName
-$results = Join-Path $here 'results'
+if ($env:QA_ROOT) { $QaRoot = $env:QA_ROOT }
+$results = if ($env:QA_RESULTS) { $env:QA_RESULTS } else { Join-Path $here 'results' }
 New-Item -ItemType Directory -Force -Path $results | Out-Null
 Remove-Item Env:DEEPL_API_KEY, Env:SUBTITLE_TRANSLATOR_API_KEY -ErrorAction SilentlyContinue
 

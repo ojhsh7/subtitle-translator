@@ -6,7 +6,8 @@ $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $here = $PSScriptRoot
 $repo = (Get-Item -LiteralPath "$here\..\..").FullName
-$results = Join-Path $here 'results'
+if ($env:QA_ROOT) { $QaRoot = $env:QA_ROOT }
+$results = if ($env:QA_RESULTS) { $env:QA_RESULTS } else { Join-Path $here 'results' }
 $backup = Join-Path $here 'settings-backup'
 New-Item -ItemType Directory -Force -Path $results, $backup | Out-Null
 Remove-Item Env:DEEPL_API_KEY, Env:SUBTITLE_TRANSLATOR_API_KEY -ErrorAction SilentlyContinue
@@ -26,9 +27,9 @@ $tess = "$dist\ocr\tesseract.exe"; $tessdata = "$dist\ocr\tessdata"
 
 # 0. 설정 백업(레지스트리만; 키는 자격 증명 저장소에 있고 건드리지 않음)
 $regKey = 'HKCU\Software\PersonalTools\SubtitleTranslator'
-Remove-Item "$backup\before.reg", "$backup\after.reg" -ErrorAction SilentlyContinue
-reg export $regKey "$backup\before.reg" /y *> $null
-$regExists = ($LASTEXITCODE -eq 0) -and (Test-Path "$backup\before.reg")
+Remove-Item "$backup\verify-before.reg", "$backup\verify-after.reg" -ErrorAction SilentlyContinue
+reg export $regKey "$backup\verify-before.reg" /y *> $null
+$regExists = ($LASTEXITCODE -eq 0) -and (Test-Path "$backup\verify-before.reg")
 Log "settings backup exit=$LASTEXITCODE (settings key present=$regExists)"
 $running = Get-Process -Name SubtitleTranslator -ErrorAction SilentlyContinue
 Log "running SubtitleTranslator instances=$(@($running).Count) (다른 사본이 단축키를 잡고 있으면 단축키 등록 결과가 달라짐)"
@@ -124,10 +125,10 @@ if ((Test-Path $bench) -and (Test-Path $scene)) {
 } else { Log "scene benchmark skipped" }
 
 # 5. 설정 변경 여부 확인
-reg export $regKey "$backup\after.reg" /y *> $null
-$afterExists = ($LASTEXITCODE -eq 0) -and (Test-Path "$backup\after.reg")
+reg export $regKey "$backup\verify-after.reg" /y *> $null
+$afterExists = ($LASTEXITCODE -eq 0) -and (Test-Path "$backup\verify-after.reg")
 if ($regExists -and $afterExists) {
-    $same = (Get-FileHash "$backup\before.reg").Hash -eq (Get-FileHash "$backup\after.reg").Hash
+    $same = (Get-FileHash "$backup\verify-before.reg").Hash -eq (Get-FileHash "$backup\verify-after.reg").Hash
     Log "settings unchanged by QA runs=$same"
 } elseif (!$regExists -and !$afterExists) {
     Log "settings unchanged by QA runs=True (no settings key before or after)"

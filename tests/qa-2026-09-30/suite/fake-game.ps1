@@ -9,6 +9,9 @@ public static class GameClock {
     [DllImport("kernel32.dll")] static extern void GetSystemTimePreciseAsFileTime(out long t);
     public static long Now() { long t; GetSystemTimePreciseAsFileTime(out t); return t; }
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    // Re-assert top of the topmost band (other always-on-top windows can cover the fake game otherwise).
+    public static void KeepOnTop(IntPtr h) { SetWindowPos(h, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); }
 }
 '@
 }
@@ -38,7 +41,7 @@ $form.Text = 'QA Fake Game'
 $prop = $form.GetType().GetProperty('DoubleBuffered', [Reflection.BindingFlags]'NonPublic,Instance'); $prop.SetValue($form, $true, $null)
 $font = New-Object System.Drawing.Font('Yu Gothic UI', [single]$fontSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
 
-$state = @{ index = 0; phase = 'type'; since = [GameClock]::Now(); chars = 0; frame = 0; text = ''; start = [GameClock]::Now() }
+$state = @{ index = 0; phase = 'type'; since = [GameClock]::Now(); chars = 0; frame = 0; text = ''; start = [GameClock]::Now(); lastTop = 0 }
 if ($lines.Count -eq 0) { $state.phase = 'idle' }
 $bgDark = [System.Drawing.Color]::FromArgb(28, 30, 44); $bgLight = [System.Drawing.Color]::FromArgb(236, 234, 226)
 
@@ -79,6 +82,7 @@ $timer.Add_Tick({
     $now = [GameClock]::Now()
     $elapsed = ($now - $state.since) / 10000.0
     $dirty = $false
+    if ((($now - $state.lastTop) / 10000.0) -ge 500) { [GameClock]::KeepOnTop($form.Handle); $state.lastTop = $now }
     if ($moving -and (($now - $state.start) / 10000.0) -ge ($state.frame + 1) * 33) { $state.frame++; $dirty = $true }
     if ($duration -gt 0 -and ($now - $state.start) / 10000000.0 -ge $duration) { Ev 'end' $state.index ''; $form.Close(); return }
     switch ($state.phase) {
