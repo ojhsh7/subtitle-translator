@@ -1,3 +1,4 @@
+#include "local_http_fixture.h"
 #include "languages.h"
 #include "subtitle/text.h"
 #include "translation_service.h"
@@ -8,6 +9,98 @@
 class ProtocolChecks : public QObject {
     Q_OBJECT
 private slots:
+
+    void actualHttpSuccessAndRequestBody() {
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        LoopbackNetwork network(server.serverPort());
+        TranslationService service(nullptr,&network);
+        QSignalSpy success(&service,&TranslationService::translated), failure(&service,&TranslationService::failed);
+        service.translate({"local fixture"},"fixture-key:fx",true,"KO","EN");
+        QTRY_COMPARE_WITH_TIMEOUT(success.size(),1,3000);
+        QVERIFY(failure.isEmpty()); QVERIFY(!service.isBusy());
+        QCOMPARE(service.lastHttpStatus(),200);
+        QCOMPARE(server.requests.size(),1);
+        const QByteArray request=server.requests.first();
+        QVERIFY(request.startsWith("POST /v2/translate "));
+        const auto body=QJsonDocument::fromJson(request.mid(request.indexOf("\r\n\r\n")+4)).object();
+        QCOMPARE(body["source_lang"].toString(),QString("EN"));
+        QCOMPARE(body["text"].toArray().first().toString(),QString("local fixture"));
+    }
+    void actualHttpErrors_data() {
+        QTest::addColumn<int>("status"); QTest::addColumn<bool>("stopAutomation");
+        QTest::newRow("auth") << 403 << true;
+        QTest::newRow("rate-limit") << 429 << true;
+        QTest::newRow("quota") << 456 << true;
+        QTest::newRow("server") << 503 << false;
+        QTest::newRow("redirect") << 302 << false;
+    }
+    void actualHttpErrors() {
+        QFETCH(int,status); QFETCH(bool,stopAutomation);
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        server.replies.enqueue({status,"private server response",0});
+        LoopbackNetwork network(server.serverPort());
+        TranslationService service(nullptr,&network);
+        QSignalSpy success(&service,&TranslationService::translated), failure(&service,&TranslationService::failed);
+        service.translate({"fixture"},"fixture-key:fx",true);
+        QTRY_COMPARE_WITH_TIMEOUT(failure.size(),1,3000);
+        QVERIFY(success.isEmpty()); QVERIFY(!service.isBusy());
+        QCOMPARE(service.lastHttpStatus(),status); QCOMPARE(service.requiresUserAction(),stopAutomation);
+        QVERIFY(!failure.first().first().toString().contains("private server response"));
+        QTest::qWait(120); QCOMPARE(server.requests.size(),1); // No hidden retries or redirect.
+        service.translate(QStringList(51,QString("x")),"fixture-key:fx",true);
+        QCOMPARE(failure.size(),2); QCOMPARE(service.lastHttpStatus(),0);
+        QVERIFY(!service.requiresUserAction()); // A local validation error must not reuse the previous 429.
+        QCOMPARE(server.requests.size(),1);
+    }
+    void actualHttpMalformedJson() {
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        server.replies.enqueue({200,"{\"translations\":[",0});
+        LoopbackNetwork network(server.serverPort());
+        TranslationService service(nullptr,&network);
+        QSignalSpy failure(&service,&TranslationService::failed), success(&service,&TranslationService::translated);
+        service.translate({"fixture"},"fixture-key:fx",true);
+        QTRY_COMPARE_WITH_TIMEOUT(failure.size(),1,3000);
+        QVERIFY(success.isEmpty()); QVERIFY(!service.isBusy());
+    }
+    void cancelledHttpDoesNotEmitLateResult() {
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        server.replies.enqueue({200,"{\"translations\":[{\"text\":\"old\"}]}",300});
+        LoopbackNetwork network(server.serverPort());
+        TranslationService service(nullptr,&network);
+        QSignalSpy failure(&service,&TranslationService::failed), success(&service,&TranslationService::translated);
+        service.translate({"old"},"fixture-key:fx",true);
+        QTRY_COMPARE_WITH_TIMEOUT(server.requests.size(),1,3000);
+        service.cancel(); QVERIFY(!service.isBusy());
+        service.translate({"new"},"fixture-key:fx",true);
+        QTRY_COMPARE_WITH_TIMEOUT(success.size(),1,3000);
+        QTest::qWait(400);
+        QCOMPARE(success.size(),1); QVERIFY(failure.isEmpty());
+        QCOMPARE(success.first().first().toStringList(),QStringList{"fixture"});
+    }
+    void actualHttpTimeoutAndRecovery() {
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        server.replies.enqueue({200,"{\"translations\":[{\"text\":\"late\"}]}",350});
+        LoopbackNetwork network(server.serverPort());
+        TranslationService service(nullptr,&network);
+        service.requestTimeoutMs_=100; // Same deadline path, shortened only for this test.
+        QSignalSpy failure(&service,&TranslationService::failed), success(&service,&TranslationService::translated);
+        service.translate({"old"},"fixture-key:fx",true);
+        QTRY_COMPARE_WITH_TIMEOUT(failure.size(),1,3000); QVERIFY(!service.isBusy());
+        service.requestTimeoutMs_=3000;
+        service.translate({"new"},"fixture-key:fx",true);
+        QTRY_COMPARE_WITH_TIMEOUT(success.size(),1,3000);
+        QTest::qWait(400);
+        QCOMPARE(success.size(),1); QCOMPARE(failure.size(),1);
+    }
+    void tooManyPiecesHasActionableErrorAndNoHttp() {
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        LoopbackNetwork network(server.serverPort()); TranslationService service(nullptr,&network);
+        QSignalSpy failure(&service,&TranslationService::failed);
+        service.translate(QStringList(51,QString("x")),"fixture-key:fx",true);
+        QCOMPARE(failure.size(),1);
+        QVERIFY(failure.first().first().toString().contains("50"));
+        QVERIFY(!service.isBusy()); QTest::qWait(50); QVERIFY(server.requests.isEmpty());
+    }
     void artificialResponseFixture() {
         // This is a protocol fixture, never a live translation success.
         QString error;

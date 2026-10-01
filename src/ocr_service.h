@@ -19,6 +19,8 @@ public:
                    const QString& languages = QStringLiteral("jpn+eng+kor"));
     // Folder with the PP-OCRv5 recognition models; empty disables PaddleOCR.
     void setPaddleModelDir(const QString& dir);
+    bool readingRejected() const { return rejectedReading_; }
+    double confidence() const { return confidence_; } // 0..1, -1 when no engine ran
     QString engineUsed() const { return engineUsed_; } // "PaddleOCR" or "Tesseract" for the last result
     void probe(const QString& executable, const QString& tessdataDir,
                const QString& languages = QStringLiteral("jpn+eng+kor"));
@@ -36,10 +38,13 @@ public:
     static Reading parseOutput(const QString& output);
     static constexpr double ConfidentEnough = 90; // stop trying other images
     static constexpr double MaskMargin = 5;       // a mask must beat the original clearly
-    // Tesseract often reads a standalone English "I" as "|".
-    static QString cleanText(const QString& text);
+    // Common spacing cleanup; optional narrow English pronoun repair for Tesseract only.
+    static QString cleanText(const QString& text, bool tesseract = false);
     // Conservative blank check: every pixel must match, with no resizing or contrast threshold.
     static bool isUniformImage(const QImage& image);
+    static bool isFrameOnlyImage(const QImage& image);
+    // Only very uncertain 1-2 letter Latin readings, measured on the symbol regression set.
+    static bool isUncertainShortLatin(const QString& text, double confidence);
     void cancel();
     bool isBusy() const { return busy_; }
     qint64 elapsedMs() const { return elapsedMs_; }
@@ -74,5 +79,7 @@ private:
     bool bestFromMask_ = false;
     quint64 generation_ = 0, peakMemory_ = 0;
     qint64 elapsedMs_ = 0;
+    double confidence_ = -1;
+    bool rejectedReading_ = false;
     void* processHandle_ = nullptr;
 };

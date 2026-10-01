@@ -1,0 +1,92 @@
+{
+  "bench-selected.json": {
+    "before": {
+      "images": 672,
+      "characters": 17544,
+      "edits": 402,
+      "cerPercent": 2.291,
+      "cerWithoutSpacesPercent": 2.455,
+      "exact": 479,
+      "warmMedianMs": 44.78,
+      "warmP95Ms": 93.01,
+      "coldReadsMs": [
+        176.52,
+        99.4,
+        99.98,
+        105.89,
+        85.23,
+        92.64,
+        88.6,
+        98.64,
+        81.44
+      ]
+    },
+    "after": {
+      "images": 672,
+      "characters": 17544,
+      "edits": 402,
+      "cerPercent": 2.291,
+      "cerWithoutSpacesPercent": 2.455,
+      "exact": 479,
+      "warmMedianMs": 45.16,
+      "warmP95Ms": 94.56,
+      "coldReadsMs": [
+        200.48,
+        97.84,
+        102.04,
+        105.6,
+        78.26,
+        95.8,
+        93.19,
+        102.62,
+        84.49
+      ]
+    },
+    "peakWorkingSetMiB": 154.14
+  },
+  "scene-selected.json": {
+    "before": {
+      "images": 168,
+      "characters": 10284,
+      "edits": 749,
+      "cerPercent": 7.283,
+      "cerWithoutSpacesPercent": 6.381,
+      "exact": 56,
+      "warmMedianMs": 217.27,
+      "warmP95Ms": 510.98,
+      "coldReadsMs": [
+        317.79,
+        238.11,
+        224.97,
+        247.65,
+        137.84,
+        252.73,
+        258.18,
+        317.42,
+        222.26
+      ]
+    },
+    "after": {
+      "images": 168,
+      "characters": 10284,
+      "edits": 749,
+      "cerPercent": 7.283,
+      "cerWithoutSpacesPercent": 6.381,
+      "exact": 56,
+      "warmMedianMs": 201.12,
+      "warmP95Ms": 509.82,
+      "coldReadsMs": [
+        318.24,
+        241.13,
+        225.25,
+        251.99,
+        140.35,
+        245.5,
+        209.86,
+        257.88,
+        195.95
+      ]
+    },
+    "peakWorkingSetMiB": 305.27
+  }
+}

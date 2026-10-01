@@ -37,12 +37,12 @@
 | 1 현황 파악 | 완료 | inconsistencies.md, results/git_log.txt |
 | 2 빌드·정적 분석 | 완료 (빌드 성공·경고 0, CTest 7/7 통과) | risks.md, existing_tests.csv, results/build.json, results/ctest-junit.xml |
 | 3 테스트 계획 | 확인 완료 (2026-10-01): 범위 **전체**, 실제 DeepL **허용**(계획 T 목록), 1시간 테스트 **이번에 같이**, B-04 즉시 실행 | plan.md, risks.md |
-| 4 실행 | 수정본 재검증 완료(windows-verification.md 11절). B-04 완료(특수기호 오인식 재현, windows-verification.md 10절). 일부 완료: 앱 스모크, CLI 종료 코드, CLI OCR 반복, 672/168장 CER 재측정, 빈 화면 OCR(D-01). 앱 화면 기능·지연·CPU·누수는 plan 확인 후 | windows-verification.md, results/*.csv |
-| 5 보고서 | 미착수 | |
+| 4 실행 | 수정본 재검증 완료(windows-verification.md 11절, 셀프체크 4/5 통과 — A-05 액자형은 실제 결함). 전체 실행 진행 중. B-04 완료(특수기호 오인식 재현, windows-verification.md 10절). 일부 완료: 앱 스모크, CLI 종료 코드, CLI OCR 반복, 672/168장 CER 재측정, 빈 화면 OCR(D-01). 앱 화면 기능·지연·CPU·누수는 plan 확인 후 | windows-verification.md, results/*.csv |
+| 5 보고서 | REPORT.md 작성(전체 실행 반영). 남은 일: A-09 이후 자동 번역 미작동 원인, 구 커밋 2개 시작 실패, C-06 35분 변화 | REPORT.md |
 
 ## DeepL 실제 사용량
 
-- 호출 0회 / 0자 (예산 30회 / 5,000자)
+- 2026-10-01 10:23–10:24 T 목록: 실제 전송 10회 / 197자 + 가짜 키 거부 1회(0자). 누적 11회 / 197자 (예산 30회 / 5,000자). 남은 예정: T-10, A-04 (최대 4회)
 
 ## 사용자 설정·자격 증명
 
@@ -56,5 +56,5 @@
 
 1. 수정본(`D:\qa-build\2026-10-01`) 재검증 결과: windows-verification.md 11절. 단색 빈 화면은 해결, 거의 빈 화면·특수기호(B-04)는 그대로.
 2. 하네스 버그 6건 수정 완료, A-01·A-02·A-05(흰 화면) 동작 확인. A-05 패널·액자는 사용자 창이 영역을 가려 재실행 필요.
-3. 전체 실행: `run-full.cmd` (수정본 대상, 결과 `results-full\`, 약 2시간 40분, DeepL 실사용 포함). **PC를 쓰지 않고 다른 창을 모두 최소화한 상태에서** 실행해야 유효.
+3. 전체 실행 **완료 (10:23–12:14)**, REPORT.md 반영: `run-full.cmd` (수정본 대상, 결과 `results-full\`, 약 2시간 40분, DeepL 실사용 포함). **PC를 쓰지 않고 다른 창을 모두 최소화한 상태에서** 실행해야 유효.
 4. 실행 후 results-full\*, deepl_calls.csv 분석 → REPORT.md(5단계)

@@ -1,0 +1,9 @@
+********* Start testing of WindowChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : WindowChecks::initTestCase()
+QINFO  : WindowChecks::autoStartKeepsNativeWindowMinimized() Qt title: 자막 번역 native title: 자막 번역
+FAIL!  : WindowChecks::autoStartKeepsNativeWindowMinimized() 'IsIconic(handle)' returned FALSE. ()
+D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(46) : failure location
+PASS   : WindowChecks::cleanupTestCase()
+Totals: 2 passed, 1 failed, 0 skipped, 0 blacklisted, 1065ms
+********* Finished testing of WindowChecks *********

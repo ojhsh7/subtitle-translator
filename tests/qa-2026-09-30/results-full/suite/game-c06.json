@@ -1,0 +1,25 @@
+﻿{
+    "y":  1000,
+    "durationSec":  3720,
+    "x":  40,
+    "holdMs":  5000,
+    "moving":  true,
+    "w":  820,
+    "events":  "C:\\Users\\User\\GitHub\\subtitle-translator\\tests\\qa-2026-09-30\\results-full\\suite\\game-c06-events.csv",
+    "h":  140,
+    "lines":  [
+                  "Press any key to continue.",
+                  "The door is locked.",
+                  "Where did you find this map?",
+                  "We should leave before sunset.",
+                  "Your inventory is full.",
+                  "Do you want to save the game?",
+                  "A new quest is available.",
+                  "The bridge has collapsed.",
+                  "Talk to the merchant in town.",
+                  "You gained a new skill.",
+                  "Please wait a moment.",
+                  "The weather is nice today."
+              ],
+    "loop":  true
+}

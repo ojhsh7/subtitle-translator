@@ -1,0 +1,21 @@
+{
+  "completedAt": "2026-10-01T13:10:57.890042+09:00",
+  "ctestGroupsPassed": 7,
+  "ctestSeconds": 48.12,
+  "qtTestReportedPasses": 167,
+  "expectedOcrFailures": 3,
+  "liveDeepLCalls": 0,
+  "installedSmokeExit": 0,
+  "installedFiles": {
+    "SubtitleTranslator.exe": {
+      "path": "C:\\Users\\User\\AppData\\Local\\Programs\\SubtitleTranslator\\SubtitleTranslator.exe",
+      "sha256": "24942EBC50B04CB4330F362A3DC98018F6BCB17EDC23E04301D9184CA2519B29",
+      "matchesPackage": true
+    },
+    "subtitle_cli.exe": {
+      "path": "C:\\Users\\User\\AppData\\Local\\Programs\\SubtitleTranslator\\subtitle_cli.exe",
+      "sha256": "A0430235E432C9D90875AE0C34A897925E9ABF51B0E35A13C3A1FC3FD1956FD1",
+      "matchesPackage": true
+    }
+  }
+}

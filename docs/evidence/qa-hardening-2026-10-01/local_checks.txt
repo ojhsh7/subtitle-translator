@@ -1,0 +1,57 @@
+********* Start testing of LocalChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : LocalChecks::initTestCase()
+PASS   : LocalChecks::framedBlankImages(tesseract-border)
+PASS   : LocalChecks::framedBlankImages(tesseract-frame)
+PASS   : LocalChecks::framedBlankImages(paddle-border)
+PASS   : LocalChecks::framedBlankImages(paddle-frame)
+PASS   : LocalChecks::frameCheckKeepsTextEvenInMargins()
+PASS   : LocalChecks::pipeCleanupPreservesUiAndPaddleResults()
+PASS   : LocalChecks::uncertainSymbolsDoNotBecomeBlankJapanese()
+PASS   : LocalChecks::uniformCheckPreservesFaintPixelsAndTinyText()
+PASS   : LocalChecks::cancelledBlankCheckNeverEmitsStaleResult()
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-white-small)
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-black-small)
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-gray)
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-white-large)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-white-small)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-black-small)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-gray)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-white-large)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-yes-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-no-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-ok-en)
+XFAIL  : LocalChecks::shortRealTextIsPreserved(tesseract-single-i) Isolated I is read as |; global pipe rewriting corrupts UI separators.
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(174) : failure location
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-single-i)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-single-o)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-yes-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-no-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-ok-en)
+XFAIL  : LocalChecks::shortRealTextIsPreserved(paddle-single-i) PP-OCRv5 reads isolated I as dotless i with this fixture.
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(174) : failure location
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-single-i)
+XFAIL  : LocalChecks::shortRealTextIsPreserved(paddle-single-o) PP-OCRv5 reads isolated O as zero with this fixture.
+D:\SubtitleTranslatorToolchain\windows-source\tests\integration_checks.cpp(174) : failure location
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-single-o)
+PASS   : LocalChecks::cursorRegionUsesLogicalCoordinatesAndStaysOnOneScreen()
+PASS   : LocalChecks::combinedOutputKeepsSpacingAndConfidence()
+PASS   : LocalChecks::lightTextMaskIsolatesWhiteText()
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined english 18px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined korean 18px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined japanese 22px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow english 14px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow korean 14px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow japanese 18px)
+PASS   : LocalChecks::cleanTextFixesStandaloneI()
+PASS   : LocalChecks::automaticLayoutReadsStripsAsOneLine()
+PASS   : LocalChecks::autoDetectReadsEachLanguage(english)
+PASS   : LocalChecks::autoDetectReadsEachLanguage(korean)
+PASS   : LocalChecks::autoDetectReadsEachLanguage(japanese)
+PASS   : LocalChecks::unsupportedLanguageIsRejected()
+PASS   : LocalChecks::rejectInvalidCapture()
+PASS   : LocalChecks::nonexistentOcrExecutable()
+PASS   : LocalChecks::japaneseOcrActualEngine()
+PASS   : LocalChecks::cleanupTestCase()
+Totals: 47 passed, 0 failed, 0 skipped, 0 blacklisted, 8955ms
+********* Finished testing of LocalChecks *********

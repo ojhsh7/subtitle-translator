@@ -1,0 +1,16 @@
+﻿{
+    "blankStyle":  "frame",
+    "w":  820,
+    "y":  1000,
+    "blankMs":  4000,
+    "x":  40,
+    "events":  "C:\\Users\\User\\GitHub\\subtitle-translator\\tests\\qa-2026-09-30\\results-full\\suite\\regress-e87e9c4\\game-a05-frame-events.csv",
+    "lines":  [
+                  "Your inventory is full.",
+                  "A new quest is available.",
+                  "Please wait a moment.",
+                  "Welcome back, traveler."
+              ],
+    "holdMs":  3000,
+    "h":  140
+}

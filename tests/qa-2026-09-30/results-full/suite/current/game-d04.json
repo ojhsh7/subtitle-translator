@@ -1,0 +1,12 @@
+﻿{
+    "w":  820,
+    "border":  "window",
+    "y":  1000,
+    "x":  40,
+    "events":  "C:\\Users\\User\\GitHub\\subtitle-translator\\tests\\qa-2026-09-30\\results-full\\suite\\current\\game-d04-events.csv",
+    "lines":  [
+                  "Welcome back, traveler."
+              ],
+    "holdMs":  3600000,
+    "h":  140
+}

@@ -1,3 +1,4 @@
+#include "local_http_fixture.h"
 #include "main_window.h"
 #include "capture_service.h"
 #include "paddle_ocr.h"
@@ -10,6 +11,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QSettings>
+#include <QSpinBox>
 #include <QDir>
 #include <QtTest>
 #include <QLabel>
@@ -22,6 +24,70 @@
 class WindowChecks : public QObject {
     Q_OBJECT
 private slots:
+
+    void autoStartKeepsNativeWindowMinimized() {
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        window.apiKey_.clear(); window.consent_=false;
+        window.selectedScreen_=QGuiApplication::primaryScreen();
+        window.selectedGeometry_=window.selectedScreen_->geometry();
+        window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+        window.region_=QRect(80,100,600,50);
+        // Same pre-event-loop sequence as --auto construction followed by main.cpp.
+        window.setAutoTranslate(true);
+        window.autoTimer_->stop(); // This check observes window state, not unrelated desktop text.
+        window.showMinimized();
+        QTest::qWait(900);
+        const HWND handle=reinterpret_cast<HWND>(window.winId());
+        wchar_t nativeTitle[256]{};
+        GetWindowTextW(handle,nativeTitle,256);
+        qInfo().noquote() << "Qt title:" << window.windowTitle()
+                         << "native title:" << QString::fromWCharArray(nativeTitle);
+        QVERIFY(window.isMinimized());
+        QVERIFY(IsIconic(handle));
+        window.setAutoTranslate(false);
+    }
+
+    void apiErrorsStopAutomaticModes_data() {
+        QTest::addColumn<int>("status"); QTest::addColumn<bool>("hover");
+        for (int status : {403,429,456})
+            for (bool hover : {false,true})
+                QTest::newRow(qPrintable(QString("%1-%2").arg(status).arg(hover?"hover":"auto"))) << status << hover;
+    }
+    void apiErrorsStopAutomaticModes() {
+        QFETCH(int,status); QFETCH(bool,hover);
+        LocalHttpFixture server; QVERIFY(server.listen(QHostAddress::LocalHost,0));
+        server.replies.enqueue({status,"private-fixture-error",0});
+        LoopbackNetwork network(server.serverPort());
+        MainWindow window;
+        window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        if (!window.ocrReady()) QSKIP("Actual engine not configured");
+        window.apiKey_.clear(); window.consent_=false;
+        window.translation_.transport_=&network;
+        window.selectedScreen_=QGuiApplication::primaryScreen();
+        window.selectedGeometry_=window.selectedScreen_->geometry();
+        window.selectedDpr_=window.selectedScreen_->devicePixelRatio();
+        window.region_=QRect(80,100,600,50);
+        if (hover) window.setHoverTranslate(true); else window.setAutoTranslate(true);
+        QVERIFY(hover ? window.hoverMode_->isChecked() : window.autoTranslating());
+        window.activeSource_=ST_IMAGE_FILE; // HTTP/UI state test, no desktop capture.
+        window.request_=st_begin(window.session_,ST_IMAGE_FILE,100,100);
+        QCOMPARE(st_accept_ocr(window.session_,window.request_,"local fixture"),int(ST_TRANSLATE));
+        window.setBusy(true);
+        window.translation_.translate({"local fixture"},"fixture-key:fx",true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,3000);
+        QVERIFY(!window.autoTranslating()); QVERIFY(!window.hoverMode_->isChecked());
+        QVERIFY(!window.hoverTimer_->isActive());
+        QCOMPARE(st_state(window.session_),int(ST_FAILED));
+        QVERIFY(window.resultStatus_->text().contains(QStringLiteral("멈췄")));
+        QTest::qWait(500); QCOMPARE(server.requests.size(),1);
+    }
+    void blankAutoFrameNeverStartsTranslation_data() {
+        QTest::addColumn<QString>("file");
+        QTest::newRow("solid") << QString();
+        QTest::newRow("border") << QString("empty-panels/N-white-border-200x60.png");
+        QTest::newRow("frame") << QString("empty-panels/N-dark-frame-820x140.png");
+    }
 
     void fallbackResultWindowDoesNotBlockAutoCapture() {
         MainWindow window;
@@ -88,6 +154,9 @@ private slots:
         // Keep auto mode active but do not poll unrelated desktop pixels during this image-path test.
         window.autoTimer_->setInterval(60000);
         QImage image(200,60,QImage::Format_RGB32); image.fill(Qt::white);
+        QFETCH(QString,file);
+        if (!file.isEmpty()) image=QImage(QDir(OCR_FIXTURE_DIR).filePath(file));
+        QVERIFY(!image.isNull());
         window.processImage(image,ST_SCREEN_CAPTURE);
         QTRY_VERIFY_WITH_TIMEOUT(!window.busy_,5000);
         QVERIFY(window.original_->toPlainText().isEmpty());
@@ -178,6 +247,30 @@ private slots:
         MainWindow invalid;
         QCOMPARE(invalid.cursorSizeBox_->currentData().toSize(), QSize(640, 160));
     }
+    void customMouseSizePersistsAndResetsHover() {
+        {
+            MainWindow window;
+            window.hoverSince_=123; window.hoverConsumed_=true;
+            window.cursorWidth_->setValue(730);
+            window.cursorHeight_->setValue(190);
+            QCOMPARE(window.cursorSizeBox_->currentData().toSize(),QSize(730,190));
+            QCOMPARE(window.cursorSizeBox_->currentIndex(),3);
+            QCOMPARE(window.hoverSince_,qint64(-1)); QVERIFY(!window.hoverConsumed_);
+            QCOMPARE(QSettings().value("cursor/size").toSize(),QSize(730,190));
+            window.setBusy(true);
+            QVERIFY(!window.cursorWidth_->isEnabled()); QVERIFY(!window.cursorHeight_->isEnabled());
+            window.setBusy(false);
+            QVERIFY(window.cursorWidth_->isEnabled()); QVERIFY(window.cursorHeight_->isEnabled());
+        }
+        MainWindow restored;
+        QCOMPARE(restored.cursorWidth_->value(),730);
+        QCOMPARE(restored.cursorHeight_->value(),190);
+        QCOMPARE(restored.cursorSizeBox_->currentData().toSize(),QSize(730,190));
+        restored.cursorSizeBox_->setCurrentIndex(0);
+        QCOMPARE(restored.cursorWidth_->value(),360); QCOMPARE(restored.cursorHeight_->value(),100);
+        restored.cursorSizeBox_->setCurrentIndex(3);
+        QCOMPARE(restored.cursorWidth_->value(),730); QCOMPARE(restored.cursorHeight_->value(),190);
+    }
     void actualCursorCaptureKeepsSavedRegionAndRetryAnchor() {
         if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
         const QPoint oldCursor = QCursor::pos();
@@ -201,7 +294,8 @@ private slots:
         const QRect savedRegion(80, 400, 600, 50);
         window.region_=savedRegion; window.saveRegion();
         const QPoint point=fixture.mapToGlobal(fixture.rect().center());
-        const QRect expected=Capture::aroundPoint(fixture.screen()->geometry(),point,QSize(640,160));
+        window.cursorWidth_->setValue(730); window.cursorHeight_->setValue(190);
+        const QRect expected=Capture::aroundPoint(fixture.screen()->geometry(),point,QSize(730,190));
         window.setAutoTranslate(true);
         QVERIFY(window.autoTranslating());
         QVERIFY(window.cursorRegistered_);
@@ -287,6 +381,7 @@ private slots:
         window.paddleEngine_=true; window.applyOcrEngine();
         window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
         window.apiKey_.clear(); window.consent_=false;
+        window.cursorWidth_->setValue(710); window.cursorHeight_->setValue(180);
         QVERIFY(!window.hoverMode_->isChecked()); // No automatic capture on launch.
         QVERIFY(window.hoverRegistered_);
         MSG hotkey{}; hotkey.message=WM_HOTKEY; hotkey.wParam=4;
@@ -307,6 +402,7 @@ private slots:
         QCOMPARE(window.ocr_.engineUsed(),QStringLiteral("PaddleOCR"));
         QVERIFY(window.result_->toPlainText().isEmpty()); // No key: never fake a translation.
         QVERIFY(window.region_.isEmpty()); // No saved game region needed or overwritten.
+        QCOMPARE(window.captionArea_.rect.size(),QSize(710,180));
         const auto firstRequest=window.request_;
         window.updateHover(point,3000); window.updateHover(point,7000);
         QCOMPARE(window.request_,firstRequest);

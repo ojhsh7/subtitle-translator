@@ -1,0 +1,1622 @@
+[
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "⭐",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "↓∗·−↓→",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "$−T•∑",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "$−T•∑",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "⭐●",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "↓∗※ <·±",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "J∗ .:",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "J∗ .:",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "↑∗※ <→",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "↑∗※ <→",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "J∗ %",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-shapes-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ ★ ※ ▶ ▼ ◆ ● ■",
+    "group": "S1",
+    "beforeText": "J∗ %",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "↓↑—↓→스",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "↓↑—↓→스",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "→←↓⇒L",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "↓↔↑↓±ㅅ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "4",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "4",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "→←⇒▲",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "→← ↑ ↓ ↓",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "↔ ↑ ↓ ↓",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "↔ ↑ ↓ ↓",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "↓← ↑ ↓ ↓",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-arrows-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "→ ← ↑ ↓ ⇒ ▲",
+    "group": "S1",
+    "beforeText": "↓← ↑ ↓ ↓",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "J]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "J]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[jrJ[]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[jrJ[]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "」』】",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[][]↑",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[]r][]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[]r][]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[][][]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[][][]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[][]0",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-brackets-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「 」 『 』 【 】",
+    "group": "S1",
+    "beforeText": "[][]0",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "…",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "…",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "— − −—–",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "— − −—–",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "· …·",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "· …·",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "1",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "",
+    "beforePieces": ""
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "• ···",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "• ···",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "ー・ー I",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-dashes-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "…  ―  ・  〜  ｜",
+    "group": "S1",
+    "beforeText": "-ㆍ~",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①②③|ⅡⅢ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①②③ I |—",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①②③Ⅲ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "① ② 3 I I Ⅲ",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①②③ⅡⅢ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①② ③ |||",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①②③Ⅲ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①② ③ I || Ⅲ|",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①②③ⅡⅢ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "① 2 ③ |||",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "①②③Ⅲ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-numbers-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "① ② ③ Ⅰ Ⅱ Ⅲ",
+    "group": "S1",
+    "beforeText": "① ② ③ I || Ⅲ|1",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "©×이스",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "©×이스",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "v☆XO△",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "0×0∆",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "ㅁ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "ㅁ",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "×O",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "×O",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "O",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "O",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "O",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s1-misc-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♥ ☆ ◎ ✕ ○ △",
+    "group": "S1",
+    "beforeText": "O",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "을",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "을",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-next-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "▶ 다음",
+    "group": "S2",
+    "beforeText": "다음",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득 차",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득 차",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "«보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "«보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-reward-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "★ 보상 획득 ★",
+    "group": "S2",
+    "beforeText": "보상 획득",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의: 저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의: 저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※ 주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※ 주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-note-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "※ 주의: 저장하지 않은 데이터가 있습니다",
+    "group": "S2",
+    "beforeText": "※주의:저장하지 않은 데이터가 있습니다",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s2-quote-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「안녕하세요」",
+    "group": "S2",
+    "beforeText": "[안녕하세요]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "「こんにちは」",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "[Z시[5]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "「こんにちは」",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "[Zhh5t]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "「こんにちは」",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "[Zhl5]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "「こんにちは」",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "[Z시]",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "「こんにちは」",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "[Zhl5]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "「こんにちは」",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-quote-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "「こんにちは」",
+    "group": "S3",
+    "beforeText": "[Zh[5]",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "【重要]セ-ブしますか？",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "[]?",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "【重要]セールますか?",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "[]?",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "【重要】セ-ブしますか?",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "?",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "【重要】セーガしますか?",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "]?",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "【重要】セーブしますか?",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "]?",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "【重要】セーブしますか?",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-ja-tag-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "【重要】セーブしますか？",
+    "group": "S3",
+    "beforeText": "]?",
+    "beforePieces": "0"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "Hello",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "Hello",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "♪ Hello J",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "$ Hello $",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "♪Hello♪",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "Hello",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "s Hello s",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "s Hello s",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "Hello",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "Hello",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "1 Hello b",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s3-en-note-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "♪ Hello ♪",
+    "group": "S3",
+    "beforeText": "1 Hello b",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HPIMPISP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HPIMPISP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP|MP|SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP I MP|SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP|MP|SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP|MP|SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP|MP ISP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP|MP|SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP|MP|SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP|MP|SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP I MPI SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-en-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "HP | MP | SP",
+    "group": "S4",
+    "beforeText": "HP I MPI SP",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-16-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이 전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-16-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이 전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-16-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이|전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-16-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이|전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-24-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이| 전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-24-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이| 전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-24-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이|전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-24-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이|전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-36-light-outline.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.10|型外",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-36-light-outline.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이 전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-36-dark-on-light.png",
+    "ocr": "jpn+eng+kor",
+    "lang": "jpn+eng+kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이|전사",
+    "beforePieces": "1"
+  },
+  {
+    "file": "C:/Users/User/GitHub/subtitle-translator/tests/qa-2026-09-30/results-fix/symbols/s4-bar-ko-36-dark-on-light.png",
+    "ocr": "kor",
+    "lang": "kor",
+    "truth": "Lv.10 | 전사",
+    "group": "S4",
+    "beforeText": "Lv.1이|전사",
+    "beforePieces": "1"
+  }
+]

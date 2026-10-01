@@ -83,11 +83,13 @@ int main(int argc, char** argv) {
         report["ocrMs"] = phase.elapsed();
         report["ocrAttempts"] = ocr.attemptsUsed();
         report["ocrEngine"] = ocr.engineUsed();
+        report["ocrConfidence"] = ocr.confidence();
+        report["ocrReadingRejected"] = ocr.readingRejected();
         report["ocrChildPeakWorkingSetBytes"] = qint64(ocr.peakWorkingSetBytes());
         const int decision = st_accept_ocr(session, request, text.toUtf8().constData());
         report["sourceText"] = QString::fromUtf8(st_source_text(session));
         if (decision != ST_TRANSLATE) {
-            report["state"] = "failed"; report["stage"] = "ocr"; report["message"] = "Empty or oversized OCR output"; finish(3); return;
+            report["state"] = "failed"; report["stage"] = "ocr"; report["message"] = ocr.readingRejected() ? "Low-confidence OCR output rejected" : "Empty or oversized OCR output"; finish(3); return;
         }
         // Same rule as the app: only foreign-script runs go to DeepL.
         segments = subtitle::splitForTranslation(st_source_text(session),

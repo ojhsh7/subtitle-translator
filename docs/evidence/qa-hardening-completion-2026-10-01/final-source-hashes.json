@@ -1,0 +1,6 @@
+{
+  "src\\main_window.cpp": "36f06834db6f8fba3f4bec52e2a434e7eb430bc39374db209bd793a1a12cf7f0",
+  "src\\main_window.h": "5886f36bee46c50c96792f77d58fcccc620353868d5b55b89d564106c0a87c4b",
+  "tests\\window_checks.cpp": "0dc9fcead4906815cda991cabab9516784e2138e6e8f3e43001d4dfdab82ff36",
+  "tests\\qa-2026-09-30\\suite\\suite-app.ps1": "3b22d5e0fe6907c9b398a030d693045e0558b7b7e6bacf84c3506dc5a54014ce"
+}

@@ -62,6 +62,8 @@ int main(int argc, char** argv) {
         row["ocrMs"] = timer.nsecsElapsed() / 1000000.0;
         row["actual"] = actual;
         row["engine"] = ocr.engineUsed();
+        row["confidence"] = ocr.confidence();
+        row["readingRejected"] = ocr.readingRejected();
         row["modelRuns"] = ocr.attemptsUsed();
         row["ocrChildPeakWorkingSetBytes"] = qint64(ocr.peakWorkingSetBytes());
         row["error"] = error;

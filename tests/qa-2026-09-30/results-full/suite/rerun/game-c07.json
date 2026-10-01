@@ -1,0 +1,17 @@
+﻿{
+    "w":  820,
+    "y":  1000,
+    "x":  40,
+    "events":  "C:\\Users\\User\\GitHub\\subtitle-translator\\tests\\qa-2026-09-30\\results-full\\suite\\rerun\\game-c07-events.csv",
+    "lines":  [
+                  "The ancient gate opens only at midnight.",
+                  "Bring me three herbs from the east forest.",
+                  "Nobody has returned from that cave yet.",
+                  "Keep your torch lit when you go below.",
+                  "The king wants to see you right away now."
+              ],
+    "typewriterMs":  100,
+    "fontSize":  26,
+    "holdMs":  2500,
+    "h":  140
+}

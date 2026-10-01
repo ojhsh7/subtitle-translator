@@ -1,0 +1,3 @@
+﻿"case","result","detail","tag"
+"T-10","CHECK-SCREENSHOT","overlayFinal=True resultWindow=False firstTranslatedOverlayMs=2116.4806 status=[게임 자막 번역 | → 번역 언어 | 1초 정지 → 1회 번역 · 전송·비용 설정 적용 | 번역 완료. 다음 자막에서 Ctrl + Alt + T를 누르세요.] (trace: T-10_trace.csv)","[측정함]"
+"A-04","PASS","full-screen region: lines read=1/3 autoAfter=False stoppedWithWarning=True resultWindow=(952,515)-(1608,854) ownTextRead=0 status=[게임 자막 번역 | → 번역 언어 | 1초 정지 → 1회 번역 · 전송·비용 설정 적용 | 결과 창을 놓을 빈 공간이 없어 자동 번역을 멈췄습니다. 자막 영역을 줄이거나 결과 창을 다른 모니터로 옮긴 뒤 Ctrl+Alt+P로 다시 시작하세요.]","[측정함]"

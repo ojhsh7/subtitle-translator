@@ -118,15 +118,32 @@ OcrService::Reading OcrService::parseOutput(const QString& output) {
     reading.confidence = letters ? weighted / letters : 0;
     return reading;
 }
-QString OcrService::cleanText(const QString& text) {
-    static const QRegularExpression standalonePipe(QStringLiteral("(^|\\s)\\|(?=$|\\s|[A-Za-z'’?!.,])"));
-    // Japanese and Chinese have no spaces between words; Tesseract sometimes inserts them.
-    // Hangul is not in this class, so Korean word spacing is kept.
+QString OcrService::cleanText(const QString& text, bool tesseract) {
+    // Paddle results and UI separators must never receive the old global "|" -> "I" rewrite.
+    QString cleaned = text;
+    if (tesseract) {
+        // Only repair a likely English pronoun in narrow sentence contexts.
+        static const QRegularExpression leadingPronoun(QStringLiteral(
+            "(^|[.!?]\\s+)\\|(?=[ \\t]+(?:am|was|have|had|can|could|will|would|shall|should|do|did|don't|didn't|think|know|want|need|told)\\b)"));
+        static const QRegularExpression trailingPronoun(QStringLiteral(
+            "\\b(don't|didn't|can't|won't|wasn't|am|can|could|should|would)[ \\t]+\\|(?=[?!.,]|$)"));
+        cleaned.replace(leadingPronoun, QStringLiteral("\\1I"));
+        cleaned.replace(trailingPronoun, QStringLiteral("\\1 I"));
+    }
+    // Keep Hangul word spacing; remove spurious gaps only within Japanese/Chinese text.
     static const QString cjk = QStringLiteral("\\p{Han}\\p{Hiragana}\\p{Katakana}\\x{3001}-\\x{303F}\\x{FF01}-\\x{FF60}");
     static const QRegularExpression cjkGap(QStringLiteral("(?<=[%1])[ \\t]+(?=[%1?!.,:;])").arg(cjk));
-    QString cleaned = text;
-    cleaned.replace(standalonePipe, QStringLiteral("\\1I"));
     return cleaned.replace(cjkGap, QString());
+}
+bool OcrService::isUncertainShortLatin(const QString& text, double confidence) {
+    if (confidence < 0 || confidence >= 0.5) return false;
+    int letters = 0;
+    for (QChar c : text) {
+        if (c.isNumber()) return false;
+        if (!c.isLetter()) continue;
+        if (c.script() != QChar::Script_Latin || ++letters > 2) return false;
+    }
+    return letters > 0;
 }
 bool OcrService::isUniformImage(const QImage& image) {
     if (image.isNull()) return false; // Invalid input has a separate error path.
@@ -137,6 +154,38 @@ bool OcrService::isUniformImage(const QImage& image) {
         const auto* row = reinterpret_cast<const QRgb*>(pixels.constScanLine(y));
         for (int x = 0; x < pixels.width(); ++x)
             if (row[x] != first) return false;
+    }
+    return true;
+}
+bool OcrService::isFrameOnlyImage(const QImage& image) {
+    if (image.width() < 32 || image.height() < 16) return false;
+    const QImage pixels = image.convertToFormat(QImage::Format_ARGB32);
+    if (pixels.isNull()) return false;
+    const int w = pixels.width(), h = pixels.height();
+    const int mx = std::min(24, w/8), my = std::min(24, h/4);
+    const QRgb background = pixels.pixel(w/2,h/2);
+    std::vector<int> rows(h), columns(w);
+    // No cropped-away text: any non-background pixel inside the margins rejects this shortcut.
+    for (int y=0; y<h; ++y) {
+        const auto* row = reinterpret_cast<const QRgb*>(pixels.constScanLine(y));
+        for (int x=0; x<w; ++x) if (row[x] != background) {
+            if (x>=mx && x<w-mx && y>=my && y<h-my) return false;
+            ++rows[y]; ++columns[x];
+        }
+    }
+    bool top=false, bottom=false, left=false, right=false;
+    for (int y=0; y<h; ++y) if (rows[y]*4 >= w*3) {
+        top |= y<my; bottom |= y>=h-my;
+    }
+    for (int x=0; x<w; ++x) if (columns[x]*4 >= h*3) {
+        left |= x<mx; right |= x>=w-mx;
+    }
+    if (!(top && bottom && left && right)) return false; // Require all four long frame edges.
+    // Even in the margins, keep small text/marks that are not part of a long straight edge.
+    for (int y=0; y<h; ++y) {
+        const auto* row = reinterpret_cast<const QRgb*>(pixels.constScanLine(y));
+        for (int x=0; x<w; ++x)
+            if (row[x]!=background && rows[y]*4<w*3 && columns[x]*4<h*3) return false;
     }
     return true;
 }
@@ -156,23 +205,25 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
                              "-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=1", "-c", "page_separator="};
     if (!data.isEmpty()) arguments_ << "--tessdata-dir" << data;
     busy_ = true; elapsed_.start(); peakMemory_ = 0; elapsedMs_ = 0;
-    attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false; engineUsed_.clear();
+    attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false; engineUsed_.clear(); confidence_ = -1; rejectedReading_ = false;
     deadline_.start(20000);
     const auto ticket = ++generation_;
     // Inspect full-resolution pixels off the UI thread before either OCR engine runs.
     // A completely flat image contains no text, but both engines can hallucinate short strings.
-    auto* watcher = new QFutureWatcher<bool>(this);
-    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, image, ticket] {
-        const bool blank = watcher->result(); watcher->deleteLater();
+    auto* watcher = new QFutureWatcher<int>(this);
+    connect(watcher, &QFutureWatcher<int>::finished, this, [this, watcher, image, ticket] {
+        const int blank = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
         if (blank) {
-            engineUsed_ = QStringLiteral("blank-image");
+            engineUsed_ = blank==1 ? QStringLiteral("blank-image") : QStringLiteral("blank-frame");
             cancel();
             emit recognized(QString()); // The common core classifies this as ST_EMPTY; never translate.
         } else if (paddle_ && PaddleOcr::available(paddleDir_, languages_)) runPaddle(image, ticket);
         else runTesseract(image, ticket);
     });
-    watcher->setFuture(QtConcurrent::run([image] { return isUniformImage(image); }));
+    watcher->setFuture(QtConcurrent::run([image] {
+        return isUniformImage(image) ? 1 : isFrameOnlyImage(image) ? 2 : 0;
+    }));
 }
 void OcrService::setPaddleModelDir(const QString& dir) {
     if (dir == paddleDir_) return;
@@ -186,6 +237,14 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
         const Outcome outcome = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
         attemptsUsed_ = outcome.result.modelRuns;
+        confidence_ = outcome.result.confidence;
+        if (isUncertainShortLatin(outcome.result.text, outcome.result.confidence)) {
+            engineUsed_ = QStringLiteral("PaddleOCR-low-confidence");
+            rejectedReading_ = true;
+            cancel();
+            emit recognized(QString()); // Do not let a fallback turn rejected symbol noise into a request.
+            return;
+        }
         if (!outcome.result.text.isEmpty()) {
             engineUsed_ = QStringLiteral("PaddleOCR");
             const QString text = outcome.result.text;
@@ -258,10 +317,11 @@ void OcrService::attemptFinished(const QString& output) {
         return;
     }
     const Reading best = best_;
+    confidence_ = best.confidence / 100.0;
     cancel();
     engineUsed_ = QStringLiteral("Tesseract");
     if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
-    else emit recognized(cleanText(best.text));
+    else emit recognized(cleanText(best.text, true));
 }
 void OcrService::releaseProcess() {
     memoryTimer_.stop(); sample();

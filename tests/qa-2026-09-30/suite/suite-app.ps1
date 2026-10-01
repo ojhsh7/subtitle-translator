@@ -39,7 +39,7 @@ function Sim([string]$a, [string]$b) {
 
 # Standard layout on a 2560x1440 primary screen (logical = physical at 100%).
 $G = @{ x = 40; y = 1000; w = 820; h = 140 }
-$R = Rect $G.x $G.y $G.w $G.h
+$captureRegion = Rect $G.x $G.y $G.w $G.h
 $Lines20 = @('Press any key to continue.', 'The door is locked.', 'Where did you find this map?', 'We should leave before sunset.',
     'Your inventory is full.', 'Do you want to save the game?', 'A new quest is available.', 'The bridge has collapsed.',
     'Talk to the merchant in town.', 'You gained a new skill.', 'Please wait a moment.', 'The weather is nice today.',
@@ -67,7 +67,7 @@ try {
 
     # ---------------- A-01 / C-01: Ctrl+Alt+T -> overlay ----------------
     if ((Want 'A-01') -or (Want 'C-01')) { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('Press any key to continue.'); holdMs = 3600000 } 'a01' | Out-Null
         [void](Start-App)
         $rows = @()
@@ -88,7 +88,7 @@ try {
 
     # ---------------- A-02: toggle auto 20x ----------------
     if (Want 'A-02') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('The door is locked.'); holdMs = 3600000 } 'a02' | Out-Null
         [void](Start-App)
         for ($i = 1; $i -le 20; $i++) { Hotkey 'P'; Start-Sleep -Milliseconds 500 }
@@ -99,7 +99,7 @@ try {
 
     # ---------------- A-03 / C-02 / C-04(auto): dialogue changes ----------------
     if ((Want 'A-03') -or (Want 'C-02')) { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         [void](Start-App)
         $m0 = Get-Metrics
         $ev = Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $Lines20; holdMs = 3000; startDelayMs = 0 } 'a03'
@@ -126,7 +126,7 @@ try {
 
     # ---------------- A-05: blank dialogue box (D-01 on the app path) ----------------
     if (Want 'A-05') { foreach ($bs in 'panel', 'white', 'frame') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         [void](Start-App)
         $lines = @('Your inventory is full.', 'A new quest is available.', 'Please wait a moment.', 'Welcome back, traveler.')
         $ev = Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $lines; holdMs = 3000; blankMs = 4000; blankStyle = $bs } "a05-$bs"
@@ -151,7 +151,7 @@ try {
 
     # ---------------- A-06: region selection ----------------
     if (Want 'A-06') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         [void](Start-App)
         function Region { (Get-ItemProperty "$($Qa.RegPath)\capture" -ErrorAction SilentlyContinue).region }
         function Select-By([scriptblock]$action) { if (!(Invoke-UiButton '자막 영역 선택')) { return 'no-button' }; Start-Sleep -Milliseconds 900; & $action; Start-Sleep -Milliseconds 900; Region }
@@ -175,7 +175,7 @@ try {
 
     # ---------------- A-07: mouse-area translation ----------------
     if (Want 'A-07') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('Talk to the merchant in town.'); holdMs = 3600000 } 'a07' | Out-Null
         [void](Start-App); $k = Get-KeyLabels
         if (!$k.mouseF8) { Record 'A-07' 'SKIP' 'mouse key is Ctrl+Alt+M on this run; not sent (another app owns it on this PC)' '[환경 부족으로 미검증]' }
@@ -198,7 +198,7 @@ try {
 
     # ---------------- A-08: hover ----------------
     if (Want 'A-08') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('This sword looks ancient.'); holdMs = 3600000 } 'a08' | Out-Null
         [void](Start-App); $k = Get-KeyLabels
         $hk = if ($k.hoverF9) { 'F9' } else { 'H' }
@@ -217,7 +217,7 @@ try {
 
     # ---------------- A-09: feature switching ----------------
     if (Want 'A-09') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('Follow me to the castle.'); holdMs = 3600000 } 'a09' | Out-Null
         [void](Start-App); $k = Get-KeyLabels
         Hotkey 'P'; Start-Sleep -Milliseconds 1500; $on1 = Get-AutoOn
@@ -257,7 +257,7 @@ try {
 
     # ---------------- A-11: language change re-reads (UIA combo, may be unsupported) ----------------
     if (Want 'A-11') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('Your health is low.'); holdMs = 3600000 } 'a11' | Out-Null
         [void](Start-App)
         Hotkey 'P'; Start-Sleep -Milliseconds 3000
@@ -288,7 +288,7 @@ try {
 
     # ---------------- A-12: --auto ----------------
     if (Want 'A-12') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         [void](Start-App @('--auto')); Start-Sleep -Milliseconds 2000
         $h = Get-Hwnd '자막 번역'; $iconic = [QaWin]::IsIconic($h); $on = Get-AutoOn
         Record 'A-12' $(if ($on -and $iconic) { 'PASS' } else { 'FAIL' }) "with saved region: autoOn=$on minimized=$iconic"
@@ -296,7 +296,7 @@ try {
 
     # ---------------- C-03: idle CPU with auto on ----------------
     if (Want 'C-03') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('The shop is closed now.'); holdMs = 3600000 } 'c03' | Out-Null
         [void](Start-App); Hotkey 'P'; Start-Sleep -Seconds 30
         $m0 = Get-Metrics; $samples = @()
@@ -310,11 +310,11 @@ try {
 
     # ---------------- C-04: memory idle / multi ----------------
     if (Want 'C-04') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         [void](Start-App); Start-Sleep -Seconds 5
         $idle = @(); for ($i = 0; $i -lt 30; $i++) { $idle += Get-Metrics; Start-Sleep -Seconds 1 }
         Stop-App
-        Use-QaBaseSettings $R $false 'multi'
+        Use-QaBaseSettings $captureRegion $false 'multi'
         [void](Start-App)
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $Lines20[0..9]; holdMs = 3000 } 'c04' | Out-Null
         Hotkey 'P'
@@ -328,7 +328,7 @@ try {
 
     # ---------------- C-05: startup ----------------
     if (Want 'C-05') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         $times = @(); for ($i = 0; $i -lt 10; $i++) { $times += (Start-App); Stop-App; Start-Sleep -Milliseconds 700 }
         $st = Stat $times
         Record 'C-05' 'MEASURED' "launch->main window ms median=$($st.median) p95=$($st.p95) max=$($st.max) (warm file cache; reboot case = manual)"
@@ -336,7 +336,7 @@ try {
 
     # ---------------- C-07: typewriter ----------------
     if (Want 'C-07') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         [void](Start-App)
         $tw = @('The ancient gate opens only at midnight.', 'Bring me three herbs from the east forest.', 'Nobody has returned from that cave yet.', 'Keep your torch lit when you go below.', 'The king wants to see you right away now.')
         $ev = Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $tw; holdMs = 2500; typewriterMs = 100; fontSize = 26 } 'c07'
@@ -359,7 +359,7 @@ try {
 
     # ---------------- C-08: moving background ----------------
     if (Want 'C-08') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         [void](Start-App)
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('We should leave before sunset.'); holdMs = 3600000; moving = $true } 'c08' | Out-Null
         Hotkey 'P'; Start-Sleep -Seconds 5
@@ -374,7 +374,7 @@ try {
 
     # ---------------- C-09: hover cancel then re-read latency ----------------
     if (Want 'C-09') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('I will meet you there.'); holdMs = 3600000 } 'c09' | Out-Null
         [void](Start-App); $k = Get-KeyLabels; $hk = if ($k.hoverF9) { 'F9' } else { 'H' }
         [void][QaWin]::SetCursorPos(1500, 400); Hotkey $hk; Start-Sleep -Milliseconds 600
@@ -395,7 +395,7 @@ try {
 
     # ---------------- D-01: hotkeys already taken ----------------
     if (Want 'D-01') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         $helper = Start-Process powershell.exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSScriptRoot\hold-hotkeys.ps1`"") -PassThru -WindowStyle Hidden
         Start-Sleep -Seconds 3
         [void](Start-App); Start-Sleep -Milliseconds 800
@@ -407,7 +407,7 @@ try {
 
     # ---------------- D-02: 5 presses per second ----------------
     if (Want 'D-02') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('Thank you for your help.'); holdMs = 3600000 } 'd02' | Out-Null
         [void](Start-App); $m0 = Get-Metrics
         for ($i = 0; $i -lt 50; $i++) { Hotkey 'T'; Start-Sleep -Milliseconds 200 }
@@ -418,7 +418,7 @@ try {
 
     # ---------------- D-03: close during OCR ----------------
     if (Want 'D-03') { try {
-        Use-QaBaseSettings $R
+        Use-QaBaseSettings $captureRegion
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('The bridge has collapsed.'); holdMs = 3600000 } 'd03' | Out-Null
         $rows = @()
         for ($i = 1; $i -le 10; $i++) {
@@ -439,7 +439,8 @@ try {
 
     # ---------------- D-04: framed window game ----------------
     if (Want 'D-04') { try {
-        Use-QaBaseSettings (Rect ($G.x - 10) ($G.y - 10) ($G.w + 40) ($G.h + 60))
+        # Region covers title bar + client but stays inside the framed window (the old, larger region captured the desktop around it).
+        Use-QaBaseSettings (Rect ($G.x + 2) ($G.y + 2) ($G.w) ($G.h + 30))
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('Welcome back, traveler.'); holdMs = 3600000; border = 'window' } 'd04' | Out-Null
         [void](Start-App)
         $t0 = [QaWin]::Now(); Hotkey 'T'; $ms = Wait-OverlayCycle $t0 8000; Start-Sleep -Milliseconds 300
@@ -448,31 +449,55 @@ try {
     } catch { Record 'D-04' 'ERROR' $_.Exception.Message } finally { Stop-App; Stop-Game } }
 
     # ---------------- key cases (real DeepL, approved) ----------------
+    # Status lines the app shows about translation (all UI texts, not only the first three).
+    function Get-TransStatus { ((Get-UiTexts) | Where-Object { $_ -match '번역|DeepL|키|실패|완료|빈 공간|멈췄' -and $_ -notmatch '^설정 →|자막 글자 부분만' } | ForEach-Object { $_ -replace '\r?\n', ' / ' }) -join ' | ' }
+
     if ($WithKeyCases -and (Want 'T-10')) { try {
-        Use-QaBaseSettings $R $true
+        Use-QaBaseSettings $captureRegion $true
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('Press any key to continue.'); holdMs = 3600000 } 't10' | Out-Null
-        [void](Start-App)
-        $t0 = [QaWin]::Now(); Hotkey 'T'; $ms = Wait-OverlayCycle $t0 35000; Start-Sleep -Milliseconds 500
-        $ov = Get-Overlay; if ($ov -ne [IntPtr]::Zero) { Save-Screen (Get-WinRect $ov) (Join-Path $Qa.Results 'T-10-overlay.png') }
-        Add-DeeplCall 'T-10' 26 "app overlayMs=$ms"
-        Record 'T-10' $(if ($ms) { 'CHECK-SCREENSHOT' } else { 'FAIL' }) "app real translation: Ctrl+Alt+T->overlay ms=$ms (network included); see T-10-overlay.png"
+        [void](Start-App); Start-Sleep -Milliseconds 500
+        Log "T-10 before: status=[$(Get-TransStatus)]"
+        $t0 = [QaWin]::Now(); Hotkey 'T'
+        # Poll: overlay visible, result window visible, status text. Translation result appears after the network round trip.
+        $trace = @(); $firstOverlay = $null; $lastStatus = ''
+        while ([QaWin]::Ms($t0, [QaWin]::Now()) -lt 20000) {
+            $ov = (Get-Overlay) -ne [IntPtr]::Zero; $rw = (Get-Hwnd '자막 번역 결과' $true) -ne [IntPtr]::Zero
+            $st = Get-TransStatus
+            if ($st -ne $lastStatus -or ($trace.Count -and ($trace[-1].overlay -ne $ov -or $trace[-1].resultWindow -ne $rw)) -or !$trace.Count) {
+                $trace += [pscustomobject]@{ ms = [math]::Round([QaWin]::Ms($t0, [QaWin]::Now()), 0); overlay = $ov; resultWindow = $rw; status = $st }
+                $lastStatus = $st
+            }
+            if ($ov -and !$firstOverlay -and $st -match '번역 완료|DeepL|번역했|완료') { $firstOverlay = [QaWin]::Ms($t0, [QaWin]::Now()) }
+            Start-Sleep -Milliseconds 200
+        }
+        Save-Rows $trace 'T-10_trace.csv'
+        $ovh = Get-Overlay; if ($ovh -ne [IntPtr]::Zero) { Save-Screen (Get-WinRect $ovh) (Join-Path $Qa.Results 'T-10-overlay.png') }
+        $rwh = Get-Hwnd '자막 번역 결과' $true; if ($rwh -ne [IntPtr]::Zero) { Save-Screen (Get-WinRect $rwh) (Join-Path $Qa.Results 'T-10-resultwindow.png') }
+        $final = $trace[-1]
+        $sent = [bool]($trace | Where-Object { $_.status -match '번역 완료|DeepL이|번역 실패|인증' })
+        if ($sent) { Add-DeeplCall 'T-10' 26 "app T, final=[$($final.status)]" }
+        Record 'T-10' $(if ($final.overlay -and $final.status -match '완료' -and $final.status -notmatch '실패|없어') { 'CHECK-SCREENSHOT' } else { 'FAIL' }) "overlayFinal=$($final.overlay) resultWindow=$($final.resultWindow) firstTranslatedOverlayMs=$firstOverlay status=[$($final.status)] (trace: T-10_trace.csv)"
     } catch { Record 'T-10' 'ERROR' $_.Exception.Message } finally { Stop-App; Stop-Game } }
 
     if ($WithKeyCases -and (Want 'A-04')) { try {
-        # R-01: no room for the caption -> result window (always on top) covers the region.
+        # R-01 + user's fix: full-screen region leaves no room for the caption or the result window.
+        # Expected (fixed build): first line translated, then auto stops with the "no free space" warning instead of OCR-ing its own result window.
         Use-QaBaseSettings (Rect 0 0 2560 1440) $true
         $lines = @('The door is locked.', 'Your health is low.', 'Thank you for your help.')
         $ev = Start-Game @{ x = 0; y = 0; w = 2560; h = 1440; lines = $lines; holdMs = 7000; fontSize = 40 } 'a04'
         [void](Start-App)
         Hotkey 'P'
         $watch = Watch-App 24000 60
-        $status = Get-StatusText
-        $res = Get-Hwnd '자막 번역 결과' $true
-        Hotkey 'P'
+        $status = Get-TransStatus
+        $res = Get-Hwnd '자막 번역 결과' $true; $resRect = if ($res -ne [IntPtr]::Zero) { $r = Get-WinRect $res; "($($r.Left),$($r.Top))-($($r.Right),$($r.Bottom))" }
+        $autoAfter = Get-AutoOn
+        if ($autoAfter) { Hotkey 'P' }
         $read = @($lines | Where-Object { $l = $_; [bool]($watch | Where-Object { (Sim $_.text $l) -ge 0.8 }) })
-        foreach ($l in $read) { Add-DeeplCall 'A-04' $l.Length 'app auto (assumed sent)' }
+        foreach ($l in $read) { Add-DeeplCall 'A-04' $l.Length 'app auto (read in OCR text; sent if consent+key ok)' }
+        $selfRead = @($watch | Where-Object { $_.text -match '번역|결과|자막' }).Count
         Save-Rows $watch 'A-04_watch.csv'
-        Record 'A-04' $(if ($read.Count -eq 3) { 'PASS' } else { 'FAIL' }) "full-screen region: lines read=$($read.Count)/3 resultWindowVisible=$($res -ne [IntPtr]::Zero) status=[$status]"
+        $stopped = ($autoAfter -eq $false) -and ($status -match '빈 공간이 없어')
+        Record 'A-04' $(if ($stopped -and $selfRead -eq 0) { 'PASS' } else { 'FAIL' }) "full-screen region: lines read=$($read.Count)/3 autoAfter=$autoAfter stoppedWithWarning=$stopped resultWindow=$resRect ownTextRead=$selfRead status=[$status]"
     } catch { Record 'A-04' 'ERROR' $_.Exception.Message } finally { Stop-App; Stop-Game } }
 }
 finally {

@@ -6,7 +6,12 @@ class QNetworkReply;
 class TranslationService final : public QObject {
     Q_OBJECT
 public:
-    explicit TranslationService(QObject* parent = nullptr);
+    // An injected manager must outlive this service; production uses the owned manager.
+    explicit TranslationService(QObject* parent = nullptr, QNetworkAccessManager* transport = nullptr);
+    int lastHttpStatus() const { return lastHttpStatus_; }
+    bool requiresUserAction() const {
+        return lastHttpStatus_==401 || lastHttpStatus_==403 || lastHttpStatus_==429 || lastHttpStatus_==456;
+    }
     ~TranslationService() override;
     // Sends every piece in one request; results come back in the same order.
     // targetLang: DeepL code such as "KO" or "EN-US". An empty sourceLang lets DeepL detect it.
@@ -32,11 +37,16 @@ signals:
     void usageChecked(qint64 used, qint64 limit);
     void failed(QString error);
 private:
+    friend class ProtocolChecks;
+    friend class WindowChecks;
     enum class Kind { Translate, Usage };
     void start(QNetworkReply* reply, Kind kind);
     void failCurrent(const QString& error);
     bool readAvailable();
     QNetworkAccessManager network_;
+    QNetworkAccessManager* transport_;
+    int lastHttpStatus_ = 0;
+    int requestTimeoutMs_ = 30000;
     QNetworkReply* reply_ = nullptr;
     QTimer deadline_;
     QByteArray response_;

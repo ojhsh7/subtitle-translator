@@ -1,0 +1,31 @@
+﻿{
+    "w":  820,
+    "y":  1000,
+    "x":  40,
+    "events":  "C:\\Users\\User\\GitHub\\subtitle-translator\\tests\\qa-2026-09-30\\results-full\\suite\\regress-e87e9c4\\game-a03-events.csv",
+    "lines":  [
+                  "Press any key to continue.",
+                  "The door is locked.",
+                  "Where did you find this map?",
+                  "We should leave before sunset.",
+                  "Your inventory is full.",
+                  "Do you want to save the game?",
+                  "A new quest is available.",
+                  "The bridge has collapsed.",
+                  "Talk to the merchant in town.",
+                  "You gained a new skill.",
+                  "Please wait a moment.",
+                  "The weather is nice today.",
+                  "Can you hear that sound?",
+                  "Follow me to the castle.",
+                  "Your health is low.",
+                  "Welcome back, traveler.",
+                  "This sword looks ancient.",
+                  "The shop is closed now.",
+                  "I will meet you there.",
+                  "Thank you for your help."
+              ],
+    "holdMs":  3000,
+    "h":  140,
+    "startDelayMs":  0
+}

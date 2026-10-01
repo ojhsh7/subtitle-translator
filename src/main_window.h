@@ -11,6 +11,7 @@
 #include <vector>
 #include <QRect>
 class QComboBox;
+class QSpinBox;
 class QTimer;
 class QLabel;
 class QPushButton;
@@ -41,6 +42,7 @@ private:
     void startCapture();
     void startCursorCapture();
     void scheduleCursorCapture();
+    void minimizeForCapture();
     void setHoverTranslate(bool enabled);
     void hoverTick();
     void updateHover(const QPoint& point, qint64 nowMs, bool mousePressed = false);
@@ -79,6 +81,8 @@ private:
     QPushButton* capture_;
     QPushButton* cursorCapture_;
     QComboBox* cursorSizeBox_;
+    QSpinBox* cursorWidth_;
+    QSpinBox* cursorHeight_;
     QCheckBox* hoverMode_;
     QTimer* hoverTimer_;
     QPoint hoverAnchor_;

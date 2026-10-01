@@ -1,0 +1,61 @@
+[
+  {
+    "file": "outlined-ja-22px.png",
+    "exitCode": 0,
+    "report": {
+      "height": 41,
+      "hostPeakWorkingSetBytes": 85348352,
+      "imageUploaded": false,
+      "inputType": "saved-image",
+      "measurementPlatform": "Windows host",
+      "memoryNote": "Host peak working set includes Qt; OCR child measured separately when available.",
+      "mobilePerformance": "Not measured; no mobile estimate provided",
+      "ocrAttempts": 1,
+      "ocrChildPeakWorkingSetBytes": 0,
+      "ocrConfidence": 0.9999186813831329,
+      "ocrEngine": "PaddleOCR",
+      "ocrLanguages": "jpn",
+      "ocrMs": 188,
+      "ocrReadingRejected": false,
+      "ocrTestData": "Actual image input; no synthetic OCR result",
+      "piecesToTranslate": 1,
+      "schema": "subtitle.pipeline.v1",
+      "sourceText": "今日はいい天気です。",
+      "state": "ocr_complete_translation_not_requested",
+      "targetLanguage": "KO",
+      "totalMs": 188,
+      "translationNetworkUsed": false,
+      "width": 233
+    }
+  },
+  {
+    "file": "empty-panels/N-dark-frame-820x140.png",
+    "exitCode": 3,
+    "report": {
+      "height": 140,
+      "hostPeakWorkingSetBytes": 17293312,
+      "imageUploaded": false,
+      "inputType": "saved-image",
+      "measurementPlatform": "Windows host",
+      "memoryNote": "Host peak working set includes Qt; OCR child measured separately when available.",
+      "message": "Empty or oversized OCR output",
+      "mobilePerformance": "Not measured; no mobile estimate provided",
+      "ocrAttempts": 0,
+      "ocrChildPeakWorkingSetBytes": 0,
+      "ocrConfidence": -1,
+      "ocrEngine": "blank-frame",
+      "ocrLanguages": "jpn",
+      "ocrMs": 1,
+      "ocrReadingRejected": false,
+      "ocrTestData": "Actual image input; no synthetic OCR result",
+      "schema": "subtitle.pipeline.v1",
+      "sourceText": "",
+      "stage": "ocr",
+      "state": "failed",
+      "targetLanguage": "KO",
+      "totalMs": 1,
+      "translationNetworkUsed": false,
+      "width": 820
+    }
+  }
+]

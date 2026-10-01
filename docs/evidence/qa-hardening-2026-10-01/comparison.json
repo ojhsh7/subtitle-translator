@@ -1,0 +1,45 @@
+[
+  {
+    "dataset": "bench-selected.json",
+    "total": 672,
+    "differences": [],
+    "rejected": 0,
+    "failedReads": 0,
+    "totalMs": 39824,
+    "peakWorkingSetBytes": 161624064
+  },
+  {
+    "dataset": "scene-selected.json",
+    "total": 168,
+    "differences": [
+      {
+        "file": "scene-vi-notebook-16.png",
+        "ocr": "vie",
+        "before": "E\nI Bạn có muốn lưu tiến trình không?\nÍ Tôi đã bảo bạn đừng mở cánh cửa đó. LÌ",
+        "after": "E\n| Bạn có muốn lưu tiến trình không?\nÍ Tôi đã bảo bạn đừng mở cánh cửa đó. LÌ",
+        "beforeError": "",
+        "afterError": ""
+      },
+      {
+        "file": "scene-vi-bare-outline-16.png",
+        "ocr": "vie",
+        "before": "IREBE\nLˆ Si I.) Ò`\"\n@ fintfẩninft thông TẾ HI",
+        "after": "IREBE\nLˆ Si |.) Ò`\"\n@ fintfẩninft thông TẾ HI",
+        "beforeError": "",
+        "afterError": ""
+      },
+      {
+        "file": "scene-vi-framed-22.png",
+        "ocr": "vie",
+        "before": "HHHDD j\nJE[ifNiiminin\" I , H\"H\nr Minh II\n- Bạn có muốn lưu tiến trình không? :\nhi Tôi đã bảo bạn đừng mở cánh cửa đó. IB\n` . —x.x RE I ,",
+        "after": "HHHDD j\nJE[ifNiiminin\" | , H\"H\nr Minh II\n- Bạn có muốn lưu tiến trình không? :\nhi Tôi đã bảo bạn đừng mở cánh cửa đó. IB\n` . —x.x RE | ,",
+        "beforeError": "",
+        "afterError": ""
+      }
+    ],
+    "rejected": 0,
+    "failedReads": 0,
+    "totalMs": 38331,
+    "peakWorkingSetBytes": 320098304
+  }
+]

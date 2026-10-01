@@ -1,0 +1,109 @@
+Start testing: Oct 01 13:08 대한민국 표준시
+----------------------------------------------------------
+1/7 Testing: translation_protocol
+1/7 Test: translation_protocol
+Command: "D:/SubtitleTranslatorToolchain/windows-build/Release/translation_tests.exe" "-o" "D:/SubtitleTranslatorToolchain/windows-build/translation_protocol.txt,txt"
+Directory: D:/SubtitleTranslatorToolchain/windows-build
+"translation_protocol" start time: Oct 01 13:08 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   2.18 sec
+----------------------------------------------------------
+Test Passed.
+"translation_protocol" end time: Oct 01 13:08 대한민국 표준시
+"translation_protocol" time elapsed: 00:00:02
+----------------------------------------------------------
+
+2/7 Testing: local_checks
+2/7 Test: local_checks
+Command: "D:/SubtitleTranslatorToolchain/windows-build/Release/integration_checks.exe" "-o" "D:/SubtitleTranslatorToolchain/windows-build/local_checks.txt,txt"
+Directory: D:/SubtitleTranslatorToolchain/windows-build
+"local_checks" start time: Oct 01 13:08 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   9.75 sec
+----------------------------------------------------------
+Test Passed.
+"local_checks" end time: Oct 01 13:08 대한민국 표준시
+"local_checks" time elapsed: 00:00:09
+----------------------------------------------------------
+
+3/7 Testing: paddle_ocr
+3/7 Test: paddle_ocr
+Command: "D:/SubtitleTranslatorToolchain/windows-build/Release/paddle_tests.exe" "-o" "D:/SubtitleTranslatorToolchain/windows-build/paddle_ocr.txt,txt"
+Directory: D:/SubtitleTranslatorToolchain/windows-build
+"paddle_ocr" start time: Oct 01 13:08 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   8.02 sec
+----------------------------------------------------------
+Test Passed.
+"paddle_ocr" end time: Oct 01 13:08 대한민국 표준시
+"paddle_ocr" time elapsed: 00:00:08
+----------------------------------------------------------
+
+4/7 Testing: change_detection
+4/7 Test: change_detection
+Command: "D:/SubtitleTranslatorToolchain/windows-build/Release/change_detector_tests.exe" "-o" "D:/SubtitleTranslatorToolchain/windows-build/change_detection.txt,txt"
+Directory: D:/SubtitleTranslatorToolchain/windows-build
+"change_detection" start time: Oct 01 13:08 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.15 sec
+----------------------------------------------------------
+Test Passed.
+"change_detection" end time: Oct 01 13:08 대한민국 표준시
+"change_detection" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/7 Testing: game_windows
+5/7 Test: game_windows
+Command: "D:/SubtitleTranslatorToolchain/windows-build/Release/game_window_tests.exe" "-o" "D:/SubtitleTranslatorToolchain/windows-build/game_windows.txt,txt"
+Directory: D:/SubtitleTranslatorToolchain/windows-build
+"game_windows" start time: Oct 01 13:08 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.38 sec
+----------------------------------------------------------
+Test Passed.
+"game_windows" end time: Oct 01 13:08 대한민국 표준시
+"game_windows" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/7 Testing: windows_flow
+6/7 Test: windows_flow
+Command: "D:/SubtitleTranslatorToolchain/windows-build/Release/window_checks.exe" "-o" "D:/SubtitleTranslatorToolchain/windows-build/windows-flow.txt,txt"
+Directory: D:/SubtitleTranslatorToolchain/windows-build
+"windows_flow" start time: Oct 01 13:08 대한민국 표준시
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =  27.63 sec
+----------------------------------------------------------
+Test Passed.
+"windows_flow" end time: Oct 01 13:09 대한민국 표준시
+"windows_flow" time elapsed: 00:00:27
+----------------------------------------------------------
+
+7/7 Testing: shared_core
+7/7 Test: shared_core
+Command: "D:/SubtitleTranslatorToolchain/windows-build/core/Release/core_tests.exe"
+Directory: D:/SubtitleTranslatorToolchain/windows-build/core
+"shared_core" start time: Oct 01 13:09 대한민국 표준시
+Output:
+----------------------------------------------------------
+shared core: all checks passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"shared_core" end time: Oct 01 13:09 대한민국 표준시
+"shared_core" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 01 13:09 대한민국 표준시

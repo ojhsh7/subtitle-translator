@@ -1,0 +1,11 @@
+﻿{
+    "h":  140,
+    "events":  "C:\\Users\\User\\GitHub\\subtitle-translator\\tests\\qa-2026-09-30\\results-full\\suite\\regress-e87e9c4\\game-a01-events.csv",
+    "y":  1000,
+    "holdMs":  3600000,
+    "x":  40,
+    "w":  820,
+    "lines":  [
+                  "Press any key to continue."
+              ]
+}

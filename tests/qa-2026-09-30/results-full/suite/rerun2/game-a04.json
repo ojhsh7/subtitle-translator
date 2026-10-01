@@ -1,0 +1,14 @@
+﻿{
+    "w":  2560,
+    "y":  0,
+    "x":  0,
+    "events":  "C:\\Users\\User\\GitHub\\subtitle-translator\\tests\\qa-2026-09-30\\results-full\\suite\\rerun2\\game-a04-events.csv",
+    "lines":  [
+                  "The door is locked.",
+                  "Your health is low.",
+                  "Thank you for your help."
+              ],
+    "fontSize":  40,
+    "holdMs":  7000,
+    "h":  1440
+}

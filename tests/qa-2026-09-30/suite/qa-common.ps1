@@ -141,6 +141,8 @@ function Rect($x, $y, $w, $h) { "@Rect($x $y $w $h)" }
 $script:AppProc = $null; $script:Uia = $null
 function Start-App([string[]]$extra = @(), [int]$waitMs = 15000) {
     Stop-App
+    # A leftover instance from any path (seen in the full run: pid 74968) holds the global hotkeys; new instances then cannot register them.
+    Get-Process -Name SubtitleTranslator -ErrorAction SilentlyContinue | ForEach-Object { Log "Start-App: killing leftover SubtitleTranslator pid=$($_.Id) path=$($_.Path)"; try { $_.Kill(); [void]$_.WaitForExit(3000) } catch {} }
     $args2 = @($extra)
     $t0 = [QaWin]::Now()
     $script:AppProc = if ($args2.Count) { Start-Process -FilePath $Qa.App -ArgumentList $args2 -WorkingDirectory $Qa.Dist -PassThru } else { Start-Process -FilePath $Qa.App -WorkingDirectory $Qa.Dist -PassThru }

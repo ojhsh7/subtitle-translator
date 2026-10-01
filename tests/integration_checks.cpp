@@ -30,6 +30,58 @@ class LocalChecks : public QObject {
     Q_OBJECT
 private slots:
 
+    void framedBlankImages_data() {
+        QTest::addColumn<QString>("file"); QTest::addColumn<bool>("paddle");
+        for (bool paddle : {false,true}) {
+            const QByteArray prefix=paddle ? "paddle-" : "tesseract-";
+            QTest::newRow((prefix+"border").constData()) << QString("N-white-border-200x60.png") << paddle;
+            QTest::newRow((prefix+"frame").constData()) << QString("N-dark-frame-820x140.png") << paddle;
+        }
+    }
+    void framedBlankImages() {
+        QFETCH(QString,file); QFETCH(bool,paddle);
+        OcrService service;
+        if (paddle) service.setPaddleModelDir(qEnvironmentVariable("SUBTITLE_TEST_PADDLE"));
+        const QImage image(QDir(OCR_FIXTURE_DIR).filePath("empty-panels/"+file));
+        QVERIFY(!image.isNull()); QVERIFY(OcrService::isFrameOnlyImage(image));
+        QSignalSpy recognized(&service,&OcrService::recognized), failed(&service,&OcrService::failed);
+        service.recognize(image,qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"),qEnvironmentVariable("SUBTITLE_TEST_TESSDATA"));
+        QTRY_COMPARE_WITH_TIMEOUT(recognized.size(),1,3000);
+        QVERIFY(recognized.first().first().toString().isEmpty());
+        QVERIFY(failed.isEmpty()); QCOMPARE(service.attemptsUsed(),0);
+        QCOMPARE(service.engineUsed(),QString("blank-frame"));
+    }
+    void frameCheckKeepsTextEvenInMargins() {
+        const QImage blank(QDir(OCR_FIXTURE_DIR).filePath("empty-panels/N-dark-frame-820x140.png"));
+        QVERIFY(!blank.isNull()); QVERIFY(OcrService::isFrameOnlyImage(blank));
+        for (QPoint point : {QPoint(400,65),QPoint(18,15),QPoint(800,100)}) {
+            QImage image=blank; QPainter p(&image); p.setPen(Qt::white);
+            QFont f("Yu Gothic"); f.setPixelSize(18); p.setFont(f);
+            p.drawText(point,QStringLiteral("え")); p.end();
+            QVERIFY(!OcrService::isFrameOnlyImage(image));
+        }
+    }
+    void pipeCleanupPreservesUiAndPaddleResults() {
+        for (const QString text : {QString("|"),QString("HP | MP | SP"),QString("Lv.10 | 전사"),QString("| Hello |"),QString("a|b")}) {
+            QCOMPARE(OcrService::cleanText(text),text);
+            QCOMPARE(OcrService::cleanText(text,true),text);
+        }
+        QCOMPARE(OcrService::cleanText("| told you, didn't |?"),QString("| told you, didn't |?"));
+        QCOMPARE(OcrService::cleanText("| told you, didn't |?",true),QString("I told you, didn't I?"));
+    }
+    void uncertainSymbolsDoNotBecomeBlankJapanese() {
+        QVERIFY(OcrService::isUncertainShortLatin("J]",0.43));
+        QVERIFY(OcrService::isUncertainShortLatin("O",0.45));
+        QVERIFY(!OcrService::isUncertainShortLatin("O",0.9));
+        QVERIFY(!OcrService::isUncertainShortLatin("I",0.95));
+        QVERIFY(!OcrService::isUncertainShortLatin("OK",0.9));
+        QVERIFY(!OcrService::isUncertainShortLatin(QStringLiteral("え"),0.3));
+        QVERIFY(!OcrService::isUncertainShortLatin(QStringLiteral("はい"),0.3));
+        QVERIFY(!OcrService::isUncertainShortLatin("Lv.10",0.3));
+        QVERIFY(!OcrService::isUncertainShortLatin("Hello",0.3));
+        QVERIFY(!OcrService::isUncertainShortLatin("J]",-1));
+    }
+
     void uniformCheckPreservesFaintPixelsAndTinyText() {
         QImage image(400,80,QImage::Format_RGB32); image.fill(qRgb(128,128,128));
         QVERIFY(OcrService::isUniformImage(image));
@@ -95,6 +147,8 @@ private slots:
             QTest::newRow((prefix+"yes-ja").constData()) << QStringLiteral("はい") << QString("jpn") << paddle;
             QTest::newRow((prefix+"no-ja").constData()) << QStringLiteral("いいえ") << QString("jpn") << paddle;
             QTest::newRow((prefix+"ok-en").constData()) << QStringLiteral("OK") << QString("eng") << paddle;
+            QTest::newRow((prefix+"single-i").constData()) << QStringLiteral("I") << QString("eng") << paddle;
+            QTest::newRow((prefix+"single-o").constData()) << QStringLiteral("O") << QString("eng") << paddle;
         }
     }
     void shortRealTextIsPreserved() {
@@ -110,6 +164,13 @@ private slots:
                           qEnvironmentVariable("SUBTITLE_TEST_TESSDATA"),7,language);
         QTRY_VERIFY_WITH_TIMEOUT(!recognized.isEmpty() || !failed.isEmpty(),25000);
         QVERIFY(failed.isEmpty());
+        QVERIFY(!service.readingRejected());
+        QVERIFY(!recognized.first().first().toString().isEmpty());
+        // Known isolated-glyph ambiguity, not a successful OCR claim. Keep strict equality
+        // as an expected failure so an engine improvement requires updating this record.
+        QEXPECT_FAIL("tesseract-single-i", "Isolated I is read as |; global pipe rewriting corrupts UI separators.", Continue);
+        QEXPECT_FAIL("paddle-single-i", "PP-OCRv5 reads isolated I as dotless i with this fixture.", Continue);
+        QEXPECT_FAIL("paddle-single-o", "PP-OCRv5 reads isolated O as zero with this fixture.", Continue);
         QCOMPARE(recognized.first().first().toString(),text);
     }
     void cursorRegionUsesLogicalCoordinatesAndStaysOnOneScreen() {
@@ -183,7 +244,7 @@ private slots:
         QVERIFY2(result.contains(expected), result.toUtf8().constData());
     }
     void cleanTextFixesStandaloneI() {
-        QCOMPARE(OcrService::cleanText("| told you, didn't |?"), QString("I told you, didn't I?"));
+        QCOMPARE(OcrService::cleanText("| told you, didn't |?", true), QString("I told you, didn't I?"));
         QCOMPARE(OcrService::cleanText("a|b"), QString("a|b"));
         QCOMPARE(OcrService::cleanText(QStringLiteral("その扉")), QStringLiteral("その扉"));
         QCOMPARE(OcrService::cleanText(QStringLiteral("今日 はいい天気です 。")), QStringLiteral("今日はいい天気です。"));
