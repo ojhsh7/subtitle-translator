@@ -310,19 +310,26 @@ MainWindow::MainWindow() {
         segments_ = subtitle::splitForTranslation(st_source_text(session_),
             subtitle::preservableScripts(targetLanguage().section('-', 0, 0).toLower().toStdString(),
                 Languages::deeplSource(ocrLanguages()).toLower().toStdString()));
+        // Symbols misread as letters ("★" -> "O") and stat tokens ("Lv.10") stay as they are (QA B-04).
+        const bool keptSymbols = subtitle::keepUnworthySegments(segments_) > 0;
+        const bool symbolsOnly = keptSymbols && !(subtitle::scriptsIn(st_source_text(session_)) &
+            subtitle::nativeScripts(targetLanguage().section('-', 0, 0).toLower().toStdString()));
         QStringList pieces;
         unsigned scripts = 0;
         for (const auto& segment : segments_)
             if (segment.translate) { pieces << QString::fromStdString(segment.utf8); scripts |= subtitle::scriptsIn(segment.utf8); }
         if (pieces.isEmpty()) {
             st_finish_ocr(session_, request_);
-            resultStatus_->setText(QStringLiteral("원문이 이미 %1입니다 · 번역하지 않았습니다.").arg(target));
+            const QString reason = symbolsOnly ? QStringLiteral("기호·숫자나 짧은 영문만 있어")
+                                               : QStringLiteral("원문이 이미 %1라").arg(target);
+            resultStatus_->setText(symbolsOnly ? QStringLiteral("번역할 글자가 없습니다 · 기호·숫자나 짧은 영문만 인식했습니다.")
+                                               : QStringLiteral("원문이 이미 %1입니다 · 번역하지 않았습니다.").arg(target));
             if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE) {
                 subtitleOverlay_->hide(); setBusy(false);
-                status_->setText(QStringLiteral("자동 번역 중 · 원문이 이미 %1라 번역하지 않았습니다.").arg(target));
+                status_->setText(QStringLiteral("자동 번역 중 · %1 번역하지 않았습니다.").arg(reason));
                 return;
             }
-            finish(QStringLiteral("원문이 이미 %1라 번역 요청을 보내지 않았습니다.").arg(target));
+            finish(QStringLiteral("%1 번역 요청을 보내지 않았습니다.").arg(reason));
             return;
         }
         if (apiKey_.isEmpty() || !consent_) {

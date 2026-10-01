@@ -25,4 +25,11 @@ unsigned scriptsIn(const std::string& utf8);
 // Rebuilds the text, replacing translatable segments with translations in order.
 // Returns an empty string when the number of translations does not match.
 std::string joinTranslated(const std::vector<TextSegment>& segments, const std::vector<std::string>& translations);
+// False for pieces that a translation request cannot improve and that OCR noise often produces:
+// no letters at all ("★ ▶ ※", "ー・ー |"), or Latin letters only and at most three of them
+// ("O", "×O", "[jrJ[]", "v☆XO△", "Lv.10", "HP"). Such text is kept as it is on screen.
+bool worthTranslating(const std::string& utf8);
+// Marks unworthy translatable segments as kept text and merges neighbours of the same kind.
+// Returns the number of segments that were changed.
+int keepUnworthySegments(std::vector<TextSegment>& segments);
 }

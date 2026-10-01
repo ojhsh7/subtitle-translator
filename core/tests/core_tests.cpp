@@ -91,5 +91,16 @@ int main() {
     check(joinTranslated(splitForTranslation("今天天气很好。\r\n今日は晴れです。", preservableScripts("ja", "")),
           {"今日は天気がいいです。"}) == "今日は天気がいいです。\r\n今日は晴れです。",
           "mixed-line translation preserves original CRLF separators");
+    // B-04: OCR readings of symbol-only screens that QA found still sent (11 of 72 conditions).
+    using subtitle::worthTranslating;
+    for (const char* noise : {"→←↓⇒L", "[jrJ[]", "[]r][]", "ー・ー |", "v☆XO△", "×O", "O", "★ ▶ ※", "Lv.10", "HP 30/50", "", " \n"})
+        check(!worthTranslating(noise), noise);
+    for (const char* real : {"Press any key to continue.", "今日はいい天気です。", "はい", "「うん」", "雨", "Сохранить?",
+                             "Save game?", "Tôi đã"})
+        check(worthTranslating(real), real);
+    auto line = splitForTranslation("Lv.10 달성!", korean);
+    check(subtitle::keepUnworthySegments(line) == 1 && pieces(line) == "[K:Lv.10 달성!]", "game stat token stays and merges");
+    line = splitForTranslation("★ Press any key", korean);
+    check(subtitle::keepUnworthySegments(line) == 0 && pieces(line) == "[K:★ ][T:Press any key]", "a real sentence is still sent");
     std::cout << "shared core: all checks passed\n";
 }

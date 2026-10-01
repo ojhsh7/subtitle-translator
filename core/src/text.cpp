@@ -161,6 +161,31 @@ unsigned scriptsIn(const std::string& text) {
     for (std::size_t i = 0; i < text.size();) scripts |= scriptOf(decode(text, i));
     return scripts;
 }
+bool worthTranslating(const std::string& text) {
+    int letters = 0;
+    unsigned scripts = 0;
+    for (std::size_t i = 0; i < text.size();) {
+        const char32_t cp = decode(text, i);
+        // The prolonged sound mark and the wave dash extend a word; alone they are dashes.
+        if (cp == 0x30fc || cp == 0xff70 || cp == 0x301c) continue;
+        const unsigned script = scriptOf(cp);
+        if (script == 0) continue;
+        ++letters; scripts |= script;
+    }
+    if (letters == 0) return false;
+    return !(scripts == Latin && letters <= 3);
+}
+int keepUnworthySegments(std::vector<TextSegment>& segments) {
+    int changed = 0;
+    std::vector<TextSegment> merged;
+    for (auto& segment : segments) {
+        if (segment.translate && !worthTranslating(segment.utf8)) { segment.translate = false; ++changed; }
+        if (!merged.empty() && merged.back().translate == segment.translate) merged.back().utf8 += segment.utf8;
+        else merged.push_back(std::move(segment));
+    }
+    segments = std::move(merged);
+    return changed;
+}
 std::string joinTranslated(const std::vector<TextSegment>& segments, const std::vector<std::string>& translations) {
     std::string out;
     std::size_t used = 0;
