@@ -1,13 +1,114 @@
 #include "languages.h"
+#include "local_http.h"
 #include "subtitle/text.h"
 #include "translation_service.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSignalSpy>
 #include <QtTest>
+namespace {
+// Real HTTP through QNetworkAccessManager against tests/local_http.h (P-04); never DeepL.
+// (Kept outside the test class, and no raw string literals: moc does not parse them.)
+struct Run {
+    QSignalSpy translated, failed;
+    explicit Run(TranslationService& service)
+        : translated(&service, &TranslationService::translated), failed(&service, &TranslationService::failed) {}
+    bool wait(int ms = 5000) { return QTest::qWaitFor([&] { return translated.count() + failed.count() > 0; }, ms); }
+    QString error() const { return failed.isEmpty() ? QString() : failed.first().first().toString(); }
+};
+}
 class ProtocolChecks : public QObject {
     Q_OBJECT
 private slots:
+    void localHttpSuccessUsesHeaderAuthAndOneRequest() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"날씨\"},{\"text\":\"좋다\"}]}"};
+        TranslationService service; service.setEndpointForTests(http.url());
+        Run run(service);
+        service.translate({QStringLiteral("天気"), QStringLiteral("いい")}, QStringLiteral("test-key:fx"), true, "KO", "JA");
+        QVERIFY(service.isBusy());
+        QVERIFY(run.wait());
+        QCOMPARE(int(run.translated.count()), 1);
+        QCOMPARE(run.translated.first().at(0).toStringList(), QStringList({QStringLiteral("날씨"), QStringLiteral("좋다")}));
+        QCOMPARE(run.translated.first().at(1).toString(), QStringLiteral("JA"));
+        QCOMPARE(int(http.requests.size()), 1);
+        const QByteArray request = http.requests.first();
+        QVERIFY(request.startsWith("POST /v2/translate "));
+        QVERIFY(request.toLower().contains("authorization: deepl-auth-key test-key:fx")); // Qt 6 sends lower-case names
+        QVERIFY(request.contains("\"source_lang\":\"JA\""));
+        QCOMPARE(service.lastHttpStatus(), 200);
+    }
+    void localHttpErrorStatusesAreReported_data() {
+        QTest::addColumn<int>("status");
+        QTest::addColumn<QByteArray>("headers");
+        QTest::addColumn<QString>("message");
+        QTest::addColumn<int>("retryAfter");
+        QTest::newRow("401") << 401 << QByteArray() << QStringLiteral("인증") << -1;
+        QTest::newRow("429 retry-after") << 429 << QByteArray("Retry-After: 7\r\n") << QStringLiteral("너무 많") << 7;
+        QTest::newRow("429 bare") << 429 << QByteArray() << QStringLiteral("너무 많") << -1;
+        QTest::newRow("456") << 456 << QByteArray() << QStringLiteral("한도") << -1;
+        QTest::newRow("500") << 500 << QByteArray() << QStringLiteral("서버 오류") << -1;
+        QTest::newRow("302") << 302 << QByteArray("Location: http://127.0.0.1:1/\r\n") << QStringLiteral("주소 이동") << -1;
+    }
+    void localHttpErrorStatusesAreReported() {
+        QFETCH(int, status); QFETCH(QByteArray, headers); QFETCH(QString, message); QFETCH(int, retryAfter);
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{status, "private-server-body", headers};
+        TranslationService service; service.setEndpointForTests(http.url());
+        Run run(service);
+        service.translate({QStringLiteral("天気")}, QStringLiteral("test-key"), false);
+        QVERIFY(run.wait());
+        QCOMPARE(int(run.translated.count()), 0);
+        QVERIFY2(run.error().contains(message), qPrintable(run.error()));
+        QVERIFY(!run.error().contains("private-server-body"));
+        QCOMPARE(service.lastHttpStatus(), status);
+        QCOMPARE(service.lastRetryAfterSeconds(), retryAfter);
+        QCOMPARE(int(http.requests.size()), 1); // no automatic retry
+    }
+    void localHttpBrokenBodiesNeverBecomeTranslations() {
+        for (const LocalHttp::Reply& reply : {LocalHttp::Reply{200, "{\"translations\":[{\"text\":\"부분", {}, false, true},
+                                              LocalHttp::Reply{200, "{\"translations\":[{\"text\":\"하나\"}]}"},
+                                              LocalHttp::Reply{200, "<html>proxy</html>"}}) {
+            LocalHttp http; QVERIFY(http.listening());
+            http.replies << reply;
+            TranslationService service; service.setEndpointForTests(http.url());
+            Run run(service);
+            service.translate({QStringLiteral("一"), QStringLiteral("二")}, QStringLiteral("test-key"), false);
+            QVERIFY(run.wait());
+            QCOMPARE(int(run.translated.count()), 0); // truncated, count mismatch, not JSON
+            QVERIFY(!run.error().isEmpty());
+        }
+    }
+    void localHttpTimeoutAndCancel() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, {}, {}, true} << LocalHttp::Reply{200, {}, {}, true};
+        TranslationService service; service.setEndpointForTests(http.url()); service.setTimeoutForTests(800);
+        Run timeout(service);
+        QElapsedTimer timer; timer.start();
+        service.translate({QStringLiteral("天気")}, QStringLiteral("test-key"), false);
+        QVERIFY(timeout.wait(5000));
+        QVERIFY2(timeout.error().contains(QStringLiteral("초과")), qPrintable(timeout.error()));
+        QVERIFY(timer.elapsed() < 3000);
+        QVERIFY(!service.isBusy());
+        Run cancelled(service);
+        service.translate({QStringLiteral("天気")}, QStringLiteral("test-key"), false);
+        QTRY_COMPARE(int(http.requests.size()), 2);
+        service.cancel();
+        QVERIFY(!service.isBusy());
+        QTest::qWait(1500); // beyond the time limit: a cancelled request reports nothing
+        QCOMPARE(int(cancelled.translated.count() + cancelled.failed.count()), 0);
+    }
+    void localHttpUsageCheck() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"character_count\":5,\"character_limit\":500000}"};
+        TranslationService service; service.setEndpointForTests(http.url());
+        QSignalSpy usage(&service, &TranslationService::usageChecked);
+        service.checkUsage(QStringLiteral("test-key:fx"), true);
+        QTRY_COMPARE(int(usage.count()), 1);
+        QCOMPARE(usage.first().at(0).toLongLong(), 5LL);
+        QVERIFY(http.requests.first().startsWith("GET /v2/usage "));
+    }
     void artificialResponseFixture() {
         // This is a protocol fixture, never a live translation success.
         QString error;

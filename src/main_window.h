@@ -117,6 +117,9 @@ private:
     QPushButton* auto_;
     QTimer* autoTimer_;
     QElapsedTimer autoClock_;
+    // After DeepL answers 429, auto translation sends no request until this autoClock_ time.
+    qint64 translationPausedUntil_ = -1;
+    static constexpr int MinRateLimitPauseSeconds = 10;
     ChangeDetector detector_;
     QImage lastImage_;
     int lastSource_ = ST_IMAGE_FILE;

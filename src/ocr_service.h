@@ -17,8 +17,9 @@ public:
     // it reads the image as it is, then light-text masks, keeping the most confident reading.
     void recognize(const QImage&, const QString& executable, const QString& tessdataDir, int psm = 0,
                    const QString& languages = QStringLiteral("jpn+eng+kor"));
-    // Folder with the PP-OCRv5 recognition models; empty disables PaddleOCR.
-    void setPaddleModelDir(const QString& dir);
+    // Folder with the PP-OCRv5 models; empty disables PaddleOCR. recognition false (Tesseract chosen
+    // as the engine) still uses the detection model to skip areas without a text line.
+    void setPaddleModelDir(const QString& dir, bool recognition = true);
     QString engineUsed() const { return engineUsed_; } // "PaddleOCR" or "Tesseract" for the last result
     void probe(const QString& executable, const QString& tessdataDir,
                const QString& languages = QStringLiteral("jpn+eng+kor"));
@@ -63,6 +64,7 @@ signals:
 private:
     void launch(const QString& executable, const QStringList& args, QByteArray bytes);
     void runPaddle(const QImage& image, quint64 ticket);
+    void runDetectorThenTesseract(const QImage& image, quint64 ticket);
     void runTesseract(const QImage& image, quint64 ticket);
     void runAttempt();
     void attemptFinished(const QString& tsv);
@@ -78,6 +80,8 @@ private:
     bool busy_ = false, probing_ = false;
     QString languages_, executable_, engineUsed_, paddleDir_;
     std::shared_ptr<PaddleOcr> paddle_; // shared with the worker thread, which may outlive a cancel
+    bool paddleRecognition_ = true;
+    std::shared_ptr<std::atomic<bool>> cancelled_; // the running PaddleOCR read stops early when set
     QStringList arguments_;
     QList<QByteArray> attempts_; // PNG candidates: original, light mask, thickened mask, bright mask
     int attempt_ = 0, attemptsUsed_ = 0;

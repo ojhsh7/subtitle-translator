@@ -10,8 +10,18 @@ $script:LogFile = Join-Path $Qa.Results 'suite-app.log'
 $summary = @()
 function Want($id) { $Cases.Count -eq 0 -or $Cases -contains $id }
 function Record($id, $result, $detail, $tag = '[측정함]') {
-    $script:summary += [pscustomobject]@{ case = $id; result = $result; detail = $detail; tag = $tag }
+    $row = [pscustomobject]@{ time = (Get-Date -Format s); case = $id; result = $result; detail = $detail; tag = $tag }
+    $script:summary += $row
+    # Saved at once (P-07): an interrupted run keeps every verdict made so far. The log is git-ignored.
+    $row | Export-Csv -NoTypeInformation -Encoding UTF8 -Append (Join-Path $Qa.Results 'results.csv')
     Log "$id $result | $detail"
+}
+# P-07: the 2026-10-01 run measured C-03/C-07 while auto translation was off (the hotkey never arrived).
+# Measure only after the app reports auto translation on.
+function Confirm-AutoOn([int]$timeoutMs = 3000) {
+    $deadline = [DateTime]::Now.AddMilliseconds($timeoutMs)
+    while ([DateTime]::Now -lt $deadline) { if (Get-AutoOn) { return }; Start-Sleep -Milliseconds 100 }
+    throw 'auto translation did not turn on after Ctrl+Alt+P (hotkey not received?); not measured'
 }
 function Sim([string]$a, [string]$b) {
     $a = Norm $a; $b = Norm $b
@@ -103,7 +113,7 @@ try {
         [void](Start-App)
         $m0 = Get-Metrics
         $ev = Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $Lines20; holdMs = 3000; startDelayMs = 0 } 'a03'
-        Hotkey 'P'
+        Hotkey 'P'; Confirm-AutoOn
         $watch = Watch-App (20 * 3000 + 5000) 40
         $m1 = Get-Metrics
         Hotkey 'P'
@@ -130,7 +140,7 @@ try {
         [void](Start-App)
         $lines = @('Your inventory is full.', 'A new quest is available.', 'Please wait a moment.', 'Welcome back, traveler.')
         $ev = Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $lines; holdMs = 3000; blankMs = 4000; blankStyle = $bs } "a05-$bs"
-        Hotkey 'P'
+        Hotkey 'P'; Confirm-AutoOn
         $watch = Watch-App (4 * 7000 + 3000) 40
         Hotkey 'P'
         $events = @(Read-GameEvents $ev)
@@ -298,7 +308,7 @@ try {
     if (Want 'C-03') { try {
         Use-QaBaseSettings $R
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('The shop is closed now.'); holdMs = 3600000 } 'c03' | Out-Null
-        [void](Start-App); Hotkey 'P'; Start-Sleep -Seconds 30
+        [void](Start-App); Hotkey 'P'; Confirm-AutoOn; Start-Sleep -Seconds 30
         $m0 = Get-Metrics; $samples = @()
         for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Seconds 10; $samples += Get-Metrics }
         $m1 = Get-Metrics
@@ -317,7 +327,7 @@ try {
         Use-QaBaseSettings $R $false 'multi'
         [void](Start-App)
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $Lines20[0..9]; holdMs = 3000 } 'c04' | Out-Null
-        Hotkey 'P'
+        Hotkey 'P'; Confirm-AutoOn
         $multi = @(); for ($i = 0; $i -lt 35; $i++) { $multi += Get-Metrics; Start-Sleep -Seconds 1 }
         Hotkey 'P'
         Save-Rows ($idle + $multi) 'C-04_samples.csv'
@@ -340,7 +350,7 @@ try {
         [void](Start-App)
         $tw = @('The ancient gate opens only at midnight.', 'Bring me three herbs from the east forest.', 'Nobody has returned from that cave yet.', 'Keep your torch lit when you go below.', 'The king wants to see you right away now.')
         $ev = Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = $tw; holdMs = 2500; typewriterMs = 100; fontSize = 26 } 'c07'
-        Hotkey 'P'
+        Hotkey 'P'; Confirm-AutoOn
         $watch = Watch-App (5 * 6600 + 3000) 40
         Hotkey 'P'
         $events = @(Read-GameEvents $ev | Where-Object type -eq 'start')
@@ -362,7 +372,7 @@ try {
         Use-QaBaseSettings $R
         [void](Start-App)
         Start-Game @{ x = $G.x; y = $G.y; w = $G.w; h = $G.h; lines = @('We should leave before sunset.'); holdMs = 3600000; moving = $true } 'c08' | Out-Null
-        Hotkey 'P'; Start-Sleep -Seconds 5
+        Hotkey 'P'; Confirm-AutoOn; Start-Sleep -Seconds 5
         $m0 = Get-Metrics
         $watch = Watch-App 120000 60
         $m1 = Get-Metrics
@@ -464,7 +474,7 @@ try {
         $lines = @('The door is locked.', 'Your health is low.', 'Thank you for your help.')
         $ev = Start-Game @{ x = 0; y = 0; w = 2560; h = 1440; lines = $lines; holdMs = 7000; fontSize = 40 } 'a04'
         [void](Start-App)
-        Hotkey 'P'
+        Hotkey 'P'; Confirm-AutoOn
         $watch = Watch-App 24000 60
         $status = Get-StatusText
         $res = Get-Hwnd '자막 번역 결과' $true

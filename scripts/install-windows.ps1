@@ -17,7 +17,7 @@ $shortcut.TargetPath=Join-Path $InstallRoot 'SubtitleTranslator.exe'
 $shortcut.Arguments='--auto' # Start auto translation right away when a region is saved.
 $shortcut.WorkingDirectory=$InstallRoot
 $shortcut.IconLocation="$(Join-Path $InstallRoot 'SubtitleTranslator.exe'),0"
-$shortcut.Description='Japanese to Korean game subtitle translator (auto mode)'
+$shortcut.Description='Game subtitle translator, 14 OCR languages (auto mode)'
 $shortcut.Save()
 Write-Output "Installed: $InstallRoot"
 Write-Output "Desktop shortcut: $shortcutPath"

@@ -21,6 +21,7 @@
 | [DECISIONS.md](plan/DECISIONS.md) | "왜 이렇게 했지?"가 궁금할 때, 기존 결정을 바꾸기 전 |
 | [TEMPLATE.md](plan/TEMPLATE.md) | 새 기능 계획서를 만들 때 |
 | [2026-10-25-ocr-false-text](plan/2026-10-25-ocr-false-text.ko.md) | 완료: 특수기호·빈 대사창 오인식 (P-01, P-02), 측정 방법과 기준값 근거 |
+| [2026-10-25-cleanup-and-reliability](plan/2026-10-25-cleanup-and-reliability.ko.md) | 완료: 취소 지연·429/456·로컬 HTTP 테스트·모델 간 보정·QA 하네스 등 12건 |
 | [2026-10-25-mouse-region-usability](plan/2026-10-25-mouse-region-usability.ko.md) | 완료: 게임 창 따라가기·영역 단축키·읽은 범위 표시 |
 
 ## 기능 설명
@@ -44,3 +45,4 @@
 | 2026-10-01 | [qa-fixes-2026-10-01.ko.md](qa-fixes-2026-10-01.ko.md) | 단색 빈 화면·결과 창 가림 수정 |
 | 2026-10-25 | [plan/2026-10-25-mouse-region-usability.ko.md](plan/2026-10-25-mouse-region-usability.ko.md) 6절 | 편의 기능 수정 전후 CTest 137 → 143 |
 | 2026-10-25 | [plan/2026-10-25-ocr-false-text.ko.md](plan/2026-10-25-ocr-false-text.ko.md) 6절 | 오인식 수정 전후 측정, CTest 154 |
+| 2026-10-25 | [plan/2026-10-25-cleanup-and-reliability.ko.md](plan/2026-10-25-cleanup-and-reliability.ko.md) 4절 | 취소 대기 전후, 429/456, 타자기, CTest 171 |

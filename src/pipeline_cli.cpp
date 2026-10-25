@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     OcrService ocr;
     const QString paddleDir = parser.isSet("paddle") ? parser.value("paddle")
                                                     : QCoreApplication::applicationDirPath() + "/ocr/paddle";
-    if (parser.value("engine") != "tesseract") ocr.setPaddleModelDir(paddleDir);
+    ocr.setPaddleModelDir(paddleDir, parser.value("engine") != "tesseract"); // tesseract: detection model only
     TranslationService translation;
     QElapsedTimer total, phase;
     total.start(); phase.start();
@@ -118,13 +118,17 @@ int main(int argc, char** argv) {
             finish(4); return;
         }
         phase.restart();
-        report["translationNetworkUsed"] = true;
-        report["outboundTextUtf8Bytes"] = int(pieces.join(QString()).toUtf8().size());
-        report["networkMeasurementNote"] = "Text payload only; TLS and HTTP transport bytes are not measured.";
         const QString source = Languages::sourceForScripts(scripts, languages);
         report["sourceLanguageSent"] = source.isEmpty() ? QStringLiteral("auto") : source;
         translation.translate(pieces, key, !parser.isSet("pro"), target, source);
         key.fill(QChar('\0'));
+        // A request rejected before sending (too many pieces, too long) fails synchronously and is
+        // already reported; only a request in flight used the network.
+        if (translation.isBusy()) {
+            report["translationNetworkUsed"] = true;
+            report["outboundTextUtf8Bytes"] = int(pieces.join(QString()).toUtf8().size());
+            report["networkMeasurementNote"] = "Text payload only; TLS and HTTP transport bytes are not measured.";
+        }
     });
     QObject::connect(&translation, &TranslationService::translated, &app, [&](const QStringList& translated, const QString& detected) {
         std::vector<std::string> parts;

@@ -1,6 +1,7 @@
 #include "paddle_ocr.h"
 #include <QDir>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -400,6 +401,32 @@ const Reading& choose(const std::vector<Reading>& readings, double* score = null
     return readings[best];
 }
 }
+QString PaddleOcr::restoreZeroBeforeSymbol(const QString& korean, const QString& other) {
+    static const QRegularExpression candidate(QStringLiteral("(\\d+)이(?=[^\\s\\p{L}\\p{N}])"));
+    QList<QRegularExpressionMatch> matches;
+    for (auto it = candidate.globalMatch(korean); it.hasNext();) matches << it.next();
+    QString repaired = korean;
+    for (auto m = matches.crbegin(); m != matches.crend(); ++m) { // right to left keeps offsets valid
+        const QRegularExpression evidence(QStringLiteral("(?<!\\d)%1(?!\\d)")
+                                              .arg(QRegularExpression::escape(m->captured(1) + QLatin1Char('0'))));
+        if (evidence.match(other).hasMatch()) repaired[m->capturedEnd(1)] = QLatin1Char('0');
+    }
+    return repaired;
+}
+QString PaddleOcr::preferDividerOverI(const QString& chosen, const QString& other) {
+    auto compact = [](const QString& s) { QString c; for (QChar ch : s) if (!ch.isSpace()) c += ch; return c; };
+    const QString a = compact(chosen), b = compact(other);
+    if (a.size() != b.size() || a.size() < 3) return chosen;
+    bool swapped = false;
+    for (qsizetype i = 0; i < a.size(); ++i) {
+        if (a[i] == b[i]) continue;
+        const bool divider = a[i] == QLatin1Char('I') && b[i] == QLatin1Char('|') && i > 0 && i + 1 < a.size() &&
+                             a[i - 1].isUpper() && a[i + 1].isUpper();
+        if (!divider) return chosen; // the readings differ in another way: no evidence
+        swapped = true;
+    }
+    return swapped ? other : chosen;
+}
 PaddleOcr::Filtered PaddleOcr::filterLine(const QList<PaddleRecognizer::Piece>& pieces, bool visualOrder) {
     using Piece = PaddleRecognizer::Piece;
     Filtered result;
@@ -441,9 +468,29 @@ PaddleOcr::Filtered PaddleOcr::filterLine(const QList<PaddleRecognizer::Piece>& 
     }
     return result;
 }
-PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages, QString& error) {
+void PaddleOcr::loadDetector() {
+    // The detection model is optional: older installs without it keep the edge-band line finder.
+    if (detectorTried_) return;
+    detectorTried_ = true;
+    const QString path = QDir(dir_).filePath(QLatin1String(DetectionModel));
+    auto loaded = std::make_unique<PaddleDetector>();
+    QString ignored;
+    if (QFileInfo(path).isFile() && loaded->load(path, ignored)) detector_ = std::move(loaded);
+}
+int PaddleOcr::countTextLines(const QImage& region) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    loadDetector();
+    return detector_ ? int(detector_->lines(region).size()) : -1;
+}
+PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages, QString& error,
+                                  const std::atomic<bool>* cancelled) {
     std::lock_guard<std::mutex> lock(mutex_);
     error.clear();
+    auto stop = [&] {
+        if (!cancelled || !cancelled->load()) return false;
+        error = QStringLiteral("취소됨");
+        return true;
+    };
     const QStringList files = modelFiles(languages);
     if (files.isEmpty()) { error = QStringLiteral("지원하지 않는 OCR 언어입니다."); return {}; }
     // Release models no longer selected instead of retaining all seven after switching languages.
@@ -464,14 +511,7 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
     QStringList texts;
     double weighted = 0;
     qsizetype letters = 0;
-    // The detection model is optional: older installs without it keep the edge-band line finder.
-    if (!detectorTried_) {
-        detectorTried_ = true;
-        const QString path = QDir(dir_).filePath(QLatin1String(DetectionModel));
-        auto loaded = std::make_unique<PaddleDetector>();
-        QString ignored;
-        if (QFileInfo(path).isFile() && loaded->load(path, ignored)) detector_ = std::move(loaded);
-    }
+    loadDetector();
     QList<QImage> lines, taller;
     // Crops as RapidOCR makes them: extra padding was measured as no better (horizontal) or worse (vertical).
     if (detector_)
@@ -489,9 +529,11 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
             error = QStringLiteral("자막 영역이 너무 길고 얇습니다. 한두 줄의 글자와 여백을 함께 선택하세요.");
             return {};
         }
+        if (stop()) return {};
         std::vector<Reading> readings;
         auto run = [&](const QString& file) {
             if (std::any_of(readings.begin(), readings.end(), [&](const Reading& r) { return r.file == file; })) return true;
+            if (stop()) return false;
             PaddleRecognizer* recognizer = model(file);
             if (!recognizer) return false;
             // Devanagari vowel signs can sit above the dense stroke band; keep enough vertical padding.
@@ -524,9 +566,19 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
             for (const auto& piece : filtered.kept) text += piece.text;
             text = text.trimmed();
         }
+        for (const Reading& r : readings) {
+            if (&r == &chosen) continue;
+            const QString other = r.line.text.trimmed();
+            if (chosen.file == QLatin1String(KoreanModel) && r.file == QLatin1String(CjkModel))
+                text = restoreZeroBeforeSymbol(text, other);
+            text = preferDividerOverI(text, other);
+        }
         double lowest = chosen.line.pieces.isEmpty() ? 0.0 : 1.0;
         for (const auto& piece : chosen.line.pieces) lowest = std::min(lowest, double(piece.probability));
-        result.lines << LineInfo{text, chosen.line.confidence, lowest, chosen.file, chosen.line.pieces};
+        QStringList others;
+        for (const Reading& r : readings)
+            if (&r != &chosen) others << QStringLiteral("%1: %2").arg(r.file.section('_', 0, 0), r.line.text.trimmed());
+        result.lines << LineInfo{text, chosen.line.confidence, lowest, chosen.file, chosen.line.pieces, others};
         texts << text;
         weighted += chosen.line.confidence * text.size(); letters += text.size();
     }

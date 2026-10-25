@@ -51,6 +51,34 @@ private slots:
         // Arabic pieces are in visual order: only the short-line rule applies.
         QVERIFY(!PaddleOcr::filterLine(pieces({{"ب", 0.3f}, {" ", 1.0f}, {"ل", 1.0f}, {"ا", 1.0f}, {"م", 1.0f}}), true).changed);
     }
+    // P-19/P-20, readings measured in tests/probes/false-text-probe.ps1.
+    void crossModelRepairs() {
+        // The other model read "Lv.10": the "이" before the divider was a zero.
+        QCOMPARE(PaddleOcr::restoreZeroBeforeSymbol(QStringLiteral("Lv.1이|전사"), QStringLiteral("Lv.10|型外")),
+                 QStringLiteral("Lv.10|전사"));
+        QCOMPARE(PaddleOcr::restoreZeroBeforeSymbol(QStringLiteral("Lv.1이| 전사"), QStringLiteral("Lv.10|")),
+                 QStringLiteral("Lv.10| 전사"));
+        // Real Korean stays: a space or a letter follows "이", even though the other model read "100合".
+        QCOMPARE(PaddleOcr::restoreZeroBeforeSymbol(QStringLiteral("레벨 10이 되었습니다"), QStringLiteral("100合")),
+                 QStringLiteral("레벨 10이 되었습니다"));
+        QCOMPARE(PaddleOcr::restoreZeroBeforeSymbol(QStringLiteral("레벨 10이되었습니다"), QStringLiteral("1005效合")),
+                 QStringLiteral("레벨 10이되었습니다"));
+        // No evidence: unchanged (space after "이", or the other model saw no "10").
+        QCOMPARE(PaddleOcr::restoreZeroBeforeSymbol(QStringLiteral("Lv.1이 전사"), QStringLiteral("Lv.10|外")),
+                 QStringLiteral("Lv.1이 전사"));
+        QCOMPARE(PaddleOcr::restoreZeroBeforeSymbol(QStringLiteral("Lv.1이|전사"), QStringLiteral("Lv.1|")),
+                 QStringLiteral("Lv.1이|전사"));
+        // A divider between capitals that the other model read as "|".
+        QCOMPARE(PaddleOcr::preferDividerOverI(QStringLiteral("HPIMPISP"), QStringLiteral("HP|MP|SP")),
+                 QStringLiteral("HP|MP|SP"));
+        // Real capital words: both models read "I".
+        QCOMPARE(PaddleOcr::preferDividerOverI(QStringLiteral("MISSION CLEAR"), QStringLiteral("MISSION CLEAR")),
+                 QStringLiteral("MISSION CLEAR"));
+        QCOMPARE(PaddleOcr::preferDividerOverI(QStringLiteral("QUIT"), QStringLiteral("QUT")), QStringLiteral("QUIT"));
+        // A pronoun "I" is not glued between capitals.
+        QCOMPARE(PaddleOcr::preferDividerOverI(QStringLiteral("I am here"), QStringLiteral("| am here")),
+                 QStringLiteral("I am here"));
+    }
     void decodeDropsRepeatsAndBlanks() {
         const QStringList dictionary{QStringLiteral("blank"), QStringLiteral("a"), QStringLiteral("b"), QStringLiteral(" ")};
         // steps: a a blank a b b space  ->  "aab " (a blank separates the two a's)
@@ -300,6 +328,51 @@ private slots:
         std::sort(times.begin(), times.end());
         qInfo("warm read, auto-detect (2 models): median %lld ms", times[times.size() / 2]);
         QVERIFY(times[times.size() / 2] < 1000);
+    }
+    // R-02 / P-03: moving the mouse in hover mode cancels the read. The cancelled PaddleOCR work must
+    // release the engine at the next line instead of finishing the whole region first.
+    void cancelledReadReleasesTheEngine() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        QImage big(1400, 720, QImage::Format_RGB32); big.fill(Qt::white);
+        {
+            QPainter p(&big); QFont f("Yu Gothic"); f.setPixelSize(40); p.setFont(f); p.setPen(Qt::black);
+            for (int i = 0; i < 8; ++i)
+                p.drawText(QRect(20, 20 + i * 85, 1360, 80), Qt::AlignVCenter,
+                           QStringLiteral("今日はいい天気です。明日は雨が降ります。%1").arg(i));
+        }
+        QImage small(600, 120, QImage::Format_RGB32); small.fill(Qt::white);
+        {
+            QPainter p(&small); QFont f("Yu Gothic"); f.setPixelSize(52); p.setFont(f); p.setPen(Qt::black);
+            p.drawText(small.rect(), Qt::AlignCenter, QStringLiteral("はい"));
+        }
+        OcrService service;
+        service.setPaddleModelDir(models());
+        QSignalSpy recognized(&service, &OcrService::recognized);
+        auto read = [&](const QImage& image) {
+            const auto before = recognized.count();
+            service.recognize(image, {}, {}, 0, "multi");
+            return QTest::qWaitFor([&] { return recognized.count() > before; }, 30000);
+        };
+        QVERIFY(read(small)); // load the models first
+        QElapsedTimer timer; timer.start();
+        QVERIFY(read(small));
+        const qint64 alone = timer.elapsed();
+        timer.restart();
+        QVERIFY(read(big));
+        const qint64 full = timer.elapsed();
+        service.recognize(big, {}, {}, 0, "multi");
+        QTest::qWait(60);
+        service.cancel();
+        timer.restart();
+        QVERIFY(read(small));
+        const qint64 afterCancel = timer.elapsed();
+        // Waiting for the cancelled read = time beyond reading the small image on its own. Without the
+        // cancel check it is the rest of the 8-line read; with it, at most the current step.
+        const qint64 waited = afterCancel - alone;
+        qInfo("small read alone %lld ms; 8-line read %lld ms; small read right after cancelling it %lld ms (waited %lld ms)",
+              alone, full, afterCancel, waited);
+        QCOMPARE(recognized.last().first().toString(), QStringLiteral("はい"));
+        QVERIFY2(waited * 2 < full, "the cancelled read kept the engine busy");
     }
     void serviceUsesPaddleThenFallsBack() {
         if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");

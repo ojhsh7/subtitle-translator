@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "capture_service.h"
 #include "game_window.h"
+#include "local_http.h"
 #include "paddle_ocr.h"
 #include <QApplication>
 #include <QTemporaryDir>
@@ -34,6 +35,46 @@ class WindowChecks : public QObject {
     Q_OBJECT
 private slots:
 
+    // P-05: in auto mode, 456 (quota exhausted) stops auto translation; 429 (too many requests)
+    // keeps it running but sends nothing until the server allows it. Local HTTP server, never DeepL.
+    void autoTranslationHandlesRateLimitAndQuota() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual engine not configured");
+        auto line = [](const QString& text) {
+            QImage image(1000, 140, QImage::Format_RGB32); image.fill(Qt::white);
+            QPainter p(&image); QFont f("Yu Gothic"); f.setPixelSize(52); p.setFont(f); p.setPen(Qt::black);
+            p.drawText(image.rect(), Qt::AlignCenter, text); p.end();
+            return image;
+        };
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{429, "{}", "Retry-After: 2\r\n"} << LocalHttp::Reply{456, "{}"};
+        MainWindow window;
+        window.executable_ = qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"); window.tessdata_ = qEnvironmentVariable("SUBTITLE_TEST_TESSDATA");
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true; window.freeApi_ = true;
+        window.translation_.setEndpointForTests(http.url());
+        window.selectedScreen_ = QGuiApplication::primaryScreen();
+        window.selectedGeometry_ = window.selectedScreen_->geometry();
+        window.selectedDpr_ = window.selectedScreen_->devicePixelRatio();
+        window.region_ = QRect(80, 100, 600, 50);
+        window.followGame_->setChecked(false);
+        window.setAutoTranslate(true);
+        window.autoTimer_->setInterval(60000); // lines are fed by hand below
+        window.processImage(line(QStringLiteral("今日はいい天気です。")), ST_SCREEN_CAPTURE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QCOMPARE(int(http.requests.size()), 1);
+        QVERIFY(window.autoTranslating());                       // 429 pauses, it does not stop
+        QVERIFY2(window.status_->text().contains(QStringLiteral("10초")), qPrintable(window.status_->text())); // at least 10 s
+        window.processImage(line(QStringLiteral("明日は雨が降ります。")), ST_SCREEN_CAPTURE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QCOMPARE(int(http.requests.size()), 1);                  // paused: no request for the next line
+        QVERIFY(window.status_->text().contains(QStringLiteral("원문만")));
+        QVERIFY(window.original_->toPlainText().contains(QStringLiteral("雨")));
+        window.translationPausedUntil_ = -1;                     // the pause ends
+        window.processImage(line(QStringLiteral("今日はいい天気です。")), ST_SCREEN_CAPTURE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QVERIFY(!window.autoTranslating());                      // 456 stops auto translation
+        QVERIFY2(window.status_->text().contains(QStringLiteral("한도")), qPrintable(window.status_->text()));
+    }
     // F1: the region chosen over a game window follows it when the window moves, resizes or is minimized.
     void gameRegionFollowsMoveResizeAndMinimize() {
         QWidget game;

@@ -2,7 +2,9 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QTimer>
+#include <QUrl>
 class QNetworkReply;
+class QNetworkRequest;
 class TranslationService final : public QObject {
     Q_OBJECT
 public:
@@ -27,6 +29,14 @@ public:
     // DeepL API Free keys end with ":fx".
     static bool isFreeKey(const QString& apiKey) { return apiKey.trimmed().endsWith(QStringLiteral(":fx")); }
     static constexpr qsizetype MaxResponseBytes = 1024 * 1024;
+    // HTTP status of the last finished request (0: none or transport error), and its Retry-After
+    // header in seconds (-1 when absent). The app pauses or stops auto translation on 429 and 456.
+    int lastHttpStatus() const { return lastStatus_; }
+    int lastRetryAfterSeconds() const { return lastRetryAfter_; }
+    // Tests only: send requests to a local HTTP server and shorten the time limit. The DeepL address
+    // stays fixed for users (no setting, environment variable or CLI option reaches these).
+    void setEndpointForTests(const QUrl& base) { testEndpoint_ = base; }
+    void setTimeoutForTests(int milliseconds) { timeoutMs_ = milliseconds; }
 signals:
     void translated(QStringList texts, QString detectedLanguage);
     void usageChecked(qint64 used, qint64 limit);
@@ -34,6 +44,10 @@ signals:
 private:
     enum class Kind { Translate, Usage };
     void start(QNetworkReply* reply, Kind kind);
+    QNetworkRequest request(bool freeApi, const char* path, const QString& key) const;
+    QUrl testEndpoint_;
+    int timeoutMs_ = 30000;
+    int lastStatus_ = 0, lastRetryAfter_ = -1;
     void failCurrent(const QString& error);
     bool readAvailable();
     QNetworkAccessManager network_;

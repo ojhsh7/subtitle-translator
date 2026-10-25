@@ -1,6 +1,6 @@
 # subtitle-translator — 프로젝트 현황
 
-갱신 2026-10-25 · 브랜치 `ocr-accuracy-foreign-only` · 상태: **개발 진행 중** · 지금 하는 일: **없음 (다음 후보 P-03, P-19)**
+갱신 2026-10-25 · 브랜치 `ocr-accuracy-foreign-only` · 상태: **개발 진행 중** · 지금 하는 일: **없음 (다음 후보 P-22, P-12)** · 기획서: [docs/product-design.ko.md](docs/product-design.ko.md)
 
 게임 화면의 자막 영역을 캡처해 로컬 OCR로 읽고, 사용자 본인의 DeepL 키로 번역해 원문 바로 아래에 띄우는 개인용 도구. C++17 공통 코어를 Windows(Qt)와 Android(Java + JNI)가 함께 쓴다. 사용법은 [README.md](README.md), 문서 위치는 [docs/README.md](docs/README.md).
 
@@ -8,18 +8,18 @@
 
 1. 이 파일의 **지금 하는 일**을 읽는다.
 2. [백로그](docs/plan/BACKLOG.md)의 `진행 중` 항목과 그 계획서를 연다. 계획서 5절 "일정"에서 끝난 단계 다음부터 이어 간다.
-3. 아래 **빌드·테스트**로 지금 코드가 통과하는지 먼저 확인한다(기대: 154 통과, 건너뜀 0).
+3. 아래 **빌드·테스트**로 지금 코드가 통과하는지 먼저 확인한다(기대: 171 통과, 건너뜀 0).
 4. 일을 끝내면 계획서 6절 결과 → 백로그 상태 → 이 파일의 "지금 하는 일"과 "흐름" 순서로 갱신하고 커밋한다.
 5. 기존 결정을 바꿀 때는 [결정 기록](docs/plan/DECISIONS.md)에 "변경" 줄을 추가한다.
 
 ## 지금 하는 일
 
-진행 중인 항목 없음. 방금 끝난 일: P-01·P-02 OCR 오인식 ([결과](docs/plan/2026-10-25-ocr-false-text.ko.md): 기호만 있는 이미지에서 글자 생김 33 → 2, 빈 대사창 5/9 → 9/9, 정상 짧은 대사·한 줄 CER 변화 없음).
+진행 중인 항목 없음. 방금 끝난 일: 백로그 "다음" 12개 일괄 처리 ([결과](docs/plan/2026-10-25-cleanup-and-reliability.ko.md): 취소 대기 1,490 → 740ms, 429·456 처리, 로컬 HTTP 테스트, `Lv.1이|`·`HPIMPISP` 보정, Tesseract 설정 빈 대사창 9/9, CTest 171).
 
 다음 후보 ([백로그](docs/plan/BACKLOG.md)):
-- P-03 올려두기 이동 직후 재요청 지연 측정
-- P-19 `Lv.10` → `Lv.1이` (숫자 0을 한글로 읽음)
-- P-04 번역 서버 로컬 HTTP 테스트
+- P-22 배포 실행 파일 코드 서명 (Smart App Control이 켜진 PC에서 실행되도록)
+- P-12 QA 남은 케이스 재실행 (PC를 2–3시간 쓰지 않는 시간 필요)
+- P-23 큰 영역 취소 대기 더 줄이기
 
 새 항목을 시작할 때는 [양식](docs/plan/TEMPLATE.md)으로 계획서를 만들고 백로그에서 `진행 중`으로 옮긴다.
 
@@ -41,7 +41,7 @@ $env:SUBTITLE_TEST_TESSERACT="$root\ocr\tesseract.exe"; $env:SUBTITLE_TEST_TESSD
 & "$root\windows-build\Release\window_checks.exe" 테스트이름 -o "$root\windows-build\single.txt,txt"
 ```
 
-마지막 결과(2026-10-25, OCR 오인식 수정 후): CTest 7/7 그룹, **154 통과 · 실패 0 · 건너뜀 0**. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.
+마지막 결과(2026-10-25, 백로그 일괄 처리 후): CTest 7/7 그룹, **171 통과 · 실패 0 · 건너뜀 0**. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.
 
 **건너뜀이 0이 아니면 통과로 보지 않는다.** Tesseract가 없으면 UI 테스트 9개가 "엔진 없음"으로 조용히 건너뛰어진다.
 
@@ -54,7 +54,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 # 672장·168장 픽스처: D:\SubtitleTranslatorToolchain\bench\{ocr,scene}-benchmark (생성 방법은 오인식 계획서 6절)
 ```
 
-**Smart App Control**(이 PC에서 켜짐)이 새로 빌드한 서명 없는 실행 파일을 가끔 막는다("An Application Control policy has blocked this file"). 어떤 파일이 막히는지는 빌드마다 다르다. **끄지 않는다**(끄면 Windows 재설치 전까지 다시 켤 수 없음). 측정 도구가 막히면 의미 있는 변경을 넣어 다시 빌드하거나 다른 도구를 쓴다. 지금까지 `subtitle_cli.exe`는 항상 막혔고 `ocr_benchmark.exe`는 다시 빌드하면 통과했다.
+**Smart App Control**: 이 PC에서는 2026-10-25에 **껐다**(앱 본체·UI 테스트까지 빌드마다 무작위로 막혀 검증이 불가능했음, 사용자 결정). 다른 PC에서 "An Application Control policy has blocked this file"이 나오면 같은 원인이다. 서명 없는 배포본은 사용자 PC에서도 막힐 수 있다 → 백로그 P-22(코드 서명).
 
 ## 안전 규칙
 
@@ -83,7 +83,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 | 단색 빈 화면 오인식, 결과 창 가림 | 완료 (2026-10-01) | [qa-fixes-2026-10-01](docs/qa-fixes-2026-10-01.ko.md) |
 | 게임 창 따라가기·게임별 영역, 영역 단축키 Ctrl+Alt+R, 선택 화면 키보드 조정, 읽은 범위 표시 | 완료 (2026-10-25) | [계획·결과](docs/plan/2026-10-25-mouse-region-usability.ko.md) |
 | 특수기호·빈 대사창 오인식 줄이기 | 완료 (2026-10-25, CTest 154/154) | [계획·결과](docs/plan/2026-10-25-ocr-false-text.ko.md) |
-| 숫자↔한글 혼동, 429/456 대응, 취소 지연, 실제 게임·다중 모니터 확인 | 남음 | [백로그](docs/plan/BACKLOG.md) |
+| 429/456 대응, 취소 지연, 로컬 HTTP 테스트, 모델 간 보정, Tesseract 전 글자 줄 확인 | 완료 (2026-10-25, CTest 171/171) | [계획·결과](docs/plan/2026-10-25-cleanup-and-reliability.ko.md) |
+| 코드 서명, 실제 게임·다중 모니터·장시간 확인 | 남음 | [백로그](docs/plan/BACKLOG.md) |
 
 ## 지금까지의 흐름
 
@@ -93,7 +94,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 | 2026-09-30 | 대사창 전체 선택 인식 실패 → 글자 위치 검출 모델 추가 (장면 CER 38.1% → 7.3%) |
 | 2026-09-30 | Cowork QA 1–3단계: 문서 불일치 12건, 위험 19건, 테스트 계획 |
 | 2026-10-01 | 단색 빈 화면·결과 창 가림 수정, 특수기호 측정(B-04), QA 전체 실행(약 14분 후 중단) |
-| 2026-10-25 | 새 PC 빌드 환경 구성, QA 보고서, 게임 창 따라가기 등 편의 기능(CTest 137 → 143), 계획 문서 구조 정리(`docs/plan/`), 특수기호·빈 대사창 오인식 수정(CTest 154) |
+| 2026-10-25 | 새 PC 빌드 환경 구성, QA 보고서, 게임 창 따라가기 등 편의 기능(CTest 137 → 143), 계획 문서 구조 정리(`docs/plan/`), 특수기호·빈 대사창 오인식 수정(CTest 154), 백로그 12개 일괄 처리(CTest 171), 기획서 개정 |
 
 ## 측정 수치 (근거가 있는 것만)
 

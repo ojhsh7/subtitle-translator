@@ -315,6 +315,13 @@ MainWindow::MainWindow() {
             finish(QStringLiteral("OCR 완료. API 키·전송 동의가 없어 번역 요청은 보내지 않았습니다."));
             return;
         }
+        if (autoTranslating() && autoClock_.elapsed() < translationPausedUntil_) {
+            st_finish_ocr(session_, request_);
+            const qint64 left = (translationPausedUntil_ - autoClock_.elapsed() + 999) / 1000;
+            resultStatus_->setText(QStringLiteral("요청 제한 대기 중 · 번역 요청을 보내지 않았습니다."));
+            finish(QStringLiteral("DeepL 요청 제한으로 %1초 동안 원문만 표시합니다.").arg(left));
+            return;
+        }
         status_->setText(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(target));
         resultStatus_->setText(QStringLiteral("번역 중…"));
         translation_.translate(pieces, apiKey_, freeApi_, targetLanguage(), Languages::sourceForScripts(scripts, ocrLanguages()));
@@ -356,6 +363,24 @@ MainWindow::MainWindow() {
         if (!busy_) return;
         st_fail(session_, request_);
         resultStatus_->setText(QStringLiteral("번역 실패 · 원문은 앱에서 확인할 수 있습니다."));
+        const int status = translation_.lastHttpStatus();
+        if (status == 456 && autoTranslating()) {
+            // Quota exhausted: every further line would fail and keep showing an error caption.
+            setAutoTranslate(false);
+            finish(error + QStringLiteral("\n자동 번역을 멈췄습니다. 한도를 확인한 뒤 Ctrl+Alt+P로 다시 켜세요."));
+            return;
+        }
+        if (status == 429) {
+            const int seconds = qMax(MinRateLimitPauseSeconds, translation_.lastRetryAfterSeconds());
+            if (autoTranslating()) {
+                // Too many requests: keep reading lines but send none until the server allows it again.
+                translationPausedUntil_ = autoClock_.elapsed() + qint64(seconds) * 1000;
+                finish(error + QStringLiteral("\n%1초 동안 번역 요청을 보내지 않고 원문만 표시합니다.").arg(seconds));
+            } else {
+                finish(error + QStringLiteral("\n%1초 뒤에 다시 시도하세요.").arg(seconds));
+            }
+            return;
+        }
         finish(error);
     });
     QSettings saved;
@@ -1204,7 +1229,8 @@ void MainWindow::restoreRegion() {
 QString MainWindow::ocrLanguages() const { return ocrLanguageBox_->currentData().toString(); }
 QString MainWindow::targetLanguage() const { return targetLanguageBox_->currentData().toString(); }
 void MainWindow::applyOcrEngine() {
-    ocr_.setPaddleModelDir(paddleEngine_ && QDir(paddleDir_).exists() ? paddleDir_ : QString());
+    // With Tesseract chosen, the bundled detection model still checks that a text line exists.
+    ocr_.setPaddleModelDir(QDir(paddleDir_).exists() ? paddleDir_ : QString(), paddleEngine_);
 }
 bool MainWindow::ocrReady() const {
     return (paddleEngine_ && PaddleOcr::available(paddleDir_, ocrLanguages())) ||

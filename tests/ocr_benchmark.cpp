@@ -23,7 +23,8 @@ int main(int argc, char** argv) {
     parser.addOptions({{"manifest", "Generated fixture manifest.", "file"},
         {"models", "Paddle model directory.", "dir"}, {"output", "JSON report.", "file"},
         {"mode", "selected, legacy or multi.", "mode", "selected"},
-        {"tesseract", "Tesseract executable for Vietnamese.", "file"}, {"tessdata", "Tesseract models.", "dir"}});
+        {"tesseract", "Tesseract executable for Vietnamese.", "file"}, {"tessdata", "Tesseract models.", "dir"},
+        {"engine", "paddle (default) or tesseract: Tesseract reads, the detection model in --models only checks for text.", "name", "paddle"}});
     parser.process(app);
     const QString mode = parser.value("mode");
     if (mode != "selected" && mode != "legacy" && mode != "multi") return 2;
@@ -33,7 +34,7 @@ int main(int argc, char** argv) {
     const auto doc = QJsonDocument::fromJson(manifest.readAll(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !doc.isArray() || doc.array().isEmpty()) return 2;
     const QDir fixtures(QFileInfo(manifest).absolutePath());
-    OcrService ocr; ocr.setPaddleModelDir(parser.value("models"));
+    OcrService ocr; ocr.setPaddleModelDir(parser.value("models"), parser.value("engine") != "tesseract");
     QEventLoop loop;
     QString actual, error;
     bool completed = false;
@@ -71,7 +72,8 @@ int main(int argc, char** argv) {
             QJsonArray pieces;
             for (const auto& piece : line.pieces) pieces.append(QJsonArray{piece.text, double(piece.probability)});
             lines.append(QJsonObject{{"text", line.text}, {"confidence", line.confidence},
-                                     {"lowestCharacter", line.lowestCharacter}, {"model", line.model}, {"pieces", pieces}});
+                                     {"lowestCharacter", line.lowestCharacter}, {"model", line.model}, {"pieces", pieces},
+                                     {"others", QJsonArray::fromStringList(line.others)}});
         }
         row["paddleLines"] = lines;
         row["detectorBoxes"] = ocr.paddleDetails().detectorBoxes;

@@ -13,17 +13,10 @@ bool validLanguage(const QString& code) {
     static const QRegularExpression pattern(QStringLiteral("^[A-Z]{2}(-[A-Z]{2,4})?$"));
     return pattern.match(code).hasMatch();
 }
-QNetworkRequest deeplRequest(bool freeApi, const char* path, const QString& key) {
-    QNetworkRequest request(QUrl(QString::fromLatin1(freeApi ? "https://api-free.deepl.com" : "https://api.deepl.com") + path));
-    request.setRawHeader("Authorization", "DeepL-Auth-Key " + key.toUtf8());
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
-    request.setTransferTimeout(30000);
-    return request;
-}
 QString statusMessage(int status) {
     switch(status) {
     case 401: case 403: return QStringLiteral("DeepL 인증 실패. API 키와 Free/Pro 설정을 확인하세요.");
-    case 429: return QStringLiteral("요청이 너무 많습니다. 잠시 후 직접 재시도하세요.");
+    case 429: return QStringLiteral("DeepL 요청이 너무 많습니다.");
     case 456: return QStringLiteral("DeepL 사용 한도에 도달했습니다. 계정 한도를 확인하세요.");
     case 413: return QStringLiteral("요청 크기가 너무 큽니다. 자막 영역을 줄이세요.");
     default:
@@ -36,8 +29,18 @@ QString statusMessage(int status) {
 TranslationService::TranslationService(QObject* parent) : QObject(parent), network_(this) {
     deadline_.setSingleShot(true);
     connect(&deadline_, &QTimer::timeout, this, [this] {
-        failCurrent(QStringLiteral("번역 시간이 30초를 초과했습니다. 네트워크를 확인하세요."));
+        failCurrent(QStringLiteral("번역 시간이 %1초를 초과했습니다. 네트워크를 확인하세요.").arg(timeoutMs_ / 1000));
     });
+}
+QNetworkRequest TranslationService::request(bool freeApi, const char* path, const QString& key) const {
+    const QString base = testEndpoint_.isValid() ? testEndpoint_.toString()
+                       : QString::fromLatin1(freeApi ? "https://api-free.deepl.com" : "https://api.deepl.com");
+    QNetworkRequest request(QUrl(base + QLatin1String(path)));
+    request.setRawHeader("Authorization", "DeepL-Auth-Key " + key.toUtf8());
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    // The transfer limit is a little longer, so the clearer deadline message wins.
+    request.setTransferTimeout(timeoutMs_ + 1000);
+    return request;
 }
 TranslationService::~TranslationService() { cancel(); }
 void TranslationService::cancel() {
@@ -82,10 +85,10 @@ void TranslationService::translate(const QStringList& texts, const QString& apiK
     }
     const QByteArray body = requestBody(texts, targetLang, sourceLang);
     if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 큽니다.")); return; }
-    QNetworkRequest request = deeplRequest(freeApi, "/v2/translate", key);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    QNetworkRequest post = request(freeApi, "/v2/translate", key);
+    post.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     expected_ = texts.size();
-    start(network_.post(request,body), Kind::Translate);
+    start(network_.post(post,body), Kind::Translate);
 }
 void TranslationService::checkUsage(const QString& apiKey, bool freeApi) {
     if (isBusy()) return;
@@ -93,10 +96,11 @@ void TranslationService::checkUsage(const QString& apiKey, bool freeApi) {
     if (!validKey(key)) {
         emit failed(QStringLiteral("올바른 DeepL API 키를 설정하세요.")); return;
     }
-    start(network_.get(deeplRequest(freeApi, "/v2/usage", key)), Kind::Usage);
+    start(network_.get(request(freeApi, "/v2/usage", key)), Kind::Usage);
 }
 void TranslationService::start(QNetworkReply* reply, Kind kind) {
     response_.clear();
+    lastStatus_ = 0; lastRetryAfter_ = -1;
     reply_ = reply;
     reply->setReadBufferSize(MaxResponseBytes + 1);
     connect(reply,&QNetworkReply::readyRead,this,[this,reply] { if(reply_ == reply) readAvailable(); });
@@ -108,6 +112,9 @@ void TranslationService::start(QNetworkReply* reply, Kind kind) {
         if(reply_ != reply || !readAvailable()) return;
         deadline_.stop();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        bool retryAfterOk = false;
+        const int retryAfter = reply->rawHeader("Retry-After").trimmed().toInt(&retryAfterOk);
+        lastStatus_ = status; lastRetryAfter_ = retryAfterOk && retryAfter >= 0 ? retryAfter : -1;
         const auto networkError = reply->error();
         const QByteArray body = response_;
         reply_ = nullptr; response_.clear(); reply->deleteLater();
@@ -128,7 +135,7 @@ void TranslationService::start(QNetworkReply* reply, Kind kind) {
         const QStringList results = decodeResponses(status,body,expected_,error,&detected);
         if(!error.isEmpty()) emit failed(error); else emit translated(results,detected);
     });
-    deadline_.start(30000);
+    deadline_.start(timeoutMs_);
 }
 bool TranslationService::decodeUsage(int status, const QByteArray& body, qint64& used, qint64& limit, QString& error) {
     error.clear(); used = 0; limit = -1;

@@ -40,7 +40,10 @@ $keepLines = @(
     @{ id = 'k-un';    text = 'うん' },  @{ id = 'k-ok';   text = 'OK' },     @{ id = 'k-yes';  text = 'Yes' },
     @{ id = 'k-no';    text = 'No' },    @{ id = 'k-go';   text = 'Go!' },    @{ id = 'k-hp';   text = 'HP 100' },
     @{ id = 'k-lv';    text = 'Lv.10' }, @{ id = 'k-ne';   text = '네' },     @{ id = 'k-eung'; text = '응' },
-    @{ id = 'k-a';     text = '아!' },   @{ id = 'k-ten';  text = '10' }
+    @{ id = 'k-a';     text = '아!' },   @{ id = 'k-ten';  text = '10' },
+    # Guards for P-19/P-20: capital words with a real I, and a real Korean particle after a number.
+    @{ id = 'k-mission'; text = 'MISSION CLEAR' }, @{ id = 'k-quit'; text = 'QUIT' }, @{ id = 'k-hit'; text = 'HIT' },
+    @{ id = 'k-lv-ko'; text = '레벨 10이 되었습니다' }
 )
 $styles = @(
     @{ id = 'light-outline'; bg = [System.Drawing.Color]::FromArgb(30, 32, 44); fg = [System.Drawing.Color]::White; outline = $true },
@@ -113,7 +116,9 @@ $utf8 = New-Object Text.UTF8Encoding($false)
 [IO.File]::WriteAllText("$Images\manifest-paddle.json", [string]($main.ToArray() | ConvertTo-Json -Depth 3), $utf8)
 [IO.File]::WriteAllText("$Images\manifest-tesseract.json", [string]($blank.ToArray() | ConvertTo-Json -Depth 3), $utf8)
 Invoke-Bench @('--manifest', "$Images\manifest-paddle.json", '--models', $paddle, '--tesseract', $tess, '--tessdata', $tessdata, '--mode', 'selected', '--output', "$Out\paddle.json")
-Invoke-Bench @('--manifest', "$Images\manifest-tesseract.json", '--models', "$Toolchain\no-paddle-models", '--tesseract', $tess, '--tessdata', $tessdata, '--mode', 'selected', '--output', "$Out\tesseract.json")
+# Builds that know --engine use the detection model before Tesseract (P-21); older builds read without it.
+$engineArgs = if ((& $Bench --help 2>$null | Out-String) -match '--engine') { @('--models', $paddle, '--engine', 'tesseract') } else { @('--models', "$Toolchain\no-paddle-models") }
+Invoke-Bench (@('--manifest', "$Images\manifest-tesseract.json") + $engineArgs + @('--tesseract', $tess, '--tessdata', $tessdata, '--mode', 'selected', '--output', "$Out\tesseract.json"))
 
 $rows = New-Object System.Collections.Generic.List[object]
 foreach ($run in @(@{ file = 'paddle.json'; engine = 'paddle' }, @{ file = 'tesseract.json'; engine = 'tesseract' })) {
@@ -129,7 +134,7 @@ foreach ($run in @(@{ file = 'paddle.json'; engine = 'paddle' }, @{ file = 'tess
         $rows.Add([pscustomobject]@{ set = $r.set; id = $r.id; truth = $r.truth; size = $r.size; style = $r.style; lang = $r.ocr
             engine = "$($run.engine)->$($r.engine)"; text = ($r.actual -replace "`r?`n", ' / '); ok = $ok; mismatch = $mismatch; error = $r.error
             detectorBoxes = $r.detectorBoxes; tesseractConfidence = $r.tesseractConfidence
-            lines = if ($r.paddleLines) { (@($r.paddleLines) | ForEach-Object { '{0} [{1:N3} {2}] {3}' -f $_.text, $_.confidence, ($_.model -replace '_PP-OCRv5_rec_mobile.onnx',''), $(if ($_.pieces) { (@($_.pieces) | ForEach-Object { '{0}:{1:N2}' -f $_[0], $_[1] }) -join ' ' }) }) -join ' | ' } else { '' } })
+            lines = if ($r.paddleLines) { (@($r.paddleLines) | ForEach-Object { '{0} [{1:N3} {2}] {3} {{{4}}}' -f $_.text, $_.confidence, ($_.model -replace '_PP-OCRv5_rec_mobile.onnx',''), $(if ($_.pieces) { (@($_.pieces) | ForEach-Object { '{0}:{1:N2}' -f $_[0], $_[1] }) -join ' ' }), (@($_.others) -join ' ; ') }) -join ' | ' } else { '' } })
     }
 }
 $rows | Export-Csv -NoTypeInformation -Encoding UTF8 "$Out\false-text-probe.csv"

@@ -33,6 +33,7 @@ void OcrService::metrics() {
 }
 void OcrService::cancel() {
     ++generation_;
+    if (cancelled_) cancelled_->store(true); // also after a finished read: harmless
     deadline_.stop(); memoryTimer_.stop(); metrics();
     if (processHandle_) { CloseHandle(static_cast<HANDLE>(processHandle_)); processHandle_ = nullptr; }
     busy_ = false;
@@ -170,15 +171,36 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
             engineUsed_ = QStringLiteral("blank-image");
             cancel();
             emit recognized(QString()); // The common core classifies this as ST_EMPTY; never translate.
-        } else if (paddle_ && PaddleOcr::available(paddleDir_, languages_)) runPaddle(image, ticket);
+        } else if (paddle_ && paddleRecognition_ && PaddleOcr::available(paddleDir_, languages_)) runPaddle(image, ticket);
+        else if (paddle_ && languages_ != QLatin1String("multi")) runDetectorThenTesseract(image, ticket);
         else runTesseract(image, ticket);
     });
     watcher->setFuture(QtConcurrent::run([image] { return isUniformImage(image); }));
 }
-void OcrService::setPaddleModelDir(const QString& dir) {
+void OcrService::setPaddleModelDir(const QString& dir, bool recognition) {
+    paddleRecognition_ = recognition;
     if (dir == paddleDir_) return;
     paddleDir_ = dir;
     paddle_ = dir.isEmpty() ? nullptr : std::make_shared<PaddleOcr>(dir); // models load on first use
+}
+void OcrService::runDetectorThenTesseract(const QImage& image, quint64 ticket) {
+    // Tesseract invents letters on empty, bordered or noisy areas ("Po", "이"); the detection model
+    // tells whether there is a text line at all (P-21, docs/plan/BACKLOG.md).
+    auto* watcher = new QFutureWatcher<int>(this);
+    connect(watcher, &QFutureWatcher<int>::finished, this, [this, watcher, image, ticket] {
+        const int lines = watcher->result(); watcher->deleteLater();
+        if (!busy_ || generation_ != ticket) return;
+        paddleDetails_.detectorBoxes = lines;
+        if (lines == 0) {
+            engineUsed_ = QStringLiteral("text-detector");
+            cancel();
+            emit recognized(QString()); // The common core classifies this as ST_EMPTY; never translate.
+            return;
+        }
+        runTesseract(image, ticket); // lines > 0, or -1 when the detection model is not installed
+    });
+    const auto paddle = paddle_;
+    watcher->setFuture(QtConcurrent::run([paddle, image] { return paddle->countTextLines(image); }));
 }
 void OcrService::runPaddle(const QImage& image, quint64 ticket) {
     struct Outcome { PaddleOcr::Result result; QString error; };
@@ -209,9 +231,11 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
     });
     const auto paddle = paddle_;
     const QString languages = languages_;
-    watcher->setFuture(QtConcurrent::run([paddle, image, languages] {
+    cancelled_ = std::make_shared<std::atomic<bool>>(false);
+    const auto cancelled = cancelled_;
+    watcher->setFuture(QtConcurrent::run([paddle, image, languages, cancelled] {
         Outcome outcome;
-        outcome.result = paddle->read(image, languages, outcome.error);
+        outcome.result = paddle->read(image, languages, outcome.error, cancelled.get());
         return outcome;
     }));
 }
