@@ -1,141 +1,332 @@
-# 멀티플랫폼 화면 번역 제품 설계
+# Subtitle Translator 개발 기획서
 
-## 간단한 사전 설명
+| 항목 | 내용 |
+|---|---|
+| 판 | 2판 (2026-10-25). 1판은 2026-09-29 멀티플랫폼 설계 메모 |
+| 상태 | Windows 기능 구현 완료·신뢰성 개선 중, Android 프로토타입, iOS 설계 |
+| 기준 코드 | 브랜치 `ocr-accuracy-foreign-only`, 커밋 `78917bb` 이후 |
+| 함께 보는 문서 | [PROJECT.md](../PROJECT.md)(현재 상태·재개 순서) · [백로그](plan/BACKLOG.md) · [결정 기록](plan/DECISIONS.md) · [README](../README.md)(사용법) · [문서 지도](README.md) |
 
-이미지 한 장을 입력받아 로컬 일본어 OCR을 실행하고, 사용자가 허용한 경우 인식 텍스트만 DeepL로 보내 한국어를 표시한다. **C++ 공통 코어 + 플랫폼별 UI·입력·OCR 어댑터**를 선택한다. Windows는 Qt Widgets, Android는 네이티브 UI, iOS는 SwiftUI를 목표로 한다. iOS는 이 작업에서 설계 대상이며 빌드·실행 완료로 표시하지 않는다.
+이 문서는 **무엇을, 왜, 어떤 구조로 만들고, 어떻게 품질을 재는지**를 정한다. 날짜별 작업 내역은 계획서(`docs/plan/`)에, 남은 일은 백로그에만 적는다. 수치는 측정한 것만 쓰고, 측정하지 않은 값은 "미측정", 추정은 "추정"으로 표시한다.
 
-공식 문서 확인일: 2026-09-29. 아래의 “가능”은 플랫폼이 제공하는 기능 범위이며, 이 저장소의 구현·검증 완료 여부와는 별개다. 실제 검증은 validation.md에 기록한다.
+## 1. 한 줄 요약
 
-## 자세한 설명
+게임 화면의 외국어 자막을 **PC 안에서** 읽고(OCR), 사용자 본인의 DeepL 키로 번역해 **원문 바로 아래에 글자만** 띄우는 개인용 도구. 게임을 멈추거나 창을 바꾸지 않고, 확신이 없는 글자는 보여 주지도 보내지도 않는다.
 
-### 플랫폼별 기능 지원표
+## 2. 해결하려는 문제
+
+| 상황 | 기존 방식의 불편 | 이 도구의 방식 |
+|---|---|---|
+| 번역되지 않은 게임의 대사 | 화면을 찍어 번역 앱에 붙여 넣기, 창 전환 | 대사창 영역을 한 번 정하면 대사가 바뀔 때마다 자동으로 번역 |
+| 메뉴·아이템 이름처럼 흩어진 글자 | 영역을 매번 지정해야 함 | 마우스를 올려 두거나 단축키 한 번으로 커서 주변만 번역 |
+| 한국어와 외국어가 섞인 대사 | 이미 한국어인 부분까지 다시 번역되어 문장이 어색함 | 번역 언어로 이미 쓰인 글자는 남기고 외국어 부분만 번역 |
+| 게임 기호·장식(`♪ ★ 「」`, 대사창 테두리) | OCR이 비슷한 글자로 읽어 엉뚱한 번역이 뜸 | 측정으로 정한 기준에 따라 확신 없는 줄은 버림 |
+| 개인정보·비용 | 화면 이미지를 외부 서비스로 보내는 도구가 많음 | 이미지는 PC 밖으로 보내지 않음, 사용자 본인 키, 같은 문장은 다시 보내지 않음 |
+
+## 3. 대상 사용자와 사용 장면
+
+- **주 사용자**: Windows에서 외국어 게임(일본어·영어·중국어 등)을 하는 개인. 기본 번역 언어는 한국어이고, 번역 언어는 6종 중 고른다.
+- **주 장면**: 창 모드 또는 테두리 없는 창 모드 게임, 대사창이 화면 아래에 고정된 비주얼 노벨·RPG.
+- **보조 장면**: 메뉴·인벤토리처럼 위치가 바뀌는 글자(마우스 번역), 저장한 스크린샷(이미지 파일 번역), 휴대폰 스크린샷(Android).
+- **대상이 아닌 것**: 다른 사람에게 배포하는 서비스형 번역(서버 중계·공용 키), 동영상 자막 파일 번역, 보호된 화면(DRM·보안 데스크톱) 우회.
+
+## 4. 제품 원칙
+
+| 원칙 | 구체적 규칙 | 근거 |
+|---|---|---|
+| 이미지는 PC 밖으로 보내지 않는다 | OCR은 로컬(PaddleOCR·Tesseract). 번역 서버에는 인식한 글자 중 외국어 부분만 보냄. 이미지·원문·번역 내역을 파일로 저장하지 않음 | [결정 기록](plan/DECISIONS.md) 2026-09-29 |
+| 사용자 본인의 키만 쓴다 | 개발자 키·중계 서버 없음. 키는 Windows 자격 증명 관리자(선택). 번역 서버 주소는 사용자가 바꿀 수 없음(테스트 코드만 가능) | 2026-09-29, 2026-10-25 |
+| 확신이 없으면 보여 주지 않는다 | 빈 대사창·기호 오인식은 빈 결과로 처리해 번역 요청도 자막도 만들지 않음. 기준은 측정으로 정하고 정상 짧은 대사(`はい`, `OK`, `네`)는 지킴 | 2026-10-01, 2026-10-25 변경 |
+| 필요한 만큼만 보낸다 | 이미 번역 언어인 글자는 보내지 않음, 직전과 같은 원문은 다시 보내지 않음, 오류 때 같은 요청을 자동으로 다시 보내지 않음, 429면 잠시 멈추고 456이면 자동 번역을 멈춤 | 2026-09-29, 2026-10-25 |
+| 게임을 방해하지 않는다 | 자막은 클릭이 통과하는 글자만, 원문을 가리지 않는 위치. 앱 창은 최소화, 포커스를 빼앗지 않음 | README |
+| 결정은 측정으로 | 수정 전 코드를 같은 PC에서 다시 빌드해 기준선으로 비교. 테스트 "건너뜀 0"을 통과 조건으로 봄 | 2026-10-25 |
+
+## 5. 기능 범위
+
+### 5.1 Windows — 구현됨
+
+| 영역 | 기능 | 조작 |
+|---|---|---|
+| 자막 영역 번역 | 영역을 정하고 한 번 번역 / 대사가 바뀔 때마다 자동 번역 | 영역 선택 `Ctrl+Alt+R`(대체 `F7`), 1회 `Ctrl+Alt+T`, 자동 `Ctrl+Alt+P` |
+| 영역 관리 | 선택 화면에서 현재 영역 점선 표시, 방향키 이동·Ctrl+방향키 크기·Enter 확정, 드래그 중 크기 표시 | 영역 선택 화면 |
+| 게임 창 따라가기 | 영역을 고른 게임 창을 기억해 이동·크기 변경·모니터 이동을 따라감, 게임마다 영역 저장, 앞에 있는 게임의 영역 사용, 최소화되면 자동 번역은 대기 | 기본 켜짐 |
+| 마우스 번역 | 커서 주변(360×100 / 640×160 / 960×240) 한 번 번역, 3초 준비 버튼 | `Ctrl+Alt+M`(대체 `F8`) |
+| 마우스 올려두기 | 글자 위에서 1초 멈추면 한 번 번역, 옮기면 취소 | `Ctrl+Alt+H`(대체 `F9`) |
+| 읽은 범위 표시 | 캡처한 사각형을 0.6초 테두리로 표시(캡처 뒤에 그려 OCR에 들어가지 않음) | 기본 켜짐 |
+| OCR | PaddleOCR PP-OCRv5(글자 위치 검출 + 언어별 인식 7종) 기본, Tesseract 5 대체. 원문 14개 언어, 자동 감지 2종 | 설정 |
+| 번역 | DeepL Free/Pro, 번역 언어 6종(KO, EN-US, EN-GB, JA, ZH-HANS, ZH-HANT), 외국어 부분만 전송 | 설정 |
+| 표시 | 원문 아래 글자 자막(16–36px, 최대 4줄), 공간이 없으면 결과 창, 결과 창이 원문을 가리면 자동 이동 | — |
+| 이미지 파일 | 저장 이미지 번역, 최근 이미지 재시도 | 버튼 |
+| 오류 처리 | 빈 대사창·기호 오인식 → 빈 결과, 429 → 최소 10초 요청 중지, 456 → 자동 번역 중지, 모니터 구성 변경·OCR 엔진 없음 안내 | — |
+| 개발용 CLI | 저장 이미지 OCR(·번역) 결과를 JSON으로 | `subtitle_cli` |
+
+### 5.2 Android — 프로토타입
+
+이미지 선택·공유 받기 → 확대·자르기 → ML Kit 일본어 OCR → (키가 있으면) DeepL 한국어. 공통 C++ 코어를 JNI로 사용, 키는 Android Keystore로 암호화. 에뮬레이터 계측 테스트 3개 통과, 실기기·실제 번역 미검증(백로그 P-15). 자세한 내용은 [Android 안내](../platforms/android/README.md).
+
+### 5.3 iOS — 설계만
+
+PhotosPicker → 자르기 → Vision OCR → 번역 → 결과. Share Extension으로 받은 이미지도 같은 흐름. macOS·Xcode·실기기가 없어 빌드·검증하지 않았다.
+
+### 5.4 하지 않는 것
+
+| 항목 | 이유 |
+|---|---|
+| 서버 중계·개발자 공용 키 | 사용자 인증·사용량 제한·요금 책임·로그 관리가 필요. 개인용 범위를 넘음 |
+| 보호 콘텐츠·보안 데스크톱·독점 전체화면 캡처 우회 | 플랫폼 정책 위반. 보이는 픽셀만 캡처 |
+| 번역 내역 영구 저장 | 원문·번역도 민감할 수 있음 |
+| Android 다른 앱 위 상시 캡처·overlay | MediaProjection·특수 권한·foreground service 검증이 먼저. 이미지 번역 검증 후 별도 단계 |
+| 단어 하나만 찾아 번역 | 마우스 번역은 주변 사각형을 읽음. 단어 위치 모델은 추가하지 않음 |
+
+## 6. 사용자 흐름
+
+### 6.1 Windows 기본 흐름
+
+```text
+처음 실행 → 설정(OCR 확인, DeepL 키 확인·저장 선택, 전송·비용 동의)
+        → 원문 언어·번역 언어 선택
+        → 게임 화면에서 Ctrl+Alt+R → 대사창 드래그 (게임 창 기억)
+        → Ctrl+Alt+P 자동 번역 → 대사가 바뀌고 글자 출력이 멈추면 원문 아래에 번역
+        → 게임 창을 옮겨도 같은 자리 / 다른 게임으로 바꾸면 그 게임의 영역
+```
+
+### 6.2 화면 구성 (메인 창)
+
+```text
+[게임 자막 번역]
+[모니터 ▼]                                        [설정]
+[원문 언어 ▼]                         → [번역 언어 ▼]
+[자막 영역 선택 Ctrl+Alt+R] [자동 번역 Ctrl+Alt+P] [캡처·번역 Ctrl+Alt+T] [취소]
+[마우스 번역 · 3초 준비] Ctrl+Alt+F8 · 범위 [보통 · 640×160 ▼]
+[ ] 마우스 올려두기 번역 · Ctrl+Alt+H
+[이미지 파일 선택]                       [최근 이미지 재시도]
+영역 설명 (게임 창 기준이면 게임 이름)
+[x] 원문 아래에 번역 글자만 표시                   [위치 미리보기]
+[x] 게임 창을 따라 영역 이동   [x] 읽은 범위 잠깐 표시
+[상태 · 복구 방법]
+[최근 캡처 미리보기]
+[OCR 원문]
+[번역 결과 창 열기]
+```
+
+실제 화면: [메인 화면 캡처](evidence/usability-2026-10-25/main-ui.png).
+
+### 6.3 오류·예외 흐름
+
+| 상황 | 동작 |
+|---|---|
+| 대사창이 비었음(단색·테두리·잡음) | 빈 결과, 이전 자막 숨김, 번역 요청 없음 |
+| 게임 기호만 있음 | 빈 결과 |
+| 같은 대사가 그대로 | OCR·번역 다시 하지 않음 |
+| 키 없음·동의 없음 | OCR 원문까지만 표시, 번역 요청 없음 |
+| DeepL 429 | 자동 번역 유지, 최소 10초 원문만 표시 |
+| DeepL 456 | 자동 번역 중지, 한도 확인 안내 |
+| 게임 창 최소화·종료 | 자동 번역 대기, 창이 보이면 다시 읽음 |
+| 결과 창이 원문을 가림 | 빈 공간으로 이동, 공간이 없으면 자동 번역 중지와 안내 |
+| 모니터 구성 변경 | 게임 창 기준 영역은 다시 계산, 아니면 다시 선택 안내 |
+| 단축키를 다른 앱이 사용 | 대체 키(F7/F8/F9) 또는 버튼, 메인 창에 실제 키 표시 |
+
+## 7. 시스템 구조
+
+### 7.1 계층
+
+```text
+┌ Windows UI (Qt Widgets) ──────────────────────────────────────────────┐
+│ MainWindow · RegionSelector · SubtitleOverlay · CaptureFlash           │
+│ 전역 단축키(RegisterHotKey) · 자동 번역 타이머 · 게임 창 따라가기        │
+├ Windows 서비스 (subtitle_services) ───────────────────────────────────┤
+│ Capture · ChangeDetector · GameWindow                                 │
+│ OcrService ─┬ PaddleOcr (ONNX Runtime: 검출 1 + 인식 7, 오인식 필터)     │
+│             └ Tesseract (별도 프로세스, 대체 엔진)                       │
+│ TranslationService (DeepL HTTPS) · Credentials · Languages            │
+├ 공통 코어 (C++17 표준 라이브러리만, Windows·Android 공유) ─────────────┤
+│ 요청 상태·취소·늦은 결과 폐기 · 원문 정리·길이 검사 · 직전 번역 캐시     │
+│ splitForTranslation (번역 언어로 이미 쓰인 글자 남기기) · 오류 형식      │
+└───────────────────────────────────────────────────────────────────────┘
+Android: Java UI · ML Kit · JNI → 같은 공통 코어 · Android Keystore
+```
+
+공통 코어에는 Qt·Win32·JNI·OCR 엔진·모바일 SDK를 넣지 않는다. 공개 C ABI(`core/include/subtitle/core.h`)로 Java JNI와 Objective-C++에서 연결한다. 코어는 한 소유 스레드에서 호출한다.
+
+### 7.2 한 대사의 처리 흐름 (자동 번역)
+
+```text
+0.4초마다 영역 캡처 → ChangeDetector (흑백 축소 비교, 2회 연속 같으면 처리, 3초 넘게 바뀌면 한 번 처리)
+ → 완전 단색이면 빈 결과
+ → PaddleOCR: 글자 위치 검출 ─ 0줄 → 빈 결과 (Tesseract로 넘기지 않음)
+              └ 줄마다 언어 모델 판독, 모델 선택
+              └ 오인식 필터 (짧은 줄 확신도, 양끝 단독 글자), 모델 간 보정 (Lv.1이|, HPIMPISP)
+              └ 모든 줄이 걸러짐 → 빈 결과
+   (PaddleOCR이 검출한 줄을 읽지 못함 / 모델 없음 → Tesseract, 신뢰도 30 미만 → 빈 결과)
+ → 공통 코어: 빈 결과는 ST_EMPTY, 직전과 같은 원문이면 캐시 재사용
+ → splitForTranslation: 외국어 조각만 추림 (없으면 요청 없음)
+ → 키·동의 확인, 429 대기 중이면 원문만
+ → DeepL 1회 요청 (조각 배열, 순서대로 되돌려 끼움, 개수가 다르면 버림)
+ → 원문 아래 자막 / 공간 없으면 결과 창
+```
+
+### 7.3 동시성과 취소
+
+- UI 스레드는 캡처·비교·표시만 한다. 단색 검사·PaddleOCR·이미지 인코딩은 `QtConcurrent`, Tesseract는 별도 프로세스, 번역은 비동기 HTTP.
+- 모든 요청에 세대 번호를 붙여 취소·새 요청 뒤 늦게 온 결과를 버린다. PaddleOCR은 취소 신호를 줄·모델마다 확인해 엔진을 일찍 놓는다(취소 후 대기 1,490 → 740ms, 큰 영역 기준).
+- OCR 20초, 번역 30초 시간 제한.
+
+### 7.4 저장 위치
+
+| 데이터 | 위치 |
+|---|---|
+| 설정·영역·게임별 영역 | `HKCU\Software\PersonalTools\SubtitleTranslator` |
+| DeepL 키 (저장을 선택한 경우) | Windows 자격 증명 관리자 |
+| 이미지·원문·번역 | 저장하지 않음 (메모리의 직전 번역 1건만) |
+
+## 8. OCR 전략
+
+### 8.1 엔진과 모델
+
+| 원문 언어 선택 | 읽는 모델 |
+|---|---|
+| 자동 감지 · 한·일·중·영 (기본) | 한국어 모델 + 중·일·영 모델, 줄마다 비교 |
+| 자동 감지 · 다국어 13종 | 위 두 모델로 먼저, 불확실하면 나머지 5개 모델도 |
+| 한국어 / 일본어·중국어·영어 | 한국어 모델 / 중·일·영 모델 |
+| 프랑스어·독일어·스페인어·포르투갈어 | 라틴 문자 모델 |
+| 러시아어 / 태국어 / 아랍어 / 힌디어 | 언어별 모델 |
+| 베트남어 | Tesseract `vie` (PaddleOCR 라틴 모델에 일부 성조 없음), 읽기 전에 검출 모델로 글자 줄 확인 |
+
+PaddleOCR을 기본으로 고른 근거: 합성 게임 글씨 192장에서 문자열 유사도 96.7%(Tesseract 방식 84.4%). 대사창 전체를 고른 장면에서 글자 위치 검출로 CER 38.1% → 7.3%.
+
+### 8.2 오인식 방지 규칙
+
+모든 기준값은 측정에서 정했다. 근거: [오인식 계획](plan/2026-10-25-ocr-false-text.ko.md), [일괄 처리](plan/2026-10-25-cleanup-and-reliability.ko.md).
+
+| 규칙 | 기준 | 측정 근거 |
+|---|---|---|
+| 완전 단색 화면 | 모든 픽셀이 같으면 엔진을 실행하지 않음 | 단색 4종에서 `Se`, `a`, `[` 같은 가짜 글자 |
+| 검출 0줄 | Tesseract로 넘기지 않고 빈 결과 | 빈 대사창 가짜 글자는 모두 Tesseract 대체 경로에서 나옴, 일반 문장 840장에서 이 경로로 맞게 읽은 경우 0 |
+| 짧은 줄 (글자·숫자 3개 이하) | 가장 확신하는 글자 0.85 미만이면 버림 | 기호 오인식 줄 0.14–0.78, 정상 짧은 대사 0.917 이상 |
+| 양끝 단독 글자 | 라틴·한글·가나·숫자 한 글자가 0.5 미만이면 버림 (힌디어·아랍어 제외) | `s Hello s`의 s 0.25·0.43, 정상 `Я` 0.77, 정상 힌디어 단어 0.32 |
+| Tesseract 결과 | 신뢰도 30 미만이면 빈 결과 | 가짜 글자 13.1–50.4, 맞게 읽은 정상 `응` 36.1 (겹치지 않는 값만) |
+| `\|`→`I` 보정 | Tesseract 결과에만 | PaddleOCR은 `\|`를 구분선으로 맞게 읽음 |
+| 숫자 뒤 `이` (P-19) | 뒤가 기호이고 다른 모델이 정확히 `숫자+0`일 때만 `0` | 정상 `레벨 10이 되었습니다` 12건 유지 |
+| 대문자 사이 `I` (P-20) | 다른 모델이 같은 자리에서 `\|`로 읽었을 때만 | 정상 `MISSION`·`QUIT`·`HIT`의 I 확률도 0.65–1.0 |
+
+## 9. 번역·개인정보·비용
+
+- **API**: [DeepL HTTPS API](https://developers.deepl.com/api-reference/translate/request-translation). Free(`:fx` 키)/Pro 주소 구분, 인증은 헤더, 응답 1MB 제한, 리다이렉트 거부, 오류 문구에 서버 본문을 넣지 않음.
+- **보내는 것**: OCR 원문 중 외국어 조각(한 요청에 최대 50조각, 32KB). 이미지·키 외 개인정보는 보내지 않음. 원문 언어를 알면 함께 보냄.
+- **비용 절약**: 이미 번역 언어인 글자 제외, 직전과 같은 원문 재사용, 같은 화면 재OCR 안 함, 오류 자동 재시도 없음, 429 대기, 456 중지.
+- **키 확인**: `GET /v2/usage`로 사용량만 조회(글자 차감 없음).
+- **동의**: 첫 설정에서 전송·비용 안내 후 동의. 동의나 키가 없으면 OCR까지만.
+
+## 10. 플랫폼별 지원
 
 | 기능 | Windows 데스크톱 | Android | iOS |
 |---|---|---|---|
-| 저장 이미지 가져오기 | 가능. 사용자 파일 선택, 관리자 권한 불필요 | 가능. 시스템 Photo Picker 또는 문서 선택기로 선택한 URI 접근. 전체 사진 권한 요구하지 않음 | 가능. PhotosPicker로 선택한 항목 접근. 전체 사진 보관함 권한을 기본 요구하지 않음 |
-| 다른 앱에서 이미지 공유 받기 | 첫 버전은 파일 열기 | 가능. ACTION_SEND + image/*, 제공된 URI 읽기 권한 확인 | 가능. Share Extension + 이미지 유형 등록. 앱 확장의 별도 수명·메모리 고려 |
-| 다른 앱 화면 캡처 | 조건부 가능. 사용자 데스크톱의 보이는 픽셀 캡처. 보안 화면·보호 콘텐츠·독점 전체화면 성공 보장 안 함 | 조건부 가능. MediaProjection의 사용자 동의, 세션별 새 토큰, 필요한 foreground service. **이미지 번역 검증 후 별도 기술 검증** | 일반 앱에서 임의로 상시 캡처하는 기능은 지원 대상으로 삼지 않음. ReplayKit 방송 확장은 별도 제품·사용자 시작·제약 검증 필요 |
-| 자막 영역 선택 | 마우스 드래그. 한 모니터 내부 사각형, 화면 배율 고려 | 앱 안에서 확대·이동·자르기. 추가 위험 권한 불필요 | 앱 안에서 확대·이동·자르기. 추가 위험 권한 불필요 |
-| 번역 표시 | 원문 아래에 배경 없는 글자 자막 또는 이동·크기 조절 가능한 결과 창 | 앱 내 원문·한국어 결과. 다른 앱 위 overlay는 후속 조건부 기능 | 앱 내 원문·한국어 결과. 다른 앱 위 범용 overlay는 지원하지 않음 |
-| 단축키 | RegisterHotKey. 충돌 시 버튼 대체. 관리자 권한 불필요 | 터치 버튼·공유 진입. PC식 전역 단축키는 목표 아님 | 터치 버튼·공유 진입 |
-| 백그라운드 처리 | 앱이 실행 중이면 비동기 작업 지속 가능. 절전·잠금·종료 이후 성공 보장 안 함 | 첫 버전은 foreground 단발 요청. background 진입 시 취소, 복귀 후 명시적 재시도. 계속 캡처하려면 별도 서비스·정책 검증 | 일반 앱은 background에서 중단될 수 있음. 짧은 유예·시스템 스케줄 작업을 상시 처리로 간주하지 않음 |
-| 보호된 화면 | 차단을 우회하지 않음 | FLAG_SECURE 등으로 막힌 화면 우회 금지 | 보호된 콘텐츠·시스템 제한 우회 금지 |
+| 저장 이미지 가져오기 | 구현. 파일 선택, 관리자 권한 불필요 | 구현. 시스템 Photo Picker·문서 선택기, 전체 사진 권한 요구 안 함 | 설계. PhotosPicker |
+| 다른 앱에서 이미지 공유 받기 | 파일 열기로 대신 | 구현. ACTION_SEND + image/*, URI 읽기 권한 확인 | 설계. Share Extension |
+| 다른 앱 화면 캡처 | 구현. 보이는 픽셀만, 보호 콘텐츠·독점 전체화면은 보장 안 함 | 조건부 가능. MediaProjection 세션 동의·foreground service, **이미지 번역 검증 후 별도 기술 검증** | 일반 앱의 상시 캡처는 대상 아님. ReplayKit은 사용자 시작 방송 전용 |
+| 자막 영역 선택 | 구현. 드래그·키보드 조정, 게임 창 기준 저장 | 구현. 앱 안 확대·이동·자르기 | 설계. 앱 안 자르기 |
+| 번역 표시 | 구현. 원문 아래 글자 자막 또는 결과 창 | 구현. 앱 안 원문·번역. 다른 앱 위 overlay는 후속 조건부 | 앱 안. 범용 overlay 없음 |
+| 단축키 | 구현. RegisterHotKey, 충돌 시 대체 키·버튼 | 터치·공유 진입 | 터치·공유 진입 |
+| 백그라운드 처리 | 앱 실행 중 비동기 지속, 절전·잠금 후 보장 안 함 | foreground 단발 요청, background 진입 시 취소 | background에서 중단될 수 있음 |
+| OCR | PaddleOCR + Tesseract, 14개 언어 | ML Kit 일본어 | Vision (실기기에서 ja-JP 확인 필요) |
+| 키 저장 | Windows 자격 증명 관리자 | Android Keystore AES-GCM | Keychain |
+| 보호된 화면 | 우회하지 않음 | FLAG_SECURE 우회 금지 | 보호 콘텐츠 우회 금지 |
 
-Windows 캡처는 [Qt QScreen](https://doc.qt.io/qt-6/qscreen.html#grabWindow), 단축키는 [Microsoft RegisterHotKey](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey) 기준이다. 캡처 좌표는 논리 픽셀, OCR 이미지는 물리 픽셀로 구분한다. 다른 창에 가려진 내용이나 보호 콘텐츠를 복원하지 않는다.
+플랫폼 근거(2026-09-29 확인): [Qt QScreen::grabWindow](https://doc.qt.io/qt-6/qscreen.html#grabWindow), [RegisterHotKey](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey), [Photo Picker](https://developer.android.com/training/data-storage/shared/photo-picker), [공유 받기](https://developer.android.com/training/sharing/receive), [MediaProjection](https://developer.android.com/media/grow/media-projection), [SYSTEM_ALERT_WINDOW](https://developer.android.com/reference/android/Manifest.permission#SYSTEM_ALERT_WINDOW), [FLAG_SECURE](https://developer.android.com/reference/android/view/WindowManager.LayoutParams#FLAG_SECURE), [PhotosPicker](https://developer.apple.com/documentation/photokit/bringing-photos-picker-to-your-swiftui-app), [Share Extension](https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/Share.html), [ReplayKit](https://developer.apple.com/documentation/replaykit), [Background Tasks](https://developer.apple.com/documentation/backgroundtasks), [ML Kit Text Recognition](https://developers.google.com/ml-kit/vision/text-recognition/v2/android), [Vision 텍스트 인식](https://developer.apple.com/documentation/vision/recognizing-text-in-images).
 
-Android 입력 근거: [Photo Picker](https://developer.android.com/training/data-storage/shared/photo-picker), [공유 받기](https://developer.android.com/training/sharing/receive). 외부 URI·MIME은 신뢰하지 않고 디코딩 크기와 읽기 오류를 검사한다. [MediaProjection](https://developer.android.com/media/grow/media-projection)은 세션마다 동의가 필요하며 Android 14 이상 대상 앱에는 관련 foreground service 설정이 요구된다. Overlay는 별도 [SYSTEM_ALERT_WINDOW](https://developer.android.com/reference/android/Manifest.permission#SYSTEM_ALERT_WINDOW) 특수 접근 허용이 필요하다. [FLAG_SECURE](https://developer.android.com/reference/android/view/WindowManager.LayoutParams#FLAG_SECURE)를 우회하지 않는다.
+UI 기술 선택(1판 결정 유지): **얇은 C++ 공통 코어 + Windows Qt Widgets + Android 네이티브 UI + iOS SwiftUI.** 입력·권한·공유·창 모델이 플랫폼마다 달라 공통 UI(QML)보다 플랫폼별 UI가 맞다. 코어는 UI를 바꿔도 유지한다.
 
-iOS 입력 근거: [PhotosPicker](https://developer.apple.com/documentation/photokit/bringing-photos-picker-to-your-swiftui-app), [Share Extension](https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/Share.html). [ReplayKit](https://developer.apple.com/documentation/replaykit)은 사용자 주도의 녹화·방송 API이며 범용 overlay 권한을 제공한다는 뜻이 아니다. [Background Tasks](https://developer.apple.com/documentation/backgroundtasks)의 시스템 스케줄링은 실시간 상시 번역 보장이 아니다.
+## 11. 품질 목표와 측정 체계
 
-### 공통 사용자 흐름
+### 11.1 지표 (Windows, 2026-10-25 측정)
 
-1. 최초 설정: 로컬 OCR 안내, 개인 API 키(선택), 외부 전송·비용 안내, 동의.
-2. 이미지 입력: 파일 / OS 사진 선택 / 공유 / Windows 캡처 중 하나.
-3. 입력 검증: 이미지 형식·크기·방향 정규화. 모바일은 확대하고 자막 부분을 자른다.
-4. 번역 실행: OCR 중 → 원문 표시 → 빈 결과·오류 처리 → 중복 텍스트 확인 → 필요한 경우 API 요청.
-5. 결과: 한국어·일본어 원문 표시. 취소·최근 이미지 재시도·영역 수정 제공.
-6. 취소 또는 새로운 요청: 이전 요청 ID를 무효화해 늦게 도착한 결과가 새 화면을 덮지 못하게 한다.
+| 지표 | 목표 | 현재 | 조건 |
+|---|---|---|---|
+| 자동 테스트 | 전부 통과, **건너뜀 0** | 171 통과 · 실패 0 · 건너뜀 0 (7개 그룹) | PaddleOCR·Tesseract 모두 준비 |
+| 한 줄 문자 오류율(CER) | 수정 전보다 나빠지지 않음 | 2.29% (README 기준 이미지) / 6.544% (이 PC 이미지*) | 합성 672장, 언어 선택 |
+| 대사창 CER | 〃 | 7.28% (README) / 11.056% (이 PC*) | 합성 168장 |
+| 기호만 있는 이미지에서 글자 생김 | 0에 가깝게 | 2 / 72 (수정 전 33) | 기호 15종 × 크기 3 × 스타일 2 × 언어 2 |
+| 빈 대사창 가짜 자막 | 0 | 기본 0 / 9, Tesseract 설정 0 / 9 (수정 전 각 4) | 단색·테두리·액자·잡음·그라데이션 |
+| 정상 짧은 대사 보존 | 수정 전보다 줄지 않음 | 124 / 132 (PaddleOCR), 107 / 132 (Tesseract), 수정 전과 같음 | `はい`·`OK`·`네`·`MISSION CLEAR` 등 22종 |
+| 단축키 → 화면 자막 | 2초 이내 | 중앙값 367ms | 번역 제외(키 없음) |
+| 대사 변경 → 자막 갱신 | 놓침 0 | 중앙값 1.19초, 놓침 0 / 20 | 가짜 게임 창 |
+| DeepL 번역 구간 | 기록 | 중앙값 1.20초 | CLI, 영어 26자 |
+| 한 줄 OCR 시간 | 기록 | 웜 중앙값 43ms, p95 107ms | 언어 선택 |
+| 대사창 OCR 시간 | 기록 | 웜 중앙값 195ms, p95 480ms | 〃 |
+| 취소 후 다음 읽기 대기 | 줄이기 | 740ms (수정 전 1,490ms) | 1400×720 8줄, 다국어 |
+| 장시간 CPU·메모리·누수 | 유휴 CPU 3% 이하, 1시간 +20MB 미만 | **미측정** (P-12) | — |
+| 실제 게임 정확도 | — | **미측정** (P-13) | — |
 
-사용자가 명시적으로 실행하기 전 이미지를 업로드하거나 번역을 요청하지 않는다. 같은 세션의 직전 성공 원문과 같으면 메모리의 결과를 재사용한다. 서버 오류의 자동 재시도는 하지 않으며 비용·중복 요청을 피한다.
+\* 이 PC의 Pillow에 raqm이 없어 아랍어·힌디어 이미지를 기본 배치로 만들었다. 같은 이미지로 수정 전후를 비교하는 데만 쓴다.
 
-### 플랫폼별 사용자 흐름과 화면
+### 11.2 측정 도구
 
-**Windows**
+| 도구 | 재는 것 | 위치 |
+|---|---|---|
+| CTest 7개 그룹 | 번역 프로토콜·로컬 HTTP, 실제 엔진 OCR, PaddleOCR, 변화 감지·타자기, 게임 창, UI 흐름(실제 창·단축키·캡처), 공통 코어 | `tests/`, `scripts/build-windows.ps1` |
+| 오인식 측정 | 기호·정상 짧은 대사·빈 대사창 | `tests/probes/false-text-probe.ps1` |
+| OCR 벤치마크 | CER, 속도, 메모리, 줄별 진단(신뢰도·글자 확률·다른 모델 판독) | `ocr_benchmark` + `scripts/summarize-ocr-benchmark.py` |
+| 픽스처 생성 | 14개 언어 한 줄 672장, 대사창 장면 168장 | `scripts/make-multilang-fixtures.py`, `make-scene-fixtures.py` |
+| QA 하네스 | 가짜 게임 창으로 기능·지연·CPU·메모리·1시간 누수 | `tests/qa-2026-09-30/suite/` |
 
-실행 → 설정 → 모니터 선택 → 원문 글자 영역 드래그 → 위치 미리보기 → 앱 최소화 → 게임에서 Ctrl+Alt+T → 원문 바로 아래에 한국어 글자만 표시. 별도 결과 창은 전체 보기·복사 용도로 남긴다.
-파일 선택도 같은 OCR 진입점을 사용한다.
+### 11.3 변경 절차
 
-```text
-[게임 자막 번역]                    [설정]
-[모니터 ▼] [영역 선택] [캡처·번역] [취소]
-[이미지 파일 선택] [최근 이미지 재시도]
-[현재 상태 / 복구 방법]
-[캡처 미리보기]
-[일본어 원문]
-                     [한국어 결과 창 열기]
+1. [양식](plan/TEMPLATE.md)으로 계획서를 만들고 백로그 항목을 `진행 중`으로 옮긴다.
+2. 수정 전 코드를 같은 PC에서 새로 빌드해 기준선을 잰다.
+3. 수정 후 같은 조건으로 다시 재고, CTest "건너뜀 0"을 확인한다.
+4. 계획서 결과 → 백로그 → PROJECT.md → 커밋 순서로 기록한다.
 
-별도 창: [번역 상태]
-         [큰 글씨 한국어 · 선택/복사]
-```
+## 12. 개발·배포 환경
 
-**Android**
-
-앱에서 이미지 선택 또는 갤러리/스크린샷의 공유 → 앱 선택 → 이미지 확대·이동 → 자막 영역 조절 → 번역 → 한국어/원문.
-뒤로 가기·선택 취소·읽기 거부는 오류 안내 후 입력 화면을 유지한다. 회전은 비트맵 전체를 Bundle에 넣지 않고 상태 소유자에 유지한다. 프로세스 종료 후 URI 권한을 잃었으면 재선택을 요청한다.
-
-```text
-[이미지 번역]                      [설정]
-[이미지 선택]
-[핀치 확대 / 이동 / 자막 영역]
-[영역 초기화]           [선택 영역 번역]
-[처리 상태] [취소 / 재시도]
-[한국어]
-[원문 보기]
-```
-
-**iOS — 설계만**
-
-PhotosPicker → 자막 자르기 → 번역 → 결과. 공유 시 Share Extension에서 받은 이미지로 동일한 처리 흐름을 구성하되 확장 내 완료 또는 명시적 앱 복귀를 선택한다. 비공식 방법으로 컨테이너 앱을 강제 실행하지 않는다. 별도 App Group을 쓴다면 필요한 파일만 임시 공유하고 소거·보호 정책을 정한다. 앱 background 진입 시 작업을 취소하고 복귀 후 재시도한다.
-
-### C++ 공통 코어 경계
-
-| 공통 코어 — C++17 표준 라이브러리 | 플랫폼 어댑터 |
+| 항목 | 내용 |
 |---|---|
-| ImageInput: 출처·폭·높이 | 이미지 바이트 소유·디코딩·EXIF 방향·자르기 |
-| OcrResult: UTF-8 원문·언어·선택적 정규화 영역 | Tesseract / ML Kit / Apple Vision |
-| 텍스트 공백 정리·최대 길이 검사 | 파일 선택·공유 URI·권한 |
-| 요청 ID·상태 전이·취소 후 결과 폐기 | 스레드·코루틴·이벤트 루프·앱 수명 주기 |
-| 직전 성공 번역의 메모리 캐시 | HTTPS·TLS·시간 제한·네트워크 취소 |
-| TranslationResult와 Error 형식 | 키 저장소·UI·클립보드·단축키·Windows 캡처 |
+| 개발 도구 | Windows 11, VS 2022 Build Tools (MSVC 14.44, SDK 10.0.26100), CMake 4.4, Qt 6.8.3 msvc2022_64, ONNX Runtime 1.30.0, Tesseract 5.4 |
+| 도구 폴더 | `%TEMP%` 금지(저장 공간 센스가 지움). 이 PC는 `D:\SubtitleTranslatorToolchain` |
+| 빌드 | `scripts/build-windows.ps1`: 소스 사본 빌드 → CTest → `dist/windows` 배포(windeployqt, 모델 SHA-256 확인) |
+| 설치 | `scripts/install-windows.ps1`: `%LOCALAPPDATA%\Programs\SubtitleTranslator`, 바탕화면 바로가기(`--auto`), 관리자 권한 불필요 |
+| 배포본 크기 | 약 229MB (PaddleOCR 모델 8개 74.6MB, ONNX Runtime 16.5MB, Qt DLL 포함) |
+| 코드 서명 | **없음.** Smart App Control이 켜진 PC에서는 실행 파일이 무작위로 막힐 수 있음(개발 PC에서 실제 발생) → P-22 |
+| 라이선스 | Qt LGPL 동적 링크(고지·소스 제공 조건·교체 가능성 검토), PaddleOCR 모델·ONNX Runtime·Tesseract 고지: [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md) |
+| Android | Android Studio, AGP 9.3.2, Gradle 9.5.0, SDK 37, NDK 29, min SDK 28 |
+| iOS | macOS·Xcode·실기기 필요, 이 환경에 없음 |
 
-core에는 Qt, Win32, JNI, Android SDK, Apple 프레임워크, Tesseract를 넣지 않는다. 공개 C ABI(core.h)는 Java JNI와 Objective-C++에서 연결하기 쉽도록 제공한다. 코어는 한 소유 스레드에서 호출한다.
+## 13. 개발 단계와 로드맵
 
-공통 오류는 ErrorCode, Stage, retryable, providerStatus, safeMessage로 표현한다. 이미지 오류, 읽기 권한 거부, OCR 없음/실패/빈 원문, 키 없음, 미동의, 인증 실패, 호출 제한, 한도 초과, 네트워크 실패, 시간 초과, 잘못된 응답, 취소를 구분한다. 메시지에 키·원시 HTTP 응답·이미지 바이트를 넣지 않는다.
-
-### UI 기술 비교와 선택
-
-| 기준 | Qt Quick/QML 공통 UI | 플랫폼별 UI |
+| 단계 | 내용 | 상태 |
 |---|---|---|
-| 터치·레이아웃 | 터치 UI 가능. OS 선택기·공유·권한에는 별도 bridge 필요 | 시스템 선택기·공유·접근성·수명 주기 연동이 자연스러움 |
-| C++ 학습 | C++ 비중 높으나 QML·플랫폼 bridge도 학습 필요 | C++ 코어 외 Java/Kotlin·Swift 학습 필요 |
-| UI 코드 유지보수 | 공통 코드 많음. 플랫폼별 예외를 공통 UI에 반영 | UI를 각각 관리하지만 각 OS의 동작과 맞추기 쉬움 |
-| 배포 | Qt 모바일 toolchain, QML 플러그인·런타임·라이선스 검토 | Android Gradle/SDK, iOS Xcode·서명 등 각 기본 도구 사용 |
-| 이 제품과 적합성 | 화면 구성이 매우 같고 QML 경험이 충분할 때 유리 | 입력·권한·공유·창 모델이 서로 다른 현재 제품에 적합 |
+| M0 설계 | 기능별 지원·데이터 경계·권한·기술 선택·테스트 환경 | 완료 (2026-09-29) |
+| M1 저장 이미지 최소 흐름 | 실제 이미지 → 실제 OCR → (키) 실제 번역, 빈 OCR·오류·취소 | 완료 |
+| M2 Windows 기본 | 영역 캡처·단축키·자동 번역·자막 표시·설정·비동기·오류 복구 | 완료 |
+| M3 OCR 고도화 | PaddleOCR, 14개 언어, 글자 위치 검출, 외국어만 번역 | 완료 (2026-09-30) |
+| M4 편의·신뢰성 | 마우스 번역·올려두기, 게임 창 따라가기, 오인식 필터, 429/456, 취소 지연, 측정 체계 | 완료 (2026-10-25) |
+| **M5 배포 준비** | 코드 서명(P-22), 깨끗한 PC 설치 확인, 라이선스 고지 점검 | 다음 |
+| **M6 실사용 검증** | QA 남은 케이스·1시간 누수(P-12), 실제 게임(P-13), 모니터 2대·혼합 배율(P-14), 결과에 따라 P-23·P-24 결정 | 대기 (환경 필요) |
+| M7 Android 이미지 번역 완성 | 실기기·실제 번역(P-15), 언어 확장 | 대기 |
+| M8 Android 캡처·overlay 기술 검증 | M7 이후에만 착수. 세션 동의·특수 권한 거부·foreground 알림·잠금·보호 화면 | 미착수 |
+| M9 iOS | macOS/Xcode 확보 후 PhotosPicker·Share Extension·Vision·Keychain | 미착수 |
 
-**선택: 얇은 C++ 코어 + Windows Qt Widgets + Android 네이티브 UI + iOS SwiftUI.**
-모바일에 Widgets를 가져가지 않는다. Windows는 이미 준비한 C++ 도구와 데스크톱 조작에 맞는 Widgets를 이용한다. Android는 작은 프로토타입에 네이티브 View를 사용해 이미지 제스처와 Java/JNI 경계를 드러내고, 향후 Compose로 바꿔도 코어는 유지한다. iOS는 PhotosPicker·Vision·Keychain 연동을 우선한다.
+M5·M6의 세부 항목은 [백로그](plan/BACKLOG.md)를 따른다.
 
-Qt 사용 환경 및 배포는 [Qt Windows 지원](https://doc.qt.io/qt-6/windows.html), [Windows 배포](https://doc.qt.io/qt-6/windows-deployment.html), [LGPL 조건](https://www.qt.io/development/open-source-lgpl-obligations)을 확인한다. DLL을 동적으로 사용하더라도 라이선스 고지·해당 소스 제공 조건·교체 가능성 검토가 생략되는 것은 아니다.
+## 14. 위험과 대응
 
-### OCR·번역·키 선택
+| 위험 | 영향 | 대응 | 상태 |
+|---|---|---|---|
+| 서명 없는 배포본이 Smart App Control에 막힘 | 사용자가 앱을 실행하지 못함 | 코드 서명 | P-22 |
+| 실제 게임 글씨가 합성 이미지와 다름 | 정확도 수치가 실사용과 다를 수 있음 | 실제 게임 화면으로 재측정, 오인식 측정 묶음 확장 | P-13 |
+| 장시간 사용 시 CPU·메모리 증가 | 게임 성능 저하 | 1시간 누수·유휴 CPU 측정 (하네스 보완 완료) | P-12 |
+| 모니터·배율 조합 | 영역·자막 위치 어긋남 | 게임 창 기준 좌표 변환, 실기 확인 필요 | P-14 |
+| 출력이 긴 타자기 대사 | 미완성 문장 번역으로 사용량 증가 (4초 출력: 문장당 1회 더) | 실제 빈도 확인 후 대기 한도 재검토 | P-24 |
+| 정상 짧은 대사를 오인식으로 버림 | 대사 누락 | 기준값을 정상 대사 측정으로 정하고 측정 묶음으로 매번 확인 | 관리 중 |
+| DeepL 정책·요금 변경 | 비용·한도 | 사용량 조회, 429/456 처리, 사용자 본인 키 | 관리 중 |
+| 보호 화면·독점 전체화면 | 캡처 실패 | 우회하지 않음, 창 모드 안내 | 범위 밖 |
 
-- Windows: Tesseract CLI + 일본어 모델. 앱과 별도 비동기 프로세스로 실행하며 캡처는 stdin으로 전달한다.
-- Android: [ML Kit 일본어 Text Recognition](https://developers.google.com/ml-kit/vision/text-recognition/v2/android)의 모델 포함 패키지를 우선 사용한다. API 23 이상이 필요한 조합인지 선택한 라이브러리 버전 기준으로 고정한다. 포함 모델은 최초 OCR 모델 다운로드 대기를 줄이지만 앱 크기가 커진다.
-- iOS: [Vision 텍스트 인식](https://developer.apple.com/documentation/vision/recognizing-text-in-images). 실제 기기에서 지원 언어 목록과 ja-JP를 확인한 뒤 사용한다.
-- 번역: [DeepL HTTPS API](https://developers.deepl.com/api-reference/translate/request-translation). 일본어 텍스트만 전송. API Free/Pro endpoint 구분, 인증은 헤더, 오류·시간 제한 처리.
-- 개인용: 사용자가 자신의 키를 입력. Windows Credential Manager, Android Keystore로 보호한 암호문, iOS Keychain을 각각 사용. 앱에 개발자 공용 키를 포함하지 않는다.
-- 배포용: 공유 비밀키가 필요할 때 서버 중계를 재검토한다. 사용자 인증·사용량 제한·요금 책임·로그 최소화가 필요하므로 이번 단계에서 서버를 구현하지 않는다.
-- 로컬 OCR과 번역문도 민감할 수 있어 영구 내역 저장은 기본 제공하지 않는다.
+## 15. 용어
 
-### 필요한 개발·테스트 환경
-
-| 대상 | 필수 환경 | 이 세션에서 확인한 범위 |
-|---|---|---|
-| Windows | Windows x64, VS Code, MSVC 2022 C++ workload, Windows SDK, CMake, Qt6, Tesseract | MSVC14.44·SDK 22621/26100·VS Code 확인. CMake/Qt/Tesseract는 별도 준비 후 검증 기록 |
-| C++ core | C++17 컴파일러, CMake 또는 직접 빌드 | Windows MSVC 및 WSL g++로 독립 검증 |
-| Android | Android Studio, 호환 JDK·Gradle·AGP, SDK, NDK·CMake(JNI), 에뮬레이터 또는 USB 디버깅 기기 | SDK·Studio 설치 확인. 최초 점검 시 연결 기기·AVD 없음. 빌드 결과와 기기 결과를 분리 |
-| iOS | 지원 macOS·Xcode, iOS Simulator, 실제 iPhone, 개발 서명 환경 | 이 Windows 환경에서 macOS/Xcode·iPhone 실행 환경 확인하지 못함. 빌드·실기기 미검증 |
-
-[Xcode 시스템 요구사항](https://developer.apple.com/xcode/system-requirements)을 따라 macOS/Xcode/iOS 조합을 맞춘다. Windows에서 iOS 앱을 로컬로 빌드·서명·실기기 검증할 수 있다고 가정하지 않는다. Android USB 디버깅 허용 등 기기 사용자의 조작은 별도 필요하다.
-
-### 단계별 완료 기준
-
-1. **설계:** 각 기능의 지원/조건부/미지원, 데이터 경계, 권한, 기술 선택, 테스트 환경이 문서로 확인된다.
-2. **저장 이미지 최소 흐름:** 실제 일본어 이미지 → 실제 OCR 결과; 키가 있으면 실제 한국어 응답. 빈 OCR·오류·취소 처리. 모델 크기·시간·메모리·네트워크 여부를 같은 환경에서 기록한다. 키가 없으면 번역 완료 기준은 미충족으로 남긴다.
-3. **Windows:** 실제 빌드·실행, 파일/영역 캡처·단축키·창 이동·설정·비동기·오류 복구 검증. 고DPI·복수 모니터·게임·잠금 화면은 별도 수동 확인 항목으로 남길 수 있다.
-4. **Android 이미지 번역:** APK 빌드, picker와 ACTION_SEND 입력, 확대·자르기, 원문·번역, 회전·취소·재시도·URI 읽기 실패 처리. 에뮬레이터와 실기기 결과를 별개로 기록한다.
-5. **Android 캡처/overlay 기술 검증:** 4의 흐름 검증 이후에만 착수. 시작/중지·세션 동의·특수 권한 거부·foreground notification·화면 잠금·서비스 종료·보호화면 테스트. 상시 캡처 기본값 금지.
-6. **iOS:** macOS/Xcode 확보 후 PhotosPicker·Share Extension·crop·Vision·Keychain 검증. 실기기 측정 전 성능 완료를 주장하지 않는다.
-7. **배포:** 재현 가능한 빌드·서명, 라이선스 고지·dependency 목록, 스토어 개인정보와 데이터 사용 고지 검토. [Apple App Review](https://developer.apple.com/app-store/review/guidelines/) 및 대상 스토어의 제출 시점 정책을 다시 확인한다.
-
-성능은 실제 측정한 기기·입력·빌드 모드·횟수를 명시한다. 모델 파일 크기와 설치 앱 크기, 프로세스 메모리와 전체 기기 메모리, HTTP 본문 크기와 실제 전송 바이트를 혼동하지 않는다. 측정하지 않은 값은 “미측정”이며 추정을 제시하는 경우 반드시 “추정”으로 표시한다.
+| 용어 | 뜻 |
+|---|---|
+| CER | 문자 오류율. 정답 글자 수 대비 고쳐야 하는 글자 수 (낮을수록 좋음) |
+| 웜 | 모델을 이미 불러온 뒤의 처리 시간 |
+| 기준선 | 수정 전 코드를 같은 PC에서 새로 빌드해 잰 값 |
+| 빈 결과 / ST_EMPTY | 글자가 없다고 판단한 결과. 번역 요청과 자막을 만들지 않음 |
+| 게임 창 기준 영역 | 게임 창 클라이언트 영역에 대한 상대 위치로 저장한 영역 |
+| 외국어 조각 | 번역 언어로 이미 쓰인 글자를 뺀 나머지. 이것만 DeepL로 보냄 |
