@@ -26,7 +26,8 @@
 | 단색 빈 화면 오인식(D-01), 결과 창 가림(R01) 수정 | 완료 | [qa-fixes-2026-10-01](docs/qa-fixes-2026-10-01.ko.md) |
 | 특수기호 오인식(B-04), 테두리 있는 빈 대사창 | **미해결** | [QA 보고서](tests/qa-2026-09-30/REPORT.md) |
 | DeepL 429/456 대응(R-04), 취소 지연(R-02) | **미해결** | 〃 |
-| 게임 창 이동 추적, 혼합 DPI·다중 모니터 | 미착수 | 〃 |
+| 게임 창 따라가기·게임별 영역, 영역 단축키 Ctrl+Alt+R, 선택 화면 키보드 조정, 읽은 범위 표시 | 완료 (2026-10-25, CTest 143/143) | [보강 계획·결과](docs/mouse-region-usability-plan.ko.md) |
+| 실제 게임 창 추적, 혼합 DPI·다중 모니터 실기 확인 | 미확인 | 〃 |
 
 ## 지금까지의 흐름
 
@@ -56,7 +57,9 @@
 1. B-04·빈 대사창 오인식 수정: 줄 신뢰도 하한, `|`→`I` 후처리 범위 축소, 숫자↔한글 혼동 규칙
 2. QA 하네스 보완(판정 결과 파일 저장, 단축키 상태 확인) 후 남은 케이스 재실행: C-03·04·07·08, D-01~04, A-04, 1시간 누수, 회귀
 3. R-04 429/456 대응, R-17 진단 로그
-4. 이 PC 빌드 환경 구성: git, VS2022 C++, CMake 3.21+, Qt 6.8 MSVC x64, 도구 폴더(`scripts\prepare-paddle-models.ps1`)
+4. 올려두기 이동 직후 재요청 지연(R-02) 측정, 실제 게임에서 창 추적 확인
+
+이 PC 빌드 환경(2026-10-25 구성): VS 2022 Build Tools, CMake 4.4.4, Qt 6.8.3, ONNX Runtime 1.30.0, Tesseract 5.4, 도구 폴더 `D:\SubtitleTranslatorToolchain`. 빌드: `scripts\build-windows.ps1 -ToolchainRoot D:\SubtitleTranslatorToolchain -CMakeExe 'C:\Program Files\CMake\bin\cmake.exe'`
 
 ## 파생 프로젝트
 
