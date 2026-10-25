@@ -1,0 +1,29 @@
+{
+    "bench":  "D:\\SubtitleTranslatorToolchain\\windows-build\\Release\\ocr_benchmark.exe",
+    "generated":  "2026-10-25T17:17:29",
+    "symbols":  {
+                    "runs":  162,
+                    "ok":  138
+                },
+    "keep":  {
+                 "runs":  102,
+                 "ok":  94
+             },
+    "keep-tesseract":  {
+                           "runs":  102,
+                           "ok":  83,
+                           "lowestConfidenceWhenRight":  36.082916
+                       },
+    "symbolsOnly":  {
+                        "runs":  72,
+                        "lettersAppeared":  2
+                    },
+    "blank-paddle":  {
+                         "runs":  9,
+                         "empty":  9
+                     },
+    "blank-tesseract":  {
+                            "runs":  9,
+                            "empty":  7
+                        }
+}

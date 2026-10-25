@@ -86,6 +86,45 @@ private slots:
             QVERIFY(!service.isBusy());
         }
     }
+    // P-01/P-02: images from tests/probes/false-text-probe.ps1 (docs/plan/2026-10-25-ocr-false-text.ko.md).
+    void falseTextIsNotRead_data() {
+        QTest::addColumn<QString>("file");
+        QTest::addColumn<QString>("language");
+        QTest::addColumn<bool>("paddle");
+        QTest::addColumn<QString>("expected"); // letters and digits only; empty = no text
+        // Empty dialogue boxes: the detector finds no line, so Tesseract must not invent one.
+        QTest::newRow("paddle-frame") << "N-dark-frame-820x140" << "jpn+eng+kor" << true << "";
+        QTest::newRow("paddle-border") << "N-white-border-200x60" << "jpn+eng+kor" << true << "";
+        QTest::newRow("paddle-noise") << "N-dark-noise4-820x140" << "jpn+eng+kor" << true << "";
+        QTest::newRow("paddle-noise-small") << "N-white-noise2-200x60" << "jpn+eng+kor" << true << "";
+        // Symbols: "♥ ☆ ◎ ✕ ○ △" was read as "O"; "♪ Hello ♪" as "s Hello s".
+        QTest::newRow("paddle-symbols") << "s1-misc-36-dark-on-light" << "jpn+eng+kor" << true << "";
+        QTest::newRow("paddle-hello") << "s3-en-note-24-dark-on-light" << "jpn+eng+kor" << true << "Hello";
+        // Real short lines with the lowest measured confidence stay exactly as they are.
+        QTest::newRow("paddle-iie") << "k-iie-16-dark-on-light" << "jpn+eng+kor" << true << QStringLiteral("いいえ");
+        QTest::newRow("paddle-ne") << "k-ne-16-dark-on-light" << "jpn+eng+kor" << true << QStringLiteral("네");
+        // Tesseract only: garbage at confidence 13 goes, a real "응" read at 36 stays.
+        QTest::newRow("tesseract-noise") << "N-dark-noise4-820x140" << "jpn+eng+kor" << false << "";
+        QTest::newRow("tesseract-eung") << "k-eung-16-dark-on-light" << "kor" << false << QStringLiteral("응");
+    }
+    void falseTextIsNotRead() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual Tesseract not configured");
+        QFETCH(QString, file); QFETCH(QString, language); QFETCH(bool, paddle); QFETCH(QString, expected);
+        if (paddle && qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("Actual Paddle models not configured");
+        const QImage image(QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath(QStringLiteral("false-text/%1.png").arg(file)));
+        QVERIFY(!image.isNull());
+        OcrService service;
+        if (paddle) service.setPaddleModelDir(qEnvironmentVariable("SUBTITLE_TEST_PADDLE"));
+        QSignalSpy recognized(&service, &OcrService::recognized);
+        QSignalSpy failed(&service, &OcrService::failed);
+        service.recognize(image, qEnvironmentVariable("SUBTITLE_TEST_TESSERACT"), qEnvironmentVariable("SUBTITLE_TEST_TESSDATA"), 0, language);
+        QTRY_VERIFY_WITH_TIMEOUT(!recognized.isEmpty() || !failed.isEmpty(), 25000);
+        QVERIFY2(failed.isEmpty(), "No text is an empty reading, not an engine failure.");
+        const QString read = recognized.first().first().toString();
+        QString letters;
+        for (const QChar c : read) if (c.isLetterOrNumber()) letters += c;
+        QVERIFY2(letters == expected, qPrintable(QStringLiteral("read [%1], engine %2").arg(read, service.engineUsed())));
+    }
     void shortRealTextIsPreserved_data() {
         QTest::addColumn<QString>("text");
         QTest::addColumn<QString>("language");
@@ -190,6 +229,9 @@ private slots:
         QCOMPARE(OcrService::cleanText(QStringLiteral("言ったでしょう ?")), QStringLiteral("言ったでしょう?"));
         QCOMPARE(OcrService::cleanText(QStringLiteral("오늘은 날씨가 좋습니다.")), QStringLiteral("오늘은 날씨가 좋습니다."));
         QCOMPARE(OcrService::cleanText(QStringLiteral("HP 回復")), QStringLiteral("HP 回復")); // Latin next to Han keeps its space
+        // PaddleOCR reads "|" as a divider correctly; only Tesseract readings get the "I" repair.
+        QCOMPARE(OcrService::cleanText(QStringLiteral("HP | MP | SP"), false), QStringLiteral("HP | MP | SP"));
+        QCOMPARE(OcrService::cleanText(QStringLiteral("HP | MP | SP")), QStringLiteral("HP I MP I SP"));
     }
     void automaticLayoutReadsStripsAsOneLine() {
         QCOMPARE(OcrService::resolvePsm(0, QSize(400,42)), 7);

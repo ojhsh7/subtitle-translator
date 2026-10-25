@@ -676,12 +676,19 @@ private slots:
         QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()),WM_HOTKEY,2,0));
         QTRY_VERIFY(window.autoTranslating());
         QVERIFY(window.auto_->isChecked());
-        QTRY_VERIFY_WITH_TIMEOUT(window.original_->toPlainText().contains(QStringLiteral("天気")) && !window.busy_,25000);
+        auto state = [&] {
+            return QStringLiteral("read [%1] engine %2 confidence %3 busy %4 status [%5]")
+                .arg(window.original_->toPlainText(), window.ocr_.engineUsed()).arg(window.ocr_.tesseractConfidence())
+                .arg(window.busy_).arg(window.status_->text());
+        };
+        QTRY_VERIFY2_WITH_TIMEOUT(window.original_->toPlainText().contains(QStringLiteral("天気")) && !window.busy_,
+                                  qPrintable(state()), 25000);
         const auto firstRequest=window.request_;
         QTest::qWait(1600); // The unchanged line must not be read again.
         QCOMPARE(window.request_,firstRequest);
         fixture.setText(QStringLiteral("明日は雨が降ります。"));
-        QTRY_VERIFY_WITH_TIMEOUT(window.request_!=firstRequest && !window.busy_ && !window.original_->toPlainText().isEmpty(),25000);
+        QTRY_VERIFY2_WITH_TIMEOUT(window.request_!=firstRequest && !window.busy_ && !window.original_->toPlainText().isEmpty(),
+                                  qPrintable(state()), 25000);
         QVERIFY(!window.original_->toPlainText().contains(QStringLiteral("天気")));
         QVERIFY(window.result_->toPlainText().isEmpty()); // Missing key is not a translation.
         QVERIFY(window.subtitleOverlay_->isVisible());

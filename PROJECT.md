@@ -1,17 +1,74 @@
-# subtitle-translator — 프로젝트 현황 (진행 중)
+# subtitle-translator — 프로젝트 현황
 
-최종 갱신: 2026-10-25 · 브랜치 `ocr-accuracy-foreign-only` · 상태: **개발 진행 중 (QA 5단계 완료, 결함 수정 대기)**
+갱신 2026-10-25 · 브랜치 `ocr-accuracy-foreign-only` · 상태: **개발 진행 중** · 지금 하는 일: **없음 (다음 후보 P-03, P-19)**
 
-## 무엇을 만드는가
+게임 화면의 자막 영역을 캡처해 로컬 OCR로 읽고, 사용자 본인의 DeepL 키로 번역해 원문 바로 아래에 띄우는 개인용 도구. C++17 공통 코어를 Windows(Qt)와 Android(Java + JNI)가 함께 쓴다. 사용법은 [README.md](README.md), 문서 위치는 [docs/README.md](docs/README.md).
 
-게임 화면의 자막 영역을 캡처해 로컬 OCR로 읽고, 사용자 본인의 DeepL 키로 번역해 원문 바로 아래에 띄우는 개인용 도구. C++17 공통 코어를 Windows(Qt)와 Android(Java + JNI)가 함께 쓴다. 사용법은 [README.md](README.md).
+## 재개 순서
+
+1. 이 파일의 **지금 하는 일**을 읽는다.
+2. [백로그](docs/plan/BACKLOG.md)의 `진행 중` 항목과 그 계획서를 연다. 계획서 5절 "일정"에서 끝난 단계 다음부터 이어 간다.
+3. 아래 **빌드·테스트**로 지금 코드가 통과하는지 먼저 확인한다(기대: 154 통과, 건너뜀 0).
+4. 일을 끝내면 계획서 6절 결과 → 백로그 상태 → 이 파일의 "지금 하는 일"과 "흐름" 순서로 갱신하고 커밋한다.
+5. 기존 결정을 바꿀 때는 [결정 기록](docs/plan/DECISIONS.md)에 "변경" 줄을 추가한다.
+
+## 지금 하는 일
+
+진행 중인 항목 없음. 방금 끝난 일: P-01·P-02 OCR 오인식 ([결과](docs/plan/2026-10-25-ocr-false-text.ko.md): 기호만 있는 이미지에서 글자 생김 33 → 2, 빈 대사창 5/9 → 9/9, 정상 짧은 대사·한 줄 CER 변화 없음).
+
+다음 후보 ([백로그](docs/plan/BACKLOG.md)):
+- P-03 올려두기 이동 직후 재요청 지연 측정
+- P-19 `Lv.10` → `Lv.1이` (숫자 0을 한글로 읽음)
+- P-04 번역 서버 로컬 HTTP 테스트
+
+새 항목을 시작할 때는 [양식](docs/plan/TEMPLATE.md)으로 계획서를 만들고 백로그에서 `진행 중`으로 옮긴다.
+
+## 빌드·테스트
+
+이 PC 환경(2026-10-25 구성): VS 2022 Build Tools(MSVC 14.44), CMake 4.4.4, Qt 6.8.3 msvc2022_64, ONNX Runtime 1.30.0, PaddleOCR 모델 8개, Tesseract 5.4 + tessdata_fast. 도구 폴더 `D:\SubtitleTranslatorToolchain`.
+
+```powershell
+# 전체 빌드 + CTest 7그룹 + 배포(dist\windows)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 `
+  -ToolchainRoot D:\SubtitleTranslatorToolchain -CMakeExe 'C:\Program Files\CMake\bin\cmake.exe'
+
+# UI 테스트 하나만 다시 돌리기 (소스를 고쳤으면 windows-source에 복사 후 대상만 빌드)
+$root='D:\SubtitleTranslatorToolchain'; $qt="$root\Qt\6.8.3\msvc2022_64"
+Copy-Item tests\window_checks.cpp "$root\windows-source\tests\" -Force
+& 'C:\Program Files\CMake\bin\cmake.exe' --build "$root\windows-build" --config Release --target window_checks
+$env:PATH="$qt\bin;$env:PATH"; $env:QT_PLUGIN_PATH="$qt\plugins"; $env:SUBTITLE_TEST_PADDLE="$root\paddle"
+$env:SUBTITLE_TEST_TESSERACT="$root\ocr\tesseract.exe"; $env:SUBTITLE_TEST_TESSDATA="$root\ocr\tessdata"
+& "$root\windows-build\Release\window_checks.exe" 테스트이름 -o "$root\windows-build\single.txt,txt"
+```
+
+마지막 결과(2026-10-25, OCR 오인식 수정 후): CTest 7/7 그룹, **154 통과 · 실패 0 · 건너뜀 0**. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.
+
+**건너뜀이 0이 아니면 통과로 보지 않는다.** Tesseract가 없으면 UI 테스트 9개가 "엔진 없음"으로 조용히 건너뛰어진다.
+
+OCR 정확도 측정 (네트워크 없음):
+
+```powershell
+# 기호·정상 짧은 대사·빈 대사창 측정 → summary.json, 행별 CSV
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-probe.ps1 `
+  -Bench D:\SubtitleTranslatorToolchain\windows-build\Release\ocr_benchmark.exe -Out D:\SubtitleTranslatorToolchain\bench\probe-new
+# 672장·168장 픽스처: D:\SubtitleTranslatorToolchain\bench\{ocr,scene}-benchmark (생성 방법은 오인식 계획서 6절)
+```
+
+**Smart App Control**(이 PC에서 켜짐)이 새로 빌드한 서명 없는 실행 파일을 가끔 막는다("An Application Control policy has blocked this file"). 어떤 파일이 막히는지는 빌드마다 다르다. **끄지 않는다**(끄면 Windows 재설치 전까지 다시 켤 수 없음). 측정 도구가 막히면 의미 있는 변경을 넣어 다시 빌드하거나 다른 도구를 쓴다. 지금까지 `subtitle_cli.exe`는 항상 막혔고 `ocr_benchmark.exe`는 다시 빌드하면 통과했다.
+
+## 안전 규칙
+
+- `subtitle_cli --translate`는 환경 변수 `SUBTITLE_TRANSLATOR_API_KEY`가 없으면 **자격 증명 저장소의 실제 키**로 DeepL을 호출한다. 확인 없이 실행하지 않는다.
+- 앱 설정 창에서 "키 저장"을 끈 채 저장하면 저장된 키가 **삭제**된다.
+- UI 테스트(`windows_flow`)는 실제 창을 띄우고 전역 단축키를 등록하며 마우스 커서를 움직인다. 실행 중에는 PC를 쓰지 않고, 설치된 SubtitleTranslator는 먼저 종료한다.
+- 사용자 설정은 `HKCU\Software\PersonalTools\SubtitleTranslator`. 앱을 띄우는 QA 전에는 `reg export`로 백업한다(테스트는 별도 조직 이름을 써서 영향 없음).
 
 ## 플랫폼별 상태
 
 | 플랫폼 | 상태 | 검증 수준 |
 |---|---|---|
-| Windows | 기능 구현 완료, 결함 수정 중 | 빌드·CTest 7/7, 합성 이미지 CER, 실제 DeepL(CLI) 10회 |
-| Android | 프로토타입 (일본어 → 한국어, 이미지 선택·자르기) | 에뮬레이터 계측 테스트 3개. 실기기·실번역 미검증 |
+| Windows | 기능 구현 완료, 오인식 개선 중 | CTest 143/143, 합성 이미지 CER, 실제 DeepL(CLI) 10회 |
+| Android | 프로토타입 (일본어 → 한국어, 이미지 선택·자르기) | 에뮬레이터 계측 테스트 3개. 실기기·실번역 미검증 (P-15) |
 | iOS | 설계만 | — |
 
 ## 기능 진행표 (Windows)
@@ -23,11 +80,10 @@
 | PaddleOCR PP-OCRv5 + Tesseract 대체, 14개 언어 | 완료 | [multilang-recheck](docs/multilang-recheck.ko.md) |
 | 외국어 부분만 번역 (공통 코어 `splitForTranslation`) | 완료 | [validation](docs/validation.md) |
 | 마우스 주변 번역 / 마우스 올려두기 번역 | 완료 | [mouse-translation](docs/mouse-translation.ko.md), [mouse-hover](docs/mouse-hover.ko.md) |
-| 단색 빈 화면 오인식(D-01), 결과 창 가림(R01) 수정 | 완료 | [qa-fixes-2026-10-01](docs/qa-fixes-2026-10-01.ko.md) |
-| 특수기호 오인식(B-04), 테두리 있는 빈 대사창 | **미해결** | [QA 보고서](tests/qa-2026-09-30/REPORT.md) |
-| DeepL 429/456 대응(R-04), 취소 지연(R-02) | **미해결** | 〃 |
-| 게임 창 따라가기·게임별 영역, 영역 단축키 Ctrl+Alt+R, 선택 화면 키보드 조정, 읽은 범위 표시 | 완료 (2026-10-25, CTest 143/143) | [보강 계획·결과](docs/mouse-region-usability-plan.ko.md) |
-| 실제 게임 창 추적, 혼합 DPI·다중 모니터 실기 확인 | 미확인 | 〃 |
+| 단색 빈 화면 오인식, 결과 창 가림 | 완료 (2026-10-01) | [qa-fixes-2026-10-01](docs/qa-fixes-2026-10-01.ko.md) |
+| 게임 창 따라가기·게임별 영역, 영역 단축키 Ctrl+Alt+R, 선택 화면 키보드 조정, 읽은 범위 표시 | 완료 (2026-10-25) | [계획·결과](docs/plan/2026-10-25-mouse-region-usability.ko.md) |
+| 특수기호·빈 대사창 오인식 줄이기 | 완료 (2026-10-25, CTest 154/154) | [계획·결과](docs/plan/2026-10-25-ocr-false-text.ko.md) |
+| 숫자↔한글 혼동, 429/456 대응, 취소 지연, 실제 게임·다중 모니터 확인 | 남음 | [백로그](docs/plan/BACKLOG.md) |
 
 ## 지금까지의 흐름
 
@@ -36,8 +92,8 @@
 | ~2026-09-29 | Windows·Android 프로토타입, 다국어 OCR, 설치 스크립트 |
 | 2026-09-30 | 대사창 전체 선택 인식 실패 → 글자 위치 검출 모델 추가 (장면 CER 38.1% → 7.3%) |
 | 2026-09-30 | Cowork QA 1–3단계: 문서 불일치 12건, 위험 19건, 테스트 계획 |
-| 2026-10-01 | D-01·R01 수정, 특수기호 측정(B-04), 전체 실행(약 14분 후 중단) |
-| 2026-10-25 | 새 PC로 clone, QA 5단계 보고서 작성 |
+| 2026-10-01 | 단색 빈 화면·결과 창 가림 수정, 특수기호 측정(B-04), QA 전체 실행(약 14분 후 중단) |
+| 2026-10-25 | 새 PC 빌드 환경 구성, QA 보고서, 게임 창 따라가기 등 편의 기능(CTest 137 → 143), 계획 문서 구조 정리(`docs/plan/`), 특수기호·빈 대사창 오인식 수정(CTest 154) |
 
 ## 측정 수치 (근거가 있는 것만)
 
@@ -50,17 +106,8 @@
 | DeepL 번역 구간 | 중앙값 1.20초 | CLI, 영어 26자 |
 | 대사 변경 → 자막 갱신 | 중앙값 1.19초, 놓침 0/20 | 가짜 게임 창 |
 
-장시간 CPU·메모리·누수는 아직 측정값이 없다(REPORT.md 3절 C).
-
-## 다음 할 일
-
-1. B-04·빈 대사창 오인식 수정: 줄 신뢰도 하한, `|`→`I` 후처리 범위 축소, 숫자↔한글 혼동 규칙
-2. QA 하네스 보완(판정 결과 파일 저장, 단축키 상태 확인) 후 남은 케이스 재실행: C-03·04·07·08, D-01~04, A-04, 1시간 누수, 회귀
-3. R-04 429/456 대응, R-17 진단 로그
-4. 올려두기 이동 직후 재요청 지연(R-02) 측정, 실제 게임에서 창 추적 확인
-
-이 PC 빌드 환경(2026-10-25 구성): VS 2022 Build Tools, CMake 4.4.4, Qt 6.8.3, ONNX Runtime 1.30.0, Tesseract 5.4, 도구 폴더 `D:\SubtitleTranslatorToolchain`. 빌드: `scripts\build-windows.ps1 -ToolchainRoot D:\SubtitleTranslatorToolchain -CMakeExe 'C:\Program Files\CMake\bin\cmake.exe'`
+장시간 CPU·메모리·누수는 아직 측정값이 없다(P-12).
 
 ## 파생 프로젝트
 
-이 저장소의 OCR 벤치마크(합성 픽스처 생성 → 네이티브 실행 → CER 채점)와 Android ML Kit 파이프라인 경험은 모바일 프로그래밍 팀 프로젝트 **종이한장(OnePaper)**의 정확도 측정 도구로 옮겨 쓸 예정이다. 계획은 팀 프로젝트 쪽 개발 계획 제안서에 따로 정리한다.
+이 저장소의 OCR 벤치마크(합성 픽스처 생성 → 네이티브 실행 → CER 채점) 경험은 모바일 프로그래밍 팀 프로젝트 **종이한장(OnePaper)**의 번역 기능 측정에 옮겨 썼다(저장소 `Documents\GitHub\onepaper`).

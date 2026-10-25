@@ -1,0 +1,29 @@
+{
+    "bench":  "D:\\SubtitleTranslatorToolchain\\baseline-af75585\\ocr_benchmark.exe",
+    "generated":  "2026-10-25T17:14:52",
+    "symbols":  {
+                    "runs":  162,
+                    "ok":  99
+                },
+    "keep":  {
+                 "runs":  102,
+                 "ok":  94
+             },
+    "keep-tesseract":  {
+                           "runs":  102,
+                           "ok":  83,
+                           "lowestConfidenceWhenRight":  0
+                       },
+    "symbolsOnly":  {
+                        "runs":  72,
+                        "lettersAppeared":  33
+                    },
+    "blank-paddle":  {
+                         "runs":  9,
+                         "empty":  5
+                     },
+    "blank-tesseract":  {
+                            "runs":  9,
+                            "empty":  5
+                        }
+}

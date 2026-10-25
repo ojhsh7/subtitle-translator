@@ -18,6 +18,39 @@ QString models() { return qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); }
 class PaddleChecks : public QObject {
     Q_OBJECT
 private slots:
+    // Thresholds from docs/plan/2026-10-25-ocr-false-text.ko.md; probabilities below are measured values.
+    void filterLineDropsMisreadSymbolsOnly() {
+        using Piece = PaddleRecognizer::Piece;
+        auto pieces = [](std::initializer_list<std::pair<const char*, float>> list) {
+            QList<Piece> out;
+            for (const auto& [text, p] : list) out << Piece{QString::fromUtf8(text), p};
+            return out;
+        };
+        auto text = [](const PaddleOcr::Filtered& f) {
+            QString s; for (const auto& p : f.kept) s += p.text; return s;
+        };
+        // "○" read as "O" (0.78) and "「」" as "J]" (0.31): dropped.
+        QVERIFY(PaddleOcr::filterLine(pieces({{"O", 0.78f}})).drop);
+        QVERIFY(PaddleOcr::filterLine(pieces({{"J", 0.31f}, {"]", 0.9f}})).drop);
+        // Real short lines with one sure letter stay, however unsure the rest (いいえ: 0.59, 0.73, 0.99).
+        QVERIFY(!PaddleOcr::filterLine(pieces({{"い", 0.59f}, {"い", 0.73f}, {"え", 0.99f}})).drop);
+        QVERIFY(!PaddleOcr::filterLine(pieces({{"응", 0.917f}})).drop);
+        QVERIFY(!PaddleOcr::filterLine(pieces({{"え", 1.0f}, {"?", 0.2f}})).drop);
+        // Symbols only: nothing to translate, left as read.
+        const auto arrows = PaddleOcr::filterLine(pieces({{"↓", 0.5f}, {"↑", 0.4f}}));
+        QVERIFY(!arrows.drop && !arrows.changed);
+        // "♪ Hello ♪" read as "s Hello s" (0.25, 0.43): the unsure lone letters at the ends go.
+        const auto hello = PaddleOcr::filterLine(pieces({{"s", 0.25f}, {" ", 0.9f}, {"H", 1.0f}, {"e", 1.0f}, {"l", 0.65f},
+                                                         {"l", 1.0f}, {"o", 1.0f}, {" ", 0.9f}, {"s", 0.43f}}));
+        QVERIFY(hello.changed); QCOMPARE(text(hello), QStringLiteral("Hello"));
+        // A sure lone letter stays ("Я же" 0.77), and so does an unsure one in the middle ("salvar o progresso").
+        QVERIFY(!PaddleOcr::filterLine(pieces({{"Я", 0.77f}, {" ", 1.0f}, {"ж", 1.0f}, {"е", 1.0f}})).changed);
+        QVERIFY(!PaddleOcr::filterLine(pieces({{"a", 1.0f}, {" ", 1.0f}, {"o", 0.4f}, {" ", 1.0f}, {"b", 1.0f}, {"c", 1.0f}})).changed);
+        // Devanagari words read with low probability even when right ("है" 0.32 at the end): not touched.
+        QVERIFY(!PaddleOcr::filterLine(pieces({{"क", 1.0f}, {"ब", 1.0f}, {" ", 1.0f}, {"है", 0.32f}})).changed);
+        // Arabic pieces are in visual order: only the short-line rule applies.
+        QVERIFY(!PaddleOcr::filterLine(pieces({{"ب", 0.3f}, {" ", 1.0f}, {"ل", 1.0f}, {"ا", 1.0f}, {"م", 1.0f}}), true).changed);
+    }
     void decodeDropsRepeatsAndBlanks() {
         const QStringList dictionary{QStringLiteral("blank"), QStringLiteral("a"), QStringLiteral("b"), QStringLiteral(" ")};
         // steps: a a blank a b b space  ->  "aab " (a blank separates the two a's)

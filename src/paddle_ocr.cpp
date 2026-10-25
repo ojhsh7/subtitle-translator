@@ -109,6 +109,7 @@ PaddleRecognizer::Line PaddleRecognizer::decode(const float* probabilities, int 
         const int best = int(std::max_element(row, row + classes) - row);
         if (best != 0 && best != previous && best < dictionary.size()) {
             line.text += dictionary[best];
+            line.pieces << PaddleRecognizer::Piece{dictionary[best], row[best]};
             sum += row[best]; ++kept;
         }
         previous = best;
@@ -399,6 +400,47 @@ const Reading& choose(const std::vector<Reading>& readings, double* score = null
     return readings[best];
 }
 }
+PaddleOcr::Filtered PaddleOcr::filterLine(const QList<PaddleRecognizer::Piece>& pieces, bool visualOrder) {
+    using Piece = PaddleRecognizer::Piece;
+    Filtered result;
+    auto isLetter = [](const Piece& p) {
+        return std::any_of(p.text.begin(), p.text.end(), [](QChar c) { return c.isLetterOrNumber(); });
+    };
+    // Short line: keep it only when at least one of its letters was read with confidence.
+    int letters = 0;
+    float surest = 0;
+    for (const Piece& p : pieces)
+        if (isLetter(p)) { ++letters; surest = std::max(surest, p.probability); }
+    if (letters > 0 && letters <= ShortLineLetters && surest < ShortLineSurest) { result.drop = true; return result; }
+    if (visualOrder) return result;
+    // Longer line: an unsure lone letter at either end is usually a symbol ("s Hello s").
+    // Scripts whose real short words read with low probability (Devanagari, Arabic) are left alone.
+    auto loneLetter = [](const QList<Piece>& token) {
+        if (token.size() != 1 || token.front().text.size() != 1) return false;
+        const QChar c = token.front().text.front();
+        if (c.isDigit()) return true;
+        const QChar::Script script = c.script();
+        return c.isLetter() && (script == QChar::Script_Latin || script == QChar::Script_Hangul ||
+                                script == QChar::Script_Hiragana || script == QChar::Script_Katakana);
+    };
+    QList<QList<Piece>> tokens(1);
+    for (const Piece& p : pieces) {
+        if (p.text.trimmed().isEmpty()) { if (!tokens.back().isEmpty()) tokens.append(QList<Piece>()); }
+        else tokens.back() << p;
+    }
+    if (tokens.back().isEmpty()) tokens.removeLast();
+    auto unsure = [&](const QList<Piece>& token) {
+        return loneLetter(token) && token.front().probability < EdgeLetterBelow;
+    };
+    if (tokens.size() >= 2 && unsure(tokens.front())) { tokens.removeFirst(); result.changed = true; }
+    if (tokens.size() >= 2 && unsure(tokens.back())) { tokens.removeLast(); result.changed = true; }
+    if (!result.changed) return result;
+    for (qsizetype i = 0; i < tokens.size(); ++i) {
+        if (i) result.kept << Piece{QStringLiteral(" "), 1.0f};
+        result.kept << tokens[i];
+    }
+    return result;
+}
 PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages, QString& error) {
     std::lock_guard<std::mutex> lock(mutex_);
     error.clear();
@@ -434,6 +476,7 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
     // Crops as RapidOCR makes them: extra padding was measured as no better (horizontal) or worse (vertical).
     if (detector_)
         for (const QRect& box : detector_->lines(region)) lines << region.copy(box);
+    if (detector_) result.detectorBoxes = int(lines.size());
     result.detected = !lines.isEmpty();
     if (!result.detected) {
         lines = textLines(region);
@@ -470,10 +513,22 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
                 if (!run(QLatin1String(LatinModel)) || !run(QLatin1String(CyrillicModel))) return {};
             }
         }
-        const QString text = choose(readings).line.text.trimmed();
+        const Reading& chosen = choose(readings);
+        QString text = chosen.line.text.trimmed();
         if (text.isEmpty()) continue;
+        const Filtered filtered = filterLine(chosen.line.pieces, chosen.file == QLatin1String(ArabicModel));
+        if (filtered.drop) { result.dropped << text; continue; }
+        if (filtered.changed) {
+            result.dropped << text;
+            text.clear();
+            for (const auto& piece : filtered.kept) text += piece.text;
+            text = text.trimmed();
+        }
+        double lowest = chosen.line.pieces.isEmpty() ? 0.0 : 1.0;
+        for (const auto& piece : chosen.line.pieces) lowest = std::min(lowest, double(piece.probability));
+        result.lines << LineInfo{text, chosen.line.confidence, lowest, chosen.file, chosen.line.pieces};
         texts << text;
-        weighted += choose(readings).line.confidence * text.size(); letters += text.size();
+        weighted += chosen.line.confidence * text.size(); letters += text.size();
     }
     result.text = texts.join(QLatin1Char('\n'));
     result.confidence = letters ? weighted / letters : 0;

@@ -5,7 +5,7 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <memory>
-class PaddleOcr;
+#include "paddle_ocr.h"
 class OcrService final : public QObject {
     Q_OBJECT
 public:
@@ -36,15 +36,26 @@ public:
     static Reading parseOutput(const QString& output);
     static constexpr double ConfidentEnough = 90; // stop trying other images
     static constexpr double MaskMargin = 5;       // a mask must beat the original clearly
-    // Tesseract often reads a standalone English "I" as "|".
-    static QString cleanText(const QString& text);
+    // Tesseract often reads a standalone English "I" as "|". PaddleOCR does not, and game UIs use "|"
+    // as a divider ("HP | MP"), so that repair applies to Tesseract readings only.
+    static QString cleanText(const QString& text, bool fromTesseract = true);
     // Conservative blank check: every pixel must match, with no resizing or contrast threshold.
     static bool isUniformImage(const QImage& image);
+    // Tesseract reading that is treated as no text. On empty, bordered or noisy areas it invented
+    // strings at confidence 13.1, 27.9, 33.0 and 50.4, but it also read a real "응" correctly at 36.1,
+    // so only readings clearly below every correct one are dropped (measurements in
+    // docs/plan/2026-10-25-ocr-false-text.ko.md). Real short lines are kept (DECISIONS 2026-10-01).
+    static constexpr double UnsureBelow = 30;
+    static bool isUnsureReading(const Reading& reading) { return reading.confidence < UnsureBelow; }
     void cancel();
     bool isBusy() const { return busy_; }
     qint64 elapsedMs() const { return elapsedMs_; }
     quint64 peakWorkingSetBytes() const { return peakMemory_; }
     int attemptsUsed() const { return attemptsUsed_; }
+    // Diagnostics of the last read: PaddleOCR's lines (empty when it did not run) and the
+    // confidence (0..100) of the Tesseract reading that was used (-1 when Tesseract did not read).
+    const PaddleOcr::Result& paddleDetails() const { return paddleDetails_; }
+    double tesseractConfidence() const { return tesseractConfidence_; }
 signals:
     void recognized(QString text);
     void probeFinished(bool ok, QString message);
@@ -72,6 +83,8 @@ private:
     int attempt_ = 0, attemptsUsed_ = 0;
     Reading best_;
     bool bestFromMask_ = false;
+    PaddleOcr::Result paddleDetails_;
+    double tesseractConfidence_ = -1;
     quint64 generation_ = 0, peakMemory_ = 0;
     qint64 elapsedMs_ = 0;
     void* processHandle_ = nullptr;

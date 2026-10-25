@@ -13,7 +13,9 @@
 // name tag, ruled lines, frames and scenery); the recognition model reads each line.
 class PaddleRecognizer {
 public:
-    struct Line { QString text; double confidence = 0; }; // confidence 0..1
+    // confidence 0..1: the mean probability of the emitted dictionary entries, kept in order in `pieces`.
+    struct Piece { QString text; float probability = 0; };
+    struct Line { QString text; double confidence = 0; QList<Piece> pieces; };
     PaddleRecognizer();
     ~PaddleRecognizer();
     bool load(const QString& modelPath, QString& error);
@@ -67,8 +69,28 @@ public:
     static constexpr const char* ArabicModel = "arabic_PP-OCRv5_rec_mobile.onnx";
     static constexpr const char* HindiModel = "devanagari_PP-OCRv5_rec_mobile.onnx";
     static constexpr const char* DetectionModel = "ch_PP-OCRv5_det_mobile.onnx"; // all scripts
+    // One recognized line as chosen among the models, kept for diagnostics and filtering.
+    struct LineInfo { QString text; double confidence = 0; double lowestCharacter = 0; QString model;
+                      QList<PaddleRecognizer::Piece> pieces; };
     // detected: the lines came from the detection model (not the fallback line finder).
-    struct Result { QString text; double confidence = 0; int modelRuns = 0; bool detected = false; };
+    // detectorBoxes: text lines the detection model found; -1 when the model is not installed.
+    // dropped: lines removed or shortened by filterLine, as read before filtering.
+    struct Result {
+        QString text; double confidence = 0; int modelRuns = 0; bool detected = false;
+        int detectorBoxes = -1; QList<LineInfo> lines; QStringList dropped;
+    };
+    // False-text filters. Game symbols missing from the model dictionaries come out as look-alike
+    // letters ("○" -> "O", "♪ Hello ♪" -> "s Hello s"). Thresholds from measurements in
+    // docs/plan/2026-10-25-ocr-false-text.ko.md: on such lines the surest letter scored 0.14-0.78,
+    // on real short lines (はい, いいえ, OK, 네, 응, 아!) at least 0.917.
+    static constexpr int ShortLineLetters = 3;     // a line with at most this many letters or digits
+    static constexpr double ShortLineSurest = 0.85; // needs one letter at least this sure
+    // A lone Latin/Hangul/kana letter or digit at either end of a longer line, separated by a space,
+    // is dropped below this (misread symbols: 0.16-0.45; real lone letters such as "Я": 0.6 or more).
+    static constexpr double EdgeLetterBelow = 0.5;
+    struct Filtered { bool drop = false; bool changed = false; QList<PaddleRecognizer::Piece> kept; };
+    // visualOrder: the pieces are not in reading order (Arabic), so edge letters are left alone.
+    static Filtered filterLine(const QList<PaddleRecognizer::Piece>& pieces, bool visualOrder = false);
     // Multi-language auto-detect runs the remaining five models when the first reading scores below this.
     static constexpr double StageTwoBelow = 0.85;
     explicit PaddleOcr(QString modelDir) : dir_(std::move(modelDir)) {}

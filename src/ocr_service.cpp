@@ -118,14 +118,14 @@ OcrService::Reading OcrService::parseOutput(const QString& output) {
     reading.confidence = letters ? weighted / letters : 0;
     return reading;
 }
-QString OcrService::cleanText(const QString& text) {
+QString OcrService::cleanText(const QString& text, bool fromTesseract) {
     static const QRegularExpression standalonePipe(QStringLiteral("(^|\\s)\\|(?=$|\\s|[A-Za-z'’?!.,])"));
     // Japanese and Chinese have no spaces between words; Tesseract sometimes inserts them.
     // Hangul is not in this class, so Korean word spacing is kept.
     static const QString cjk = QStringLiteral("\\p{Han}\\p{Hiragana}\\p{Katakana}\\x{3001}-\\x{303F}\\x{FF01}-\\x{FF60}");
     static const QRegularExpression cjkGap(QStringLiteral("(?<=[%1])[ \\t]+(?=[%1?!.,:;])").arg(cjk));
     QString cleaned = text;
-    cleaned.replace(standalonePipe, QStringLiteral("\\1I"));
+    if (fromTesseract) cleaned.replace(standalonePipe, QStringLiteral("\\1I"));
     return cleaned.replace(cjkGap, QString());
 }
 bool OcrService::isUniformImage(const QImage& image) {
@@ -157,6 +157,7 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
     if (!data.isEmpty()) arguments_ << "--tessdata-dir" << data;
     busy_ = true; elapsed_.start(); peakMemory_ = 0; elapsedMs_ = 0;
     attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false; engineUsed_.clear();
+    paddleDetails_ = {}; tesseractConfidence_ = -1;
     deadline_.start(20000);
     const auto ticket = ++generation_;
     // Inspect full-resolution pixels off the UI thread before either OCR engine runs.
@@ -186,11 +187,20 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
         const Outcome outcome = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
         attemptsUsed_ = outcome.result.modelRuns;
+        paddleDetails_ = outcome.result;
         if (!outcome.result.text.isEmpty()) {
             engineUsed_ = QStringLiteral("PaddleOCR");
             const QString text = outcome.result.text;
             cancel();
-            emit recognized(cleanText(text));
+            emit recognized(cleanText(text, false));
+            return;
+        }
+        // The detector looked and found no text line, or every line was a misread symbol: the area
+        // holds no text. Tesseract would invent some there (measured: "リー", "Po", "이"), so stop.
+        if (outcome.error.isEmpty() && (outcome.result.detectorBoxes == 0 || !outcome.result.dropped.isEmpty())) {
+            engineUsed_ = QStringLiteral("PaddleOCR");
+            cancel();
+            emit recognized(QString()); // The common core classifies this as ST_EMPTY; never translate.
             return;
         }
         // Nothing read (or the models failed to load): let Tesseract try the same image.
@@ -260,7 +270,9 @@ void OcrService::attemptFinished(const QString& output) {
     const Reading best = best_;
     cancel();
     engineUsed_ = QStringLiteral("Tesseract");
+    tesseractConfidence_ = best.text.isEmpty() ? -1 : best.confidence;
     if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
+    else if (isUnsureReading(best)) emit recognized(QString()); // invented on an empty or decorated area
     else emit recognized(cleanText(best.text));
 }
 void OcrService::releaseProcess() {

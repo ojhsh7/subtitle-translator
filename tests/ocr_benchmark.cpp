@@ -65,6 +65,17 @@ int main(int argc, char** argv) {
         row["modelRuns"] = ocr.attemptsUsed();
         row["ocrChildPeakWorkingSetBytes"] = qint64(ocr.peakWorkingSetBytes());
         row["error"] = error;
+        // Diagnostics for false-text work: what each PaddleOCR line scored, and Tesseract's confidence.
+        QJsonArray lines;
+        for (const auto& line : ocr.paddleDetails().lines) {
+            QJsonArray pieces;
+            for (const auto& piece : line.pieces) pieces.append(QJsonArray{piece.text, double(piece.probability)});
+            lines.append(QJsonObject{{"text", line.text}, {"confidence", line.confidence},
+                                     {"lowestCharacter", line.lowestCharacter}, {"model", line.model}, {"pieces", pieces}});
+        }
+        row["paddleLines"] = lines;
+        row["detectorBoxes"] = ocr.paddleDetails().detectorBoxes;
+        row["tesseractConfidence"] = ocr.tesseractConfidence();
         // "Nothing read" is a measured outcome (an empty reading counts as all characters wrong), not a crash.
         if (!error.isEmpty()) ++failures;
         previousModels = selected;
@@ -73,7 +84,8 @@ int main(int argc, char** argv) {
     }
     PROCESS_MEMORY_COUNTERS memory{};
     GetProcessMemoryInfo(GetCurrentProcess(), &memory, sizeof(memory));
-    const QJsonObject report{{"schema", "subtitle.ocr-benchmark.v1"}, {"mode", mode},
+    // v2: rows also carry paddleLines (text, confidence, per-piece probabilities), detectorBoxes, tesseractConfidence.
+    const QJsonObject report{{"schema", "subtitle.ocr-benchmark.v2"}, {"mode", mode},
         {"platform", "Windows x64 CPU, native C++ implementation"}, {"totalMs", total.elapsed()},
         {"peakWorkingSetBytes", qint64(memory.PeakWorkingSetSize)}, {"networkUsed", false}, {"failedReads", failures},
         {"mobileMeasured", false}, {"data", "Synthetic text images; not a real-game accuracy estimate"}, {"rows", rows}};

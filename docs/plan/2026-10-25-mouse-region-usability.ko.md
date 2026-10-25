@@ -1,6 +1,6 @@
 # 마우스 번역 · 구역 지정 번역 · 편의 기능 보강 계획
 
-작성 2026-10-25 · 브랜치 `ocr-accuracy-foreign-only` · 근거: 코드(`src/main_window.cpp`, `src/region_selector.cpp`, `src/game_window.cpp`), [마우스 번역](mouse-translation.ko.md), [마우스 올려두기](mouse-hover.ko.md), [QA 보고서](../tests/qa-2026-09-30/REPORT.md)
+작성 2026-10-25 · 백로그 완료 항목 · 브랜치 `ocr-accuracy-foreign-only` · 근거: 코드(`src/main_window.cpp`, `src/region_selector.cpp`, `src/game_window.cpp`), [마우스 번역](../mouse-translation.ko.md), [마우스 올려두기](../mouse-hover.ko.md), [QA 보고서](../../tests/qa-2026-09-30/REPORT.md)
 
 ## 1. 현재 상태 점검
 
@@ -137,4 +137,4 @@ Windows 11, Visual Studio 2022 Build Tools(MSVC 14.44, Windows SDK 10.0.26100), 
 - 모니터 2대·혼합 배율에서 게임 창이 모니터를 넘어갈 때: 모니터 1대.
 - F6(올려두기 이동 직후 재요청 지연, R-02) 측정.
 
-증거: [메인 화면](evidence/usability-2026-10-25/main-ui.png), [수정본 UI 테스트](evidence/usability-2026-10-25/windows-flow.txt), [수정 전 UI 테스트](evidence/usability-2026-10-25/baseline-windows-flow.txt), 같은 폴더의 그룹별 결과.
+증거: [메인 화면](../evidence/usability-2026-10-25/main-ui.png), [수정본 UI 테스트](../evidence/usability-2026-10-25/windows-flow.txt), [수정 전 UI 테스트](../evidence/usability-2026-10-25/baseline-windows-flow.txt), 같은 폴더의 그룹별 결과.
