@@ -38,7 +38,7 @@
 | 2 빌드·정적 분석 | 완료 (빌드 성공·경고 0, CTest 7/7 통과) | risks.md, existing_tests.csv, results/build.json, results/ctest-junit.xml |
 | 3 테스트 계획 | 확인 완료 (2026-10-01): 범위 **전체**, 실제 DeepL **허용**(계획 T 목록), 1시간 테스트 **이번에 같이**, B-04 즉시 실행 | plan.md, risks.md |
 | 4 실행 | 수정본 재검증 완료(windows-verification.md 11절). B-04 완료(특수기호 오인식 재현, windows-verification.md 10절). 일부 완료: 앱 스모크, CLI 종료 코드, CLI OCR 반복, 672/168장 CER 재측정, 빈 화면 OCR(D-01). 앱 화면 기능·지연·CPU·누수는 plan 확인 후 | windows-verification.md, results/*.csv |
-| 5 보고서 | 미착수 | |
+| 5 보고서 | 완료 (2026-10-25, 전체 실행이 C-08에서 중단된 결과 기준) | REPORT.md |
 
 ## DeepL 실제 사용량
 
