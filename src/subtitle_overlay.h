@@ -13,3 +13,16 @@ protected:
 private:
     QStringList lines_;
 };
+
+class QTimer;
+// Briefly outlines the rectangle that was just captured, so the user sees what was read.
+// Click-through and shown only after the capture, so it never enters an image.
+class CaptureFlash final : public QWidget {
+public:
+    CaptureFlash();
+    void flash(const QRect& global, int durationMs = 600);
+protected:
+    void paintEvent(QPaintEvent*) override;
+private:
+    QTimer* timer_;
+};

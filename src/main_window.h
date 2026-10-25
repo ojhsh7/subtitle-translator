@@ -1,5 +1,6 @@
 #pragma once
 #include "change_detector.h"
+#include "game_window.h"
 #include "ocr_service.h"
 #include "translation_service.h"
 #include <QElapsedTimer>
@@ -8,6 +9,8 @@
 #include "subtitle/core.h"
 #include "subtitle/text.h"
 #include <QPointer>
+#include <QHash>
+#include <functional>
 #include <vector>
 #include <QRect>
 class QComboBox;
@@ -19,6 +22,7 @@ class QCheckBox;
 class QScreen;
 class QCloseEvent;
 class SubtitleOverlay;
+class CaptureFlash;
 class MainWindow : public QMainWindow {
 public:
     friend class WindowChecks;
@@ -30,7 +34,21 @@ protected:
     void closeEvent(QCloseEvent*) override;
 private:
     void settings();
-    void chooseRegion();
+    void chooseRegion(QScreen* screen = nullptr); // nullptr: the monitor chosen in the main window
+    void chooseRegionUnderCursor();
+    void setRegion(QScreen* screen, const QRect& region);
+    bool hasRegion() const;
+    // The region chosen over a game window follows that window (move, resize, other monitor).
+    struct GameRegion {
+        QString key;      // program path, GameWindow::Info::key
+        QString name;     // program file name for display
+        QRect relative;   // physical pixels relative to the client area
+        QSize client;     // client size when the region was chosen, physical pixels
+        quintptr handle = 0;
+    };
+    // Recomputes the region from the game window. false: the game window is not visible now.
+    bool followGame(bool switchToForeground = true);
+    void rememberGame(const GameRegion& game);
     struct CaptureArea {
         QPointer<QScreen> screen;
         QRect screenGeometry;
@@ -79,6 +97,13 @@ private:
     QPushButton* capture_;
     QPushButton* cursorCapture_;
     QComboBox* cursorSizeBox_;
+    QCheckBox* followGame_;
+    QCheckBox* showCaptureRange_;
+    CaptureFlash* captureFlash_;
+    GameRegion game_;
+    QHash<QString, GameRegion> knownGames_; // every game with a saved region, by key
+    quint32 ignoreProcess_ = 0;             // our own process; tests use 0 to treat their windows as games
+    std::function<GameWindow::Info()> foregroundWindow_; // the window in front; tests replace it
     QCheckBox* hoverMode_;
     QTimer* hoverTimer_;
     QPoint hoverAnchor_;
@@ -128,6 +153,8 @@ private:
     bool autoRegistered_ = false;
     bool cursorRegistered_ = false;
     bool hoverRegistered_ = false;
+    bool regionRegistered_ = false;
+    QString regionShortcut_ = QStringLiteral("Ctrl+Alt+R");
     QString hoverShortcut_ = QStringLiteral("Ctrl+Alt+H");
     QString cursorShortcut_ = QStringLiteral("Ctrl+Alt+M");
     bool autoPending_ = false;  // --auto launch waiting for setup or a region

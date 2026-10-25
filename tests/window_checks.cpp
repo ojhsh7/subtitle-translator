@@ -1,8 +1,11 @@
 #include "main_window.h"
 #include "capture_service.h"
+#include "game_window.h"
 #include "paddle_ocr.h"
+#include <QApplication>
 #include <QTemporaryDir>
 #include <QFile>
+#include <cstdlib>
 #include <QCursor>
 #include <QScopeGuard>
 #include "region_selector.h"
@@ -19,9 +22,219 @@
 #include <QPainter>
 #include <QTimer>
 #include <windows.h>
+namespace {
+// Logical -> physical -> logical conversion may round by a pixel on scaled monitors.
+bool closeTo(const QRect& a, const QRect& b, int tolerance = 2) {
+    return std::abs(a.left() - b.left()) <= tolerance && std::abs(a.top() - b.top()) <= tolerance &&
+           std::abs(a.width() - b.width()) <= tolerance && std::abs(a.height() - b.height()) <= tolerance;
+}
+QString rectText(const QRect& r) { return QStringLiteral("%1,%2 %3x%4").arg(r.x()).arg(r.y()).arg(r.width()).arg(r.height()); }
+}
 class WindowChecks : public QObject {
     Q_OBJECT
 private slots:
+
+    // F1: the region chosen over a game window follows it when the window moves, resizes or is minimized.
+    void gameRegionFollowsMoveResizeAndMinimize() {
+        QWidget game;
+        game.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        game.setStyleSheet("background:#203040;");
+        game.resize(800, 450); game.move(40, 40); game.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&game));
+        QTest::qWait(200);
+        MainWindow window;
+        window.ignoreProcess_ = 0; // the test window plays the game
+        QScreen* screen = game.screen();
+        const QRect chosen(game.mapToGlobal(QPoint(100, 300)) - screen->geometry().topLeft(), QSize(500, 80));
+        window.setRegion(screen, chosen);
+        QCOMPARE(window.game_.key, GameWindow::normalizedKey(QCoreApplication::applicationFilePath()));
+        QVERIFY(window.regionLabel_->text().contains(QStringLiteral("게임 창")));
+
+        game.move(240, 140);
+        QTRY_VERIFY2_WITH_TIMEOUT(window.followGame(false) && closeTo(window.region_, chosen.translated(200, 100)),
+                                  qPrintable(rectText(window.region_)), 3000);
+
+        game.resize(1200, 675); // 1.5x: games scale their dialogue box with the window
+        const QRect scaled(game.mapToGlobal(QPoint(150, 450)) - screen->geometry().topLeft(), QSize(750, 120));
+        QTRY_VERIFY2_WITH_TIMEOUT(window.followGame(false) && closeTo(window.region_, scaled),
+                                  qPrintable(rectText(window.region_) + " vs " + rectText(scaled)), 3000);
+
+        // In this test the app and the "game" are one program, so the app's own main window would match
+        // the game's program path. Hide it; a real game is a different program (and `at` skips our windows).
+        window.setAutoTranslate(true);
+        window.autoTimer_->setInterval(60000); // ticks are driven by hand below
+        QVERIFY(window.autoTranslating());
+        window.hide();
+        QTest::qWait(300);
+        game.showMinimized();
+        QTRY_VERIFY2_WITH_TIMEOUT(!window.followGame(false), qPrintable([&] {
+            const auto seen = GameWindow::find(window.game_.key, 0);
+            wchar_t cls[128]{}; GetClassNameW(reinterpret_cast<HWND>(seen.handle), cls, 128);
+            return QStringLiteral("still found: '%1' class=%2 game=%3 main=%4 overlay=%5")
+                .arg(seen.title, QString::fromWCharArray(cls)).arg(seen.handle).arg(quintptr(window.winId()))
+                .arg(quintptr(window.subtitleOverlay_->winId()));
+        }()), 3000);
+        window.autoTick(); // must wait, not stop
+        QVERIFY(window.autoTranslating());
+        QVERIFY2(window.status_->text().contains(QStringLiteral("대기")), qPrintable(window.status_->text()));
+        QVERIFY(!window.busy_);
+        game.showNormal();
+        QTRY_VERIFY_WITH_TIMEOUT(window.followGame(false), 3000);
+        window.setAutoTranslate(false);
+    }
+    // F1 with the real engine: after the window moved, Ctrl+Alt+T still reads the same line.
+    void gameRegionReadsTextAfterWindowMoves() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel game(QStringLiteral("今日はいい天気です。"));
+        game.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        game.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:44px;");
+        game.setAlignment(Qt::AlignCenter); game.resize(900, 160); game.move(30, 30); game.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&game));
+        QTest::qWait(250);
+        MainWindow window;
+        window.ignoreProcess_ = 0;
+        window.executable_.clear();
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_.clear(); window.consent_ = false;
+        window.setRegion(game.screen(), QRect(game.mapToGlobal(QPoint()) - game.screen()->geometry().topLeft(), game.size()));
+        QVERIFY(!window.game_.key.isEmpty());
+        game.move(330, 260);
+        QTest::qWait(250);
+        QVERIFY(window.registered_);
+        QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()), WM_HOTKEY, 1, 0));
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_ && !window.original_->toPlainText().isEmpty(), 25000);
+        QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")), qPrintable(window.original_->toPlainText()));
+        QVERIFY(closeTo(window.region_.translated(window.selectedGeometry_.topLeft()), QRect(game.mapToGlobal(QPoint()), game.size())));
+        QVERIFY(window.result_->toPlainText().isEmpty()); // no key: not a translation
+    }
+    // F2: every game keeps its region; the next launch restores it and the front game wins.
+    void gameRegionIsRememberedAndFollowsTheFrontGame() {
+        QWidget game;
+        game.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        game.resize(700, 400); game.move(60, 60); game.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&game));
+        QTest::qWait(200);
+        QRect chosen;
+        {
+            MainWindow window;
+            window.ignoreProcess_ = 0;
+            chosen = QRect(game.mapToGlobal(QPoint(50, 280)) - game.screen()->geometry().topLeft(), QSize(400, 60));
+            window.setRegion(game.screen(), chosen);
+            QVERIFY(!window.game_.key.isEmpty());
+        }
+        game.move(160, 110);
+        QTest::qWait(200);
+        MainWindow next;
+        next.ignoreProcess_ = 0;
+        QVERIFY(next.knownGames_.contains(GameWindow::normalizedKey(QCoreApplication::applicationFilePath())));
+        QVERIFY(next.hasRegion());
+        QTRY_VERIFY_WITH_TIMEOUT(next.followGame(false) && closeTo(next.region_, chosen.translated(100, 50)), 3000);
+        // A different saved game is current; when this game is in front, its own region is used again.
+        // Windows refuses the foreground to a background test process, so the front window is supplied.
+        const GameWindow::Info thisGame = GameWindow::at(game.mapToGlobal(QPoint(10, 10)), 0);
+        QCOMPARE(thisGame.handle, quintptr(game.winId()));
+        const GameWindow::Info browser{1, QStringLiteral("c:/apps/browser.exe"), QStringLiteral("browser.exe"), {}, QRect(0, 0, 10, 10)};
+        next.game_ = {QStringLiteral("c:/games/other/other.exe"), QStringLiteral("other.exe"), QRect(0, 0, 100, 40), QSize(800, 600)};
+        next.foregroundWindow_ = [&] { return browser; }; // an unknown program in front: keep the current game
+        QVERIFY(!next.followGame(true));                    // other.exe is not running
+        QCOMPARE(next.game_.key, QStringLiteral("c:/games/other/other.exe"));
+        next.foregroundWindow_ = [&] { return thisGame; };
+        QVERIFY(next.followGame(true));
+        QCOMPARE(next.game_.key, GameWindow::normalizedKey(QCoreApplication::applicationFilePath()));
+        QVERIFY(closeTo(next.region_, chosen.translated(100, 50)));
+        QCOMPARE(QSettings().value("capture/game").toString(), next.game_.key); // remembered for the next launch
+        // Turning tracking off keeps the plain screen region.
+        next.followGame_->setChecked(false);
+        QVERIFY(next.game_.key.isEmpty());
+        QVERIFY(next.hasRegion());
+    }
+    // F3: the region hotkey opens the selector on the monitor under the mouse, also while minimized.
+    void regionHotkeyOpensSelector() {
+        MainWindow window;
+        if (!window.regionRegistered_) QSKIP("Ctrl+Alt+R and Ctrl+Alt+F7 are both taken on this PC");
+        window.showMinimized();
+        // The selector runs its own event loop, so look for it from a timer inside that loop.
+        bool opened = false;
+        QRect geometry;
+        QTimer probe;
+        probe.setInterval(50);
+        connect(&probe, &QTimer::timeout, &probe, [&] {
+            if (auto* selector = dynamic_cast<RegionSelector*>(QApplication::activeModalWidget())) {
+                opened = true; geometry = selector->geometry();
+                QTest::keyClick(selector, Qt::Key_Escape);
+            }
+        });
+        probe.start();
+        const QRect expected = QGuiApplication::screenAt(QCursor::pos())->geometry();
+        QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()), WM_HOTKEY, 5, 0));
+        QTRY_VERIFY_WITH_TIMEOUT(opened && !window.modal_, 5000);
+        probe.stop();
+        QCOMPARE(geometry, expected);
+        QVERIFY(window.region_.isEmpty()); // cancelled: nothing chosen
+    }
+    // F4: keyboard adjustment of the current region; Enter confirms it, Esc cancels.
+    void regionSelectorKeyboardAdjustsCurrentRegion() {
+        QPixmap snapshot(400, 300); snapshot.fill(Qt::darkGray);
+        const QRect screenRect(QGuiApplication::primaryScreen()->geometry().topLeft(), QSize(400, 300));
+        RegionSelector selector(snapshot, screenRect, QRect(50, 60, 100, 40));
+        selector.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&selector));
+        for (int i = 0; i < 3; ++i) QTest::keyClick(&selector, Qt::Key_Right);
+        QTest::keyClick(&selector, Qt::Key_Right, Qt::ShiftModifier);  // +10
+        QTest::keyClick(&selector, Qt::Key_Down, Qt::ControlModifier); // height +1
+        QTest::keyClick(&selector, Qt::Key_Return);
+        QCOMPARE(selector.result(), int(QDialog::Accepted));
+        QCOMPARE(selector.selectedRegion(), QRect(63, 60, 100, 41));
+
+        RegionSelector edge(snapshot, screenRect, QRect(380, 10, 20, 20));
+        edge.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&edge));
+        QTest::keyClick(&edge, Qt::Key_Right, Qt::ShiftModifier); // must stay on the screen
+        QTest::keyClick(&edge, Qt::Key_Enter);
+        QCOMPARE(edge.selectedRegion(), QRect(380, 10, 20, 20));
+
+        RegionSelector empty(snapshot, screenRect);
+        empty.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&empty));
+        QTest::keyClick(&empty, Qt::Key_Return); // nothing to confirm
+        QVERIFY(empty.isVisible());
+        QTest::keyClick(&empty, Qt::Key_Escape);
+        QCOMPARE(empty.result(), int(QDialog::Rejected));
+        QVERIFY(empty.selectedRegion().isEmpty());
+    }
+    // F5: the captured rectangle is outlined briefly, click-through, and never captured.
+    void captureRangeIsOutlinedBriefly() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:44px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(900, 160); fixture.move(30, 30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        QTest::qWait(250);
+        MainWindow window;
+        window.executable_.clear();
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_.clear(); window.consent_ = false;
+        window.followGame_->setChecked(false);
+        window.setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+        QVERIFY(window.showCaptureRange_->isChecked());
+        window.startCapture();
+        QTRY_VERIFY_WITH_TIMEOUT(window.captureFlash_->isVisible(), 3000);
+        const QRect source(fixture.mapToGlobal(QPoint()), fixture.size());
+        QVERIFY(window.captureFlash_->geometry().contains(source));
+        QVERIFY(!window.captureFlash_->geometry().adjusted(4, 4, -4, -4).contains(source)); // just outside, not a big box
+        const LONG_PTR style = GetWindowLongPtrW(reinterpret_cast<HWND>(window.captureFlash_->winId()), GWL_EXSTYLE);
+        QVERIFY(style & WS_EX_TRANSPARENT);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.captureFlash_->isVisible(), 2000);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QVERIFY(window.original_->toPlainText().contains(QStringLiteral("天気"))); // the outline was not read
+        window.showCaptureRange_->setChecked(false);
+        window.startCapture();
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QVERIFY(!window.captureFlash_->isVisible());
+    }
 
     void fallbackResultWindowDoesNotBlockAutoCapture() {
         MainWindow window;

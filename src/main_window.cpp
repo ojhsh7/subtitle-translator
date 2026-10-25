@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "capture_service.h"
 #include "credential_store.h"
+#include "game_window.h"
 #include "languages.h"
 #include "paddle_ocr.h"
 #include "region_selector.h"
@@ -41,6 +42,11 @@ namespace {
 QString describeRegion(const QScreen* screen, const QRect& region) {
     return QStringLiteral("%1 · 위치 (%2, %3) · %4 × %5 논리 픽셀")
         .arg(screen->name()).arg(region.x()).arg(region.y()).arg(region.width()).arg(region.height());
+}
+// Settings group of one game. A program path has '/' and ':', which QSettings would treat as structure.
+QString gameGroup(const QString& key) {
+    return QStringLiteral("games/") +
+        QString::fromLatin1(key.toUtf8().toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
 }
 }
 
@@ -92,7 +98,7 @@ MainWindow::MainWindow() {
     cancel_->setEnabled(false);
     auto_ = new QPushButton(QStringLiteral("자동 번역  Ctrl+Alt+P"));
     auto_->setCheckable(true);
-    actions->addWidget(select_);
+    actions->addWidget(select_, 1);
     actions->addWidget(auto_, 1);
     actions->addWidget(capture_, 1);
     actions->addWidget(cancel_);
@@ -155,6 +161,28 @@ MainWindow::MainWindow() {
     captionPreview_ = new QPushButton(QStringLiteral("위치 미리보기"));
     captionRow->addWidget(inlineCaptions_, 1); captionRow->addWidget(captionPreview_);
     layout->addLayout(captionRow);
+    auto* regionOptions = new QHBoxLayout;
+    followGame_ = new QCheckBox(QStringLiteral("게임 창을 따라 영역 이동"));
+    followGame_->setToolTip(QStringLiteral("영역을 고른 게임 창을 기억합니다. 창을 옮기거나 크기를 바꿔도 같은 자리를 읽고, "
+                                           "게임마다 영역을 따로 저장합니다."));
+    followGame_->setChecked(QSettings().value("capture/followGame", true).toBool());
+    showCaptureRange_ = new QCheckBox(QStringLiteral("읽은 범위 잠깐 표시"));
+    showCaptureRange_->setToolTip(QStringLiteral("마우스 번역과 Ctrl+Alt+T가 캡처한 사각형을 0.6초 동안 테두리로 보여 줍니다."));
+    showCaptureRange_->setChecked(QSettings().value("display/captureFlash", true).toBool());
+    regionOptions->addWidget(followGame_); regionOptions->addWidget(showCaptureRange_); regionOptions->addStretch(1);
+    layout->addLayout(regionOptions);
+    captureFlash_ = new CaptureFlash;
+    connect(followGame_, &QCheckBox::toggled, this, [this](bool enabled) {
+        QSettings().setValue("capture/followGame", enabled);
+        if (!enabled && !game_.key.isEmpty()) {
+            game_ = {}; QSettings().remove("capture/game");
+            if (selectedScreen_ && !region_.isEmpty()) { saveRegion(); regionLabel_->setText(describeRegion(selectedScreen_, region_)); }
+        }
+    });
+    connect(showCaptureRange_, &QCheckBox::toggled, this, [this](bool enabled) {
+        QSettings().setValue("display/captureFlash", enabled);
+        if (!enabled) captureFlash_->hide();
+    });
     connect(captionPreview_, &QPushButton::clicked, this, &MainWindow::previewSubtitle);
     connect(inlineCaptions_, &QCheckBox::toggled, this, [this](bool enabled) {
         QSettings().setValue("display/inlineCaptions", enabled);
@@ -203,7 +231,7 @@ MainWindow::MainWindow() {
     connect(copy, &QPushButton::clicked, result_, &QPlainTextEdit::selectAll);
     connect(resultButton, &QPushButton::clicked, this, &MainWindow::showResult);
     connect(settings_, &QPushButton::clicked, this, &MainWindow::settings);
-    connect(select_, &QPushButton::clicked, this, &MainWindow::chooseRegion);
+    connect(select_, &QPushButton::clicked, this, [this] { chooseRegion(); });
     connect(capture_, &QPushButton::clicked, this, &MainWindow::startCapture);
     connect(auto_, &QPushButton::toggled, this, &MainWindow::setAutoTranslate);
     // A new language changes what the current line means: forget the cache and read it again.
@@ -228,7 +256,9 @@ MainWindow::MainWindow() {
     connect(qApp, &QGuiApplication::screenRemoved, this, [this] {
         setHoverTranslate(false);
         cancel(); subtitleOverlay_->hide(); selectedScreen_ = nullptr; region_ = {}; refreshScreens();
-        regionLabel_->setText(QStringLiteral("모니터 구성이 바뀌었습니다. 영역을 다시 선택하세요."));
+        regionLabel_->setText(game_.key.isEmpty()
+            ? QStringLiteral("모니터 구성이 바뀌었습니다. 영역을 다시 선택하세요.")
+            : QStringLiteral("모니터 구성이 바뀌었습니다. 게임 창 %1 기준 영역은 다시 계산합니다.").arg(game_.name));
     });
     connect(&ocr_, &OcrService::recognized, this, [this](const QString& text) {
         if (!busy_) return;
@@ -358,6 +388,8 @@ MainWindow::MainWindow() {
     paddleEngine_ = saved.value("ocr/engine", QStringLiteral("paddle")).toString() != QLatin1String("tesseract");
     applyOcrEngine();
     refreshScreens();
+    ignoreProcess_ = GameWindow::currentProcess();
+    foregroundWindow_ = [this] { return GameWindow::foreground(ignoreProcess_); };
     restoreRegion();
     const HWND handle = reinterpret_cast<HWND>(winId());
     registered_ = RegisterHotKey(handle, 1, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'T') != 0;
@@ -382,6 +414,15 @@ MainWindow::MainWindow() {
     }
     if (hoverRegistered_)
         hoverMode_->setText(QStringLiteral("마우스 올려두기 번역 · %1").arg(hoverShortcut_));
+    regionRegistered_ = RegisterHotKey(handle, 5, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'R') != 0;
+    if (!regionRegistered_) {
+        regionRegistered_ = RegisterHotKey(handle, 5, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_F7) != 0;
+        if (regionRegistered_) regionShortcut_ = QStringLiteral("Ctrl+Alt+F7");
+    }
+    if (regionRegistered_) {
+        select_->setText(QStringLiteral("자막 영역 선택  %1").arg(regionShortcut_));
+        select_->setToolTip(QStringLiteral("%1: 게임 중에도 마우스가 있는 모니터에서 바로 영역을 고릅니다.").arg(regionShortcut_));
+    }
     QString ready = registered_ ? QStringLiteral("준비됨 · 먼저 설정을 확인하고 자막 영역을 선택하세요.")
         : QStringLiteral("Ctrl+Alt+T 등록 실패: 다른 앱에서 사용 중일 수 있습니다. 캡처 버튼을 사용하세요.");
     if (!autoRegistered_) ready += QStringLiteral("\nCtrl+Alt+P 등록 실패: 자동 번역 버튼을 사용하세요.");
@@ -389,11 +430,12 @@ MainWindow::MainWindow() {
     else if (cursorShortcut_ != QLatin1String("Ctrl+Alt+M"))
         ready += QStringLiteral("\nCtrl+Alt+M 사용 중: 마우스 번역은 Ctrl+Alt+F8로 실행하세요.");
     if (!hoverRegistered_) ready += QStringLiteral("\n마우스 올려두기 단축키 등록 실패: 체크 상자로 켜고 끄세요.");
+    if (!regionRegistered_) ready += QStringLiteral("\n영역 선택 단축키(Ctrl+Alt+R/F7) 등록 실패: 자막 영역 선택 버튼을 사용하세요.");
     status_->setText(ready);
     const bool setupComplete = saved.value("setupComplete", false).toBool();
     // The desktop shortcut passes --auto: the user chose to start translating right away.
     if (QCoreApplication::arguments().contains("--auto")) {
-        if (setupComplete && !region_.isEmpty()) setAutoTranslate(true);
+        if (setupComplete && hasRegion()) setAutoTranslate(true);
         else {
             autoPending_ = true;
             status_->setText(QStringLiteral("설정을 마치고 자막 영역을 선택하면 자동 번역이 바로 시작됩니다."));
@@ -412,6 +454,8 @@ MainWindow::~MainWindow() {
     if (autoRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 2);
     if (cursorRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 3);
     if (hoverRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 4);
+    if (regionRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 5);
+    delete captureFlash_;
     delete subtitleOverlay_;
     delete resultWindow_;
     st_destroy(session_);
@@ -602,12 +646,22 @@ void MainWindow::settings() {
     keyChecker.cancel();
     modal_ = false;
 }
-void MainWindow::chooseRegion() {
+void MainWindow::chooseRegionUnderCursor() {
+    if (modal_) return;
+    if (busy_) cancel(); // An explicit request from the game screen replaces the current read.
+    QScreen* screen = QGuiApplication::screenAt(QCursor::pos());
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    const int index = int(QGuiApplication::screens().indexOf(screen));
+    if (index >= 0) screens_->setCurrentIndex(index);
+    chooseRegion(screen);
+}
+void MainWindow::chooseRegion(QScreen* requested) {
     if (busy_ || modal_) return;
     setHoverTranslate(false);
     const auto list = QGuiApplication::screens();
-    if (screens_->currentIndex() < 0 || screens_->currentIndex() >= list.size()) return;
-    QPointer<QScreen> screen = list[screens_->currentIndex()];
+    if (!requested && (screens_->currentIndex() < 0 || screens_->currentIndex() >= list.size())) return;
+    QPointer<QScreen> screen = requested ? requested : list[screens_->currentIndex()];
+    followGame(false); // Show the region where it is now, also after the game window moved.
     modal_ = true;
     restoreMain_ = isVisible() && !isMinimized(); restoreResult_ = resultWindow_->isVisible();
     restoreOverlay_ = subtitleOverlay_->isVisible();
@@ -619,16 +673,14 @@ void MainWindow::chooseRegion() {
         if (snapshot.isNull()) {
             modal_ = false; restoreWindows(); finish(QStringLiteral("모니터 화면을 읽을 수 없습니다.")); return;
         }
-        RegionSelector selector(snapshot, screen->geometry());
+        RegionSelector selector(snapshot, screen->geometry(), selectedScreen_.data() == screen.data() ? region_ : QRect());
         const bool selected = selector.exec() == QDialog::Accepted && screen;
         if (selected) {
             restoreOverlay_ = false;
-            selectedScreen_ = screen; region_ = selector.selectedRegion();
-            selectedGeometry_ = screen->geometry(); selectedDpr_ = screen->devicePixelRatio();
-            regionLabel_->setText(describeRegion(screen, region_));
-            saveRegion();
-            detector_.reset();
-            status_->setText(QStringLiteral("영역 선택 완료. 자동 번역을 켜거나 Ctrl + Alt + T를 누르세요."));
+            setRegion(screen, selector.selectedRegion());
+            status_->setText(game_.key.isEmpty()
+                ? QStringLiteral("영역 선택 완료. 자동 번역을 켜거나 Ctrl + Alt + T를 누르세요.")
+                : QStringLiteral("영역 선택 완료 · 게임 창 %1을(를) 따라갑니다. 자동 번역을 켜거나 Ctrl + Alt + T를 누르세요.").arg(game_.name));
         }
         modal_ = false;
         restoreWindows();
@@ -642,8 +694,11 @@ MainWindow::CaptureArea MainWindow::selectedArea() const {
 void MainWindow::startCapture() {
     if (busy_ || modal_) return;
     setHoverTranslate(false);
-    if (!selectedScreen_ || region_.isEmpty()) {
+    if (!hasRegion()) {
         status_->setText(QStringLiteral("먼저 자막 영역을 선택하세요.")); return;
+    }
+    if (!followGame()) {
+        status_->setText(QStringLiteral("게임 창 %1이(가) 보이지 않습니다. 게임 창을 띄운 뒤 다시 누르세요.").arg(game_.name)); return;
     }
     beginScreenCapture(selectedArea(), QStringLiteral("선택 영역 캡처 중…"));
 }
@@ -775,7 +830,7 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
     restoreMain_ = isVisible() && !isMinimized(); restoreResult_ = resultWindow_->isVisible();
     restoreOverlay_ = subtitleOverlay_->isVisible();
     if (!isMinimized()) hide();
-    resultWindow_->hide(); subtitleOverlay_->hide();
+    resultWindow_->hide(); subtitleOverlay_->hide(); captureFlash_->hide();
     QTimer::singleShot(180, this, [this, ticket, area] {
         if (!busy_ || ticket != generation_) return;
         QString error;
@@ -787,6 +842,8 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
             image = Capture::region(area.screen, area.rect, error);
         restoreWindows();
         if (image.isNull()) { resultStatus_->setText(QStringLiteral("캡처 실패")); finish(error); return; }
+        // Shown only after the pixels were taken, so the outline never enters this or a later image.
+        if (showCaptureRange_->isChecked()) captureFlash_->flash(area.rect.translated(area.screenGeometry.topLeft()));
         processImage(image, ST_SCREEN_CAPTURE);
     });
 }
@@ -875,6 +932,7 @@ void MainWindow::presentTranslation() {
 }
 void MainWindow::previewSubtitle() {
     if (busy_ || modal_) return;
+    followGame(false);
     if (!selectedScreen_ || region_.isEmpty()) {
         status_->setText(QStringLiteral("먼저 원문 글자 부분만 자막 영역으로 선택하세요.")); return;
     }
@@ -897,13 +955,17 @@ bool MainWindow::nativeEvent(const QByteArray&, void* message, qintptr* result) 
     if (msg->message == WM_HOTKEY && msg->wParam == 4) {
         setHoverTranslate(!hoverMode_->isChecked()); *result = 0; return true;
     }
+    if (msg->message == WM_HOTKEY && msg->wParam == 5) {
+        // Queued: the selector runs its own event loop, which must not start inside this native event.
+        QTimer::singleShot(0, this, &MainWindow::chooseRegionUnderCursor); *result = 0; return true;
+    }
     return false;
 }
 void MainWindow::closeEvent(QCloseEvent* event) {
     hoverTimer_->stop();
     autoTimer_->stop();
     cancel();
-    resultWindow_->hide(); subtitleOverlay_->hide();
+    resultWindow_->hide(); subtitleOverlay_->hide(); captureFlash_->hide();
     event->accept();
     QCoreApplication::quit();
 }
@@ -975,7 +1037,7 @@ void MainWindow::setAutoTranslate(bool enabled) {
         status_->setText(QStringLiteral("자동 번역을 껐습니다. Ctrl + Alt + P로 다시 켜거나 Ctrl + Alt + T로 한 번씩 번역하세요."));
         return;
     }
-    if (!selectedScreen_ || region_.isEmpty()) {
+    if (!hasRegion()) {
         auto_->setChecked(false);
         autoPending_ = true;
         status_->setText(QStringLiteral("먼저 자막 영역을 선택하세요. 선택하면 자동 번역이 바로 시작됩니다."));
@@ -986,12 +1048,20 @@ void MainWindow::setAutoTranslate(bool enabled) {
     auto_->setChecked(true);
     autoTimer_->start();
     showMinimized(); // Keep the app window off the game's subtitle.
-    status_->setText(QStringLiteral("자동 번역 중 · 대사가 바뀌면 번역합니다. Ctrl + Alt + P로 멈춥니다."));
+    const bool visible = followGame();
+    status_->setText(visible ? QStringLiteral("자동 번역 중 · 대사가 바뀌면 번역합니다. Ctrl + Alt + P로 멈춥니다.")
+        : QStringLiteral("자동 번역 대기 · 게임 창 %1이(가) 보이면 읽기 시작합니다. Ctrl + Alt + P로 멈춥니다.").arg(game_.name));
     captionArea_ = selectedArea();
-    showSubtitle(QStringLiteral("자동 번역 켜짐 · 대사가 바뀌면 여기에 번역이 나옵니다 (Ctrl+Alt+P 멈춤)"));
+    if (visible) showSubtitle(QStringLiteral("자동 번역 켜짐 · 대사가 바뀌면 여기에 번역이 나옵니다 (Ctrl+Alt+P 멈춤)"));
 }
 void MainWindow::autoTick() {
     if (busy_ || modal_) return;
+    if (!followGame()) {
+        // A minimized or closed game is a pause, not an error: keep auto mode and wait for it.
+        subtitleOverlay_->hide();
+        status_->setText(QStringLiteral("자동 번역 대기 · 게임 창 %1이(가) 최소화되었거나 닫혀 있습니다. 창이 보이면 다시 읽습니다.").arg(game_.name));
+        return;
+    }
     if (!selectedScreen_ || region_.isEmpty() || selectedScreen_->geometry() != selectedGeometry_ ||
         selectedScreen_->devicePixelRatio() != selectedDpr_) {
         setAutoTranslate(false);
@@ -1032,15 +1102,88 @@ bool MainWindow::coversRegion(const QRect& global) const {
            (resultWindow_->isVisible() && !resultWindow_->isMinimized() && resultWindow_->frameGeometry().intersects(global)) ||
            (subtitleOverlay_->isVisible() && subtitleOverlay_->geometry().intersects(global));
 }
+bool MainWindow::hasRegion() const {
+    return !game_.key.isEmpty() || (selectedScreen_ && !region_.isEmpty());
+}
+void MainWindow::setRegion(QScreen* screen, const QRect& region) {
+    selectedScreen_ = screen; region_ = region;
+    selectedGeometry_ = screen->geometry(); selectedDpr_ = screen->devicePixelRatio();
+    game_ = {};
+    if (followGame_->isChecked()) {
+        // Remember the game under the region: its pixels, relative to its client area.
+        const QRect global = region.translated(selectedGeometry_.topLeft());
+        const GameWindow::Info info = GameWindow::at(global.center(), ignoreProcess_);
+        const QRect inside = info.isValid() ? GameWindow::toPhysical(global).intersected(info.client) : QRect();
+        if (inside.width() >= 8 && inside.height() >= 8)
+            game_ = {info.key, info.name, GameWindow::relativeTo(inside, info.client), info.client.size(), info.handle};
+    }
+    regionLabel_->setText(describeRegion(screen, region_) +
+        (game_.key.isEmpty() ? QString() : QStringLiteral(" · 게임 창 %1 기준").arg(game_.name)));
+    saveRegion();
+    detector_.reset();
+}
+void MainWindow::rememberGame(const GameRegion& game) {
+    knownGames_.insert(game.key, game);
+    QSettings saved;
+    saved.beginGroup(gameGroup(game.key));
+    saved.setValue("key", game.key); saved.setValue("name", game.name);
+    saved.setValue("region", game.relative); saved.setValue("client", game.client);
+    saved.endGroup();
+    saved.setValue("capture/game", game.key);
+}
+bool MainWindow::followGame(bool switchToForeground) {
+    if (!followGame_->isChecked()) return true;
+    if (switchToForeground) {
+        // Another game with its own saved region came to the front: read that game's region instead.
+        const GameWindow::Info front = foregroundWindow_();
+        if (front.isValid() && front.key != game_.key && knownGames_.contains(front.key)) {
+            game_ = knownGames_.value(front.key);
+            game_.handle = front.handle;
+            QSettings().setValue("capture/game", game_.key);
+            detector_.reset();
+        }
+    }
+    if (game_.key.isEmpty()) return true;
+    const GameWindow::Info info = GameWindow::find(game_.key, game_.handle);
+    if (!info.isValid()) return false;
+    game_.handle = info.handle;
+    const GameWindow::Area area = GameWindow::toScreen(GameWindow::place(game_.relative, game_.client, info.client));
+    if (!area.screen || area.rect.width() < 8 || area.rect.height() < 8) return false;
+    if (area.screen != selectedScreen_ || area.rect != region_ || area.screen->geometry() != selectedGeometry_ ||
+        area.screen->devicePixelRatio() != selectedDpr_) {
+        selectedScreen_ = area.screen; region_ = area.rect;
+        selectedGeometry_ = area.screen->geometry(); selectedDpr_ = area.screen->devicePixelRatio();
+        regionLabel_->setText(describeRegion(area.screen, region_) + QStringLiteral(" · 게임 창 %1을(를) 따라감").arg(game_.name));
+    }
+    return true;
+}
 void MainWindow::saveRegion() {
     QSettings saved;
     saved.setValue("capture/screen", selectedScreen_->name());
     saved.setValue("capture/screenGeometry", selectedGeometry_);
     saved.setValue("capture/devicePixelRatio", selectedDpr_);
     saved.setValue("capture/region", region_);
+    if (game_.key.isEmpty()) saved.remove("capture/game");
+    else rememberGame(game_);
 }
 void MainWindow::restoreRegion() {
     QSettings saved;
+    saved.beginGroup(QStringLiteral("games"));
+    const QStringList groups = saved.childGroups();
+    for (const QString& group : groups) {
+        saved.beginGroup(group);
+        const GameRegion game{saved.value("key").toString(), saved.value("name").toString(),
+                              saved.value("region").toRect(), saved.value("client").toSize()};
+        saved.endGroup();
+        if (!game.key.isEmpty() && !game.relative.isEmpty() && !game.client.isEmpty()) knownGames_.insert(game.key, game);
+    }
+    saved.endGroup();
+    if (followGame_->isChecked()) game_ = knownGames_.value(saved.value("capture/game").toString());
+    if (!game_.key.isEmpty()) {
+        if (followGame(false)) { regionLabel_->setText(regionLabel_->text() + QStringLiteral(" · 저장된 영역")); return; }
+        regionLabel_->setText(QStringLiteral("게임 창 %1 기준 저장된 영역 · 게임을 실행하면 영역을 다시 계산합니다.").arg(game_.name));
+        return;
+    }
     const QRect region = saved.value("capture/region").toRect();
     if (region.isEmpty()) return;
     const auto list = QGuiApplication::screens();

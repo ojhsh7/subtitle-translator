@@ -124,6 +124,15 @@ Info find(const QString& key, quintptr hint) {
     return info.isValid() ? info : Info{};
 }
 
+Info foreground(quint32 ignoreProcess) {
+    const HWND hwnd = GetAncestor(GetForegroundWindow(), GA_ROOT);
+    DWORD pid = 0;
+    if (!hwnd || !GetWindowThreadProcessId(hwnd, &pid) || (ignoreProcess && pid == ignoreProcess) ||
+        !visibleTarget(hwnd) || shell(hwnd)) return {};
+    const Info info = describe(hwnd);
+    return info.isValid() ? info : Info{};
+}
+
 QRect toPhysical(const QRect& logical) {
     QScreen* screen = QGuiApplication::screenAt(logical.center());
     auto* native = screen ? screen->nativeInterface<QNativeInterface::QWindowsScreen>() : nullptr;

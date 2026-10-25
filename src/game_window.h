@@ -23,6 +23,8 @@ Info at(const QPoint& logical, quint32 ignoreProcess);
 // The window of a saved game now: the foreground window when it belongs to the game,
 // otherwise the hinted or largest visible window. Invalid when not running or minimized.
 Info find(const QString& key, quintptr hint = 0);
+// The foreground top-level window of another program; invalid for our own windows or the desktop.
+Info foreground(quint32 ignoreProcess);
 quint32 currentProcess();
 
 // Coordinate conversion through the monitor that holds the rectangle.

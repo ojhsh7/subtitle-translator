@@ -3,6 +3,7 @@
 #include <QPainter>
 #include <QTextLayout>
 #include <QTextOption>
+#include <QTimer>
 #include <algorithm>
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -86,6 +87,47 @@ bool SubtitleOverlay::showText(const QString& text, const QRect& source, const Q
     SetWindowPos(handle, nullptr, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     return true;
+}
+
+namespace {
+constexpr int FlashBorder = 3;
+void makeClickThrough(QWidget* widget) {
+    const HWND handle = reinterpret_cast<HWND>(widget->winId());
+    const LONG_PTR style = GetWindowLongPtrW(handle, GWL_EXSTYLE);
+    SetWindowLongPtrW(handle, GWL_EXSTYLE, style | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT);
+    SetWindowPos(handle, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+}
+
+CaptureFlash::CaptureFlash()
+    : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+                        Qt::WindowTransparentForInput | Qt::WindowDoesNotAcceptFocus),
+      timer_(new QTimer(this)) {
+    setWindowTitle(QStringLiteral("캡처 범위 표시"));
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_ShowWithoutActivating);
+    setFocusPolicy(Qt::NoFocus);
+    timer_->setSingleShot(true);
+    connect(timer_, &QTimer::timeout, this, &QWidget::hide);
+}
+
+void CaptureFlash::flash(const QRect& global, int durationMs) {
+    if (global.isEmpty()) return;
+    // The border sits just outside the captured pixels.
+    setGeometry(global.adjusted(-FlashBorder, -FlashBorder, FlashBorder, FlashBorder));
+    show();
+    makeClickThrough(this);
+    update();
+    timer_->start(durationMs);
+}
+
+void CaptureFlash::paintEvent(QPaintEvent*) {
+    QPainter painter(this);
+    painter.setPen(QPen(QColor(0, 0, 0, 200), 1));
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+    painter.setPen(QPen(QColor("#6ee7b7"), FlashBorder - 1));
+    painter.drawRect(rect().adjusted(1, 1, -2, -2));
 }
 
 void SubtitleOverlay::paintEvent(QPaintEvent*) {
