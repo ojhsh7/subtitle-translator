@@ -20,6 +20,7 @@
 | [BACKLOG.md](plan/BACKLOG.md) | 다음에 무엇을 할지 정할 때. 남은 일은 여기에만 적는다 |
 | [DECISIONS.md](plan/DECISIONS.md) | "왜 이렇게 했지?"가 궁금할 때, 기존 결정을 바꾸기 전 |
 | [TEMPLATE.md](plan/TEMPLATE.md) | 새 기능 계획서를 만들 때 |
+| [2026-11-01-cancel-and-tesseract](plan/2026-11-01-cancel-and-tesseract.ko.md) | 완료: 취소 즉시 반영, Tesseract 시도 동시 실행 (P-23, P-27) |
 | [2026-11-01-ocr-speed](plan/2026-11-01-ocr-speed.ko.md) | 완료: OCR 인식 속도(스레드·미리 불러오기·캡처 대기), 구현 언어·엔진 탐색 (P-26) |
 | [2026-10-25-ocr-false-text](plan/2026-10-25-ocr-false-text.ko.md) | 완료: 특수기호·빈 대사창 오인식 (P-01, P-02), 측정 방법과 기준값 근거 |
 | [2026-10-25-cleanup-and-reliability](plan/2026-10-25-cleanup-and-reliability.ko.md) | 완료: 취소 지연·429/456·로컬 HTTP 테스트·모델 간 보정·QA 하네스 등 12건 |
@@ -48,3 +49,4 @@
 | 2026-10-25 | [plan/2026-10-25-ocr-false-text.ko.md](plan/2026-10-25-ocr-false-text.ko.md) 6절 | 오인식 수정 전후 측정, CTest 154 |
 | 2026-10-25 | [plan/2026-10-25-cleanup-and-reliability.ko.md](plan/2026-10-25-cleanup-and-reliability.ko.md) 4절 | 취소 대기 전후, 429/456, 타자기, CTest 171 |
 | 2026-11-01 | [plan/2026-11-01-ocr-speed.ko.md](plan/2026-11-01-ocr-speed.ko.md) 6절 | 속도 수정 전후 측정(단축키 → 자막 351 → 83ms), CTest 174 |
+| 2026-11-01 | [plan/2026-11-01-cancel-and-tesseract.ko.md](plan/2026-11-01-cancel-and-tesseract.ko.md) 6절 | 취소 대기 264 → 0ms, 베트남어 524 → 305ms, CTest 176 |

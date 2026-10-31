@@ -22,10 +22,14 @@ OcrService::OcrService(QObject* parent) : QObject(parent) {
 }
 OcrService::~OcrService() { cancel(); }
 void OcrService::sample() {
-    if (!processHandle_) return;
-    PROCESS_MEMORY_COUNTERS counters{};
-    if (GetProcessMemoryInfo(static_cast<HANDLE>(processHandle_), &counters, sizeof(counters)))
-        peakMemory_ = qMax(peakMemory_, quint64(counters.PeakWorkingSetSize));
+    // Attempts running side by side add up: the sum of their peaks bounds the memory in use.
+    quint64 total = 0;
+    for (const Job& job : jobs_) {
+        PROCESS_MEMORY_COUNTERS counters{};
+        if (job.handle && GetProcessMemoryInfo(static_cast<HANDLE>(job.handle), &counters, sizeof(counters)))
+            total += counters.PeakWorkingSetSize;
+    }
+    peakMemory_ = qMax(peakMemory_, total);
 }
 void OcrService::metrics() {
     sample();
@@ -33,19 +37,27 @@ void OcrService::metrics() {
 }
 void OcrService::cancel() {
     ++generation_;
-    if (cancelled_) cancelled_->store(true); // also after a finished read: harmless
-    deadline_.stop(); memoryTimer_.stop(); metrics();
-    if (processHandle_) { CloseHandle(static_cast<HANDLE>(processHandle_)); processHandle_ = nullptr; }
+    if (cancelled_) cancelled_->cancel(); // also after a finished read: harmless
+    deadline_.stop(); metrics();
     busy_ = false;
-    if (process_) {
-        auto* old = process_; process_ = nullptr;
+    stopJobs();
+}
+void OcrService::stopJobs() {
+    memoryTimer_.stop();
+    for (Job& job : jobs_) {
+        if (job.handle) CloseHandle(static_cast<HANDLE>(job.handle));
+        QProcess* old = job.process;
         disconnect(old, nullptr, this, nullptr);
         if (old->state() != QProcess::NotRunning) {
             connect(old, qOverload<int,QProcess::ExitStatus>(&QProcess::finished), old, &QObject::deleteLater);
             old->kill();
         } else old->deleteLater();
     }
-    output_.clear(); errors_.clear();
+    jobs_.clear(); outputs_.clear();
+}
+OcrService::Job* OcrService::job(QProcess* process) {
+    for (Job& job : jobs_) if (job.process == process) return &job;
+    return nullptr;
 }
 void OcrService::fail(const QString& message) {
     const bool probe = probing_;
@@ -157,7 +169,7 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
                              "-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=1", "-c", "page_separator="};
     if (!data.isEmpty()) arguments_ << "--tessdata-dir" << data;
     busy_ = true; elapsed_.start(); peakMemory_ = 0; elapsedMs_ = 0;
-    attempts_.clear(); attempt_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false; engineUsed_.clear();
+    attempts_.clear(); launched_ = 0; judged_ = 0; attemptsUsed_ = 0; best_ = {}; bestFromMask_ = false; engineUsed_.clear();
     paddleDetails_ = {}; tesseractConfidence_ = -1;
     deadline_.start(20000);
     const auto ticket = ++generation_;
@@ -206,7 +218,9 @@ void OcrService::runDetectorThenTesseract(const QImage& image, quint64 ticket) {
         runTesseract(image, ticket); // lines > 0, or -1 when the detection model is not installed
     });
     const auto paddle = paddle_;
-    watcher->setFuture(QtConcurrent::run([paddle, image] { return paddle->countTextLines(image); }));
+    cancelled_ = std::make_shared<OcrCancel>();
+    const auto cancelled = cancelled_;
+    watcher->setFuture(QtConcurrent::run([paddle, image, cancelled] { return paddle->countTextLines(image, cancelled.get()); }));
 }
 void OcrService::runPaddle(const QImage& image, quint64 ticket) {
     struct Outcome { PaddleOcr::Result result; QString error; };
@@ -237,7 +251,7 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
     });
     const auto paddle = paddle_;
     const QString languages = languages_;
-    cancelled_ = std::make_shared<std::atomic<bool>>(false);
+    cancelled_ = std::make_shared<OcrCancel>();
     const auto cancelled = cancelled_;
     watcher->setFuture(QtConcurrent::run([paddle, image, languages, cancelled] {
         Outcome outcome;
@@ -258,7 +272,7 @@ void OcrService::runTesseract(const QImage& image, quint64 ticket) {
             fail(QStringLiteral("이미지 인코딩에 실패했거나 이미지가 너무 큽니다.")); return;
         }
         attempts_ = candidates;
-        runAttempt();
+        launchAttempts();
     });
     watcher->setFuture(QtConcurrent::run([image] {
         QList<QByteArray> candidates;
@@ -280,40 +294,39 @@ void OcrService::runTesseract(const QImage& image, quint64 ticket) {
         return candidates;
     }));
 }
-void OcrService::runAttempt() {
-    ++attemptsUsed_;
-    launch(executable_, arguments_, attempts_.at(attempt_));
+void OcrService::launchAttempts() {
+    // The original image runs alone: it is often enough. When it is not, the masks run side by side,
+    // as many at once as the OCR thread budget (P-27), instead of one after another.
+    const int limit = judged_ == 0 ? 1 : PaddleOcr::threads();
+    while (busy_ && launched_ < attempts_.size() && int(jobs_.size()) < limit) {
+        const int attempt = launched_++;
+        launch(executable_, arguments_, attempts_.at(attempt), attempt);
+    }
 }
-void OcrService::attemptFinished(const QString& output) {
-    const Reading reading = parseOutput(output);
-    const bool fromMask = attempt_ > 0;
-    if (!reading.text.isEmpty()) {
-        const double needed = best_.confidence + (fromMask && !bestFromMask_ ? MaskMargin : 0);
-        if (best_.text.isEmpty() || reading.confidence > needed) { best_ = reading; bestFromMask_ = fromMask; }
+void OcrService::judgeAttempts() {
+    // Readings are judged in image order with the one-by-one rule, so running attempts at once
+    // never changes which reading wins.
+    for (auto next = outputs_.find(judged_); next != outputs_.end(); next = outputs_.find(judged_)) {
+        const Reading reading = parseOutput(next->second);
+        outputs_.erase(next);
+        const bool fromMask = judged_ > 0;
+        if (!reading.text.isEmpty()) {
+            const double needed = best_.confidence + (fromMask && !bestFromMask_ ? MaskMargin : 0);
+            if (best_.text.isEmpty() || reading.confidence > needed) { best_ = reading; bestFromMask_ = fromMask; }
+        }
+        attemptsUsed_ = ++judged_;
+        if (best_.confidence >= ConfidentEnough || judged_ >= attempts_.size()) {
+            const Reading best = best_;
+            cancel(); // stops attempts still running
+            engineUsed_ = QStringLiteral("Tesseract");
+            tesseractConfidence_ = best.text.isEmpty() ? -1 : best.confidence;
+            if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
+            else if (isUnsureReading(best)) emit recognized(QString()); // invented on an empty or decorated area
+            else emit recognized(cleanText(best.text));
+            return;
+        }
     }
-    ++attempt_;
-    if (best_.confidence < ConfidentEnough && attempt_ < attempts_.size()) {
-        releaseProcess();
-        runAttempt();
-        return;
-    }
-    const Reading best = best_;
-    cancel();
-    engineUsed_ = QStringLiteral("Tesseract");
-    tesseractConfidence_ = best.text.isEmpty() ? -1 : best.confidence;
-    if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
-    else if (isUnsureReading(best)) emit recognized(QString()); // invented on an empty or decorated area
-    else emit recognized(cleanText(best.text));
-}
-void OcrService::releaseProcess() {
-    memoryTimer_.stop(); sample();
-    if (processHandle_) { CloseHandle(static_cast<HANDLE>(processHandle_)); processHandle_ = nullptr; }
-    if (process_) {
-        auto* old = process_; process_ = nullptr;
-        disconnect(old, nullptr, this, nullptr);
-        old->deleteLater();
-    }
-    output_.clear(); errors_.clear();
+    launchAttempts();
 }
 void OcrService::probe(const QString& executable, const QString& data, const QString& languages) {
     if (busy_) return;
@@ -324,46 +337,55 @@ void OcrService::probe(const QString& executable, const QString& data, const QSt
     if (!data.isEmpty()) args << "--tessdata-dir" << data;
     launch(executable, args, {});
 }
-void OcrService::collect() {
-    if (!process_) return;
-    output_ += process_->readAllStandardOutput(); errors_ += process_->readAllStandardError();
-    if (output_.size() > 1024 * 1024 || errors_.size() > 1024 * 1024)
+void OcrService::collect(QProcess* process) {
+    Job* running = job(process);
+    if (!running) return;
+    running->output += process->readAllStandardOutput(); running->errors += process->readAllStandardError();
+    if (running->output.size() > 1024 * 1024 || running->errors.size() > 1024 * 1024)
         fail(QStringLiteral("OCR 출력이 허용 크기를 초과했습니다."));
 }
-void OcrService::launch(const QString& executable, const QStringList& args, QByteArray bytes) {
+void OcrService::launch(const QString& executable, const QStringList& args, QByteArray bytes, int attempt) {
     if (!QFileInfo(executable).isFile()) { fail(QStringLiteral("Tesseract 실행 파일을 찾을 수 없습니다.")); return; }
-    auto* p = new QProcess(this); process_ = p;
-    output_.clear(); errors_.clear();
+    auto* p = new QProcess(this);
+    jobs_.push_back({p, attempt});
     p->setProcessChannelMode(QProcess::SeparateChannels);
     connect(p, &QProcess::started, this, [this, p, bytes] {
-        if (process_ != p) return;
-        processHandle_ = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, DWORD(p->processId()));
+        Job* running = job(p);
+        if (!running) return;
+        running->handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, DWORD(p->processId()));
         sample(); memoryTimer_.start();
         if (!bytes.isEmpty() && p->write(bytes) != bytes.size()) { fail(QStringLiteral("OCR 이미지 전달에 실패했습니다.")); return; }
         p->closeWriteChannel();
     });
-    connect(p, &QProcess::readyReadStandardOutput, this, &OcrService::collect);
-    connect(p, &QProcess::readyReadStandardError, this, &OcrService::collect);
+    connect(p, &QProcess::readyReadStandardOutput, this, [this, p] { collect(p); });
+    connect(p, &QProcess::readyReadStandardError, this, [this, p] { collect(p); });
     connect(p, &QProcess::errorOccurred, this, [this, p](QProcess::ProcessError e) {
-        if (process_ != p) return;
+        if (!job(p)) return;
         if (e == QProcess::FailedToStart) fail(QStringLiteral("Tesseract를 시작하지 못했습니다. 실행 파일과 DLL을 확인하세요."));
         else if (e != QProcess::Crashed) fail(QStringLiteral("OCR 프로세스 통신 오류입니다."));
     });
     connect(p, qOverload<int,QProcess::ExitStatus>(&QProcess::finished), this,
         [this, p](int code, QProcess::ExitStatus exit) {
-            if (process_ != p) return;
-            collect();
-            if (process_ != p) return;
+            collect(p);
+            Job* running = job(p);
+            if (!running) return;
             if (exit != QProcess::NormalExit || code != 0) {
                 fail(QStringLiteral("OCR 실행 실패. 선택한 언어 모델(%1)과 tessdata 경로를 확인하세요.")
                     .arg(languages_)); return;
             }
-            const bool probe = probing_;
             QStringDecoder decoder(QStringDecoder::Utf8);
-            const QString decoded = decoder(output_); const QString text = decoded.trimmed();
+            const QString decoded = decoder(running->output);
             if (decoder.hasError()) { fail(QStringLiteral("OCR 출력의 문자 인코딩을 읽지 못했습니다.")); return; }
-            if (!probe) { attemptFinished(decoded); return; }
+            const int attempt = running->attempt;
+            sample();
+            if (running->handle) CloseHandle(static_cast<HANDLE>(running->handle));
+            disconnect(p, nullptr, this, nullptr);
+            p->deleteLater();
+            jobs_.erase(jobs_.begin() + (running - jobs_.data()));
+            if (jobs_.empty()) memoryTimer_.stop();
+            if (attempt >= 0) { outputs_[attempt] = decoded; judgeAttempts(); return; }
             cancel();
+            const QString text = decoded.trimmed();
             const QStringList installed = text.split(QRegularExpression("[\\r\\n]+"));
             QStringList missing;
             for (const QString& model : languages_.split('+'))

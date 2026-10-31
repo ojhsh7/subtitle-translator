@@ -5,7 +5,9 @@
 #include <QProcess>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <map>
 #include <memory>
+#include <vector>
 #include "paddle_ocr.h"
 class OcrService final : public QObject {
     Q_OBJECT
@@ -68,35 +70,38 @@ signals:
     void probeFinished(bool ok, QString message);
     void failed(QString message);
 private:
-    void launch(const QString& executable, const QStringList& args, QByteArray bytes);
+    // attempt: index in attempts_, or -1 for the --list-langs probe.
+    void launch(const QString& executable, const QStringList& args, QByteArray bytes, int attempt = -1);
     void runPaddle(const QImage& image, quint64 ticket);
     void runDetectorThenTesseract(const QImage& image, quint64 ticket);
     void runTesseract(const QImage& image, quint64 ticket);
-    void runAttempt();
-    void attemptFinished(const QString& tsv);
-    void releaseProcess();
+    void launchAttempts();
+    void judgeAttempts();
+    void stopJobs();
     void fail(const QString& message);
-    void collect();
+    void collect(QProcess* process);
     void sample();
     void metrics();
-    QProcess* process_ = nullptr;
+    // A running Tesseract process: the probe, or one image attempt (several can run at once, P-27).
+    struct Job { QProcess* process = nullptr; int attempt = -1; QByteArray output, errors; void* handle = nullptr; };
+    Job* job(QProcess* process);
+    std::vector<Job> jobs_;
     QTimer deadline_, memoryTimer_;
     QElapsedTimer elapsed_;
-    QByteArray output_, errors_;
     bool busy_ = false, probing_ = false;
     QString languages_, executable_, engineUsed_, paddleDir_;
     std::shared_ptr<PaddleOcr> paddle_; // shared with the worker thread, which may outlive a cancel
     bool paddleRecognition_ = true;
     QFuture<void> warmUp_;
-    std::shared_ptr<std::atomic<bool>> cancelled_; // the running PaddleOCR read stops early when set
+    std::shared_ptr<OcrCancel> cancelled_; // stops the running PaddleOCR read or detection check
     QStringList arguments_;
     QList<QByteArray> attempts_; // PNG candidates: original, light mask, thickened mask, bright mask
-    int attempt_ = 0, attemptsUsed_ = 0;
+    std::map<int, QString> outputs_; // finished attempts waiting for the earlier ones to be judged
+    int launched_ = 0, judged_ = 0, attemptsUsed_ = 0;
     Reading best_;
     bool bestFromMask_ = false;
     PaddleOcr::Result paddleDetails_;
     double tesseractConfidence_ = -1;
     quint64 generation_ = 0, peakMemory_ = 0;
     qint64 elapsedMs_ = 0;
-    void* processHandle_ = nullptr;
 };

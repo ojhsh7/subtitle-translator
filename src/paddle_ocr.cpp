@@ -31,13 +31,24 @@ Ort::SessionOptions sessionOptions() {
     options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     return options;
 }
-// Runs a session and adds the time spent to *runMs when given.
+}
+struct OcrCancel::Options { Ort::RunOptions run; };
+OcrCancel::OcrCancel() : options_(std::make_unique<Options>()) {}
+OcrCancel::~OcrCancel() = default;
+void OcrCancel::cancel() {
+    cancelled_ = true;
+    options_->run.SetTerminate(); // a run in progress stops at its next operator and throws
+}
+namespace {
+// Runs a session and adds the time spent to *runMs when given. A cancelled read's runs throw.
 std::vector<Ort::Value> timedRun(Ort::Session& session, const std::string& input, Ort::Value& tensor,
-                                 const std::string& output, double* runMs) {
+                                 const std::string& output, double* runMs, const OcrCancel* cancel) {
     const char* inputs[] = {input.c_str()};
     const char* outputs[] = {output.c_str()};
+    static const Ort::RunOptions plain{nullptr};
+    const Ort::RunOptions& options = cancel ? cancel->options().run : plain;
     const auto start = std::chrono::steady_clock::now();
-    auto result = session.Run(Ort::RunOptions{nullptr}, inputs, &tensor, 1, outputs, 1);
+    auto result = session.Run(options, inputs, &tensor, 1, outputs, 1);
     if (runMs) *runMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
     return result;
 }
@@ -136,7 +147,7 @@ PaddleRecognizer::Line PaddleRecognizer::decode(const float* probabilities, int 
     return line;
 }
 
-PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image, double* runMs) const {
+PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image, double* runMs, const OcrCancel* cancel) const {
     if (!model_ || image.isNull()) return {};
     int width = 0;
     std::vector<float> data = inputTensor(image, width);
@@ -144,7 +155,7 @@ PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image, double* 
     try {
         const auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         Ort::Value input = Ort::Value::CreateTensor<float>(memory, data.data(), data.size(), shape.data(), shape.size());
-        auto result = timedRun(model_->session, model_->input, input, model_->output, runMs);
+        auto result = timedRun(model_->session, model_->input, input, model_->output, runMs, cancel);
         const auto out = result[0].GetTensorTypeAndShapeInfo().GetShape(); // [1, steps, classes]
         if (out.size() != 3) return {};
         auto line = decode(result[0].GetTensorData<float>(), int(out[1]), int(out[2]), model_->dictionary);
@@ -266,7 +277,7 @@ QList<QRect> PaddleDetector::joinLines(QList<QRect> boxes) {
     return lines;
 }
 
-QList<QRect> PaddleDetector::lines(const QImage& region, double* runMs) const {
+QList<QRect> PaddleDetector::lines(const QImage& region, double* runMs, const OcrCancel* cancel) const {
     if (!model_ || region.isNull()) return {};
     int width = 0, height = 0;
     std::vector<float> data = inputTensor(region, width, height);
@@ -275,7 +286,7 @@ QList<QRect> PaddleDetector::lines(const QImage& region, double* runMs) const {
     try {
         const auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         Ort::Value input = Ort::Value::CreateTensor<float>(memory, data.data(), data.size(), shape.data(), shape.size());
-        auto result = timedRun(model_->session, model_->input, input, model_->output, runMs);
+        auto result = timedRun(model_->session, model_->input, input, model_->output, runMs, cancel);
         const auto out = result[0].GetTensorTypeAndShapeInfo().GetShape(); // [1, 1, height, width]
         if (out.size() != 4 || out[2] != height || out[3] != width) return {};
         return joinLines(boxes(result[0].GetTensorData<float>(), width, height, region.size()));
@@ -520,17 +531,17 @@ void PaddleOcr::loadDetector() {
     QString ignored;
     if (QFileInfo(path).isFile() && loaded->load(path, ignored)) detector_ = std::move(loaded);
 }
-int PaddleOcr::countTextLines(const QImage& region) {
+int PaddleOcr::countTextLines(const QImage& region, const OcrCancel* cancel) {
     std::lock_guard<std::mutex> lock(mutex_);
     loadDetector();
-    return detector_ ? int(detector_->lines(region).size()) : -1;
+    return detector_ ? int(detector_->lines(region, nullptr, cancel).size()) : -1;
 }
 PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages, QString& error,
-                                  const std::atomic<bool>* cancelled) {
+                                  const OcrCancel* cancel) {
     std::lock_guard<std::mutex> lock(mutex_);
     error.clear();
     auto stop = [&] {
-        if (!cancelled || !cancelled->load()) return false;
+        if (!cancel || !cancel->isCancelled()) return false;
         error = QStringLiteral("취소됨");
         return true;
     };
@@ -552,7 +563,8 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
     QList<QImage> lines, taller;
     // Crops as RapidOCR makes them: extra padding was measured as no better (horizontal) or worse (vertical).
     if (detector_)
-        for (const QRect& box : detector_->lines(region, &result.detectRunMs)) lines << region.copy(box);
+        for (const QRect& box : detector_->lines(region, &result.detectRunMs, cancel)) lines << region.copy(box);
+    if (stop()) return {}; // an aborted detection found nothing; do not fall back to the line finder
     if (detector_) result.detectorBoxes = int(lines.size());
     result.detected = !lines.isEmpty();
     if (!result.detected) {
@@ -577,7 +589,7 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
             if (!model) return false;
             // Devanagari vowel signs can sit above the dense stroke band; keep enough vertical padding.
             const QImage& input = file == QLatin1String(HindiModel) && index < taller.size() ? taller[index] : line;
-            readings.push_back({file, model->recognize(input, &result.recognizeRunMs)});
+            readings.push_back({file, model->recognize(input, &result.recognizeRunMs, cancel)});
             ++result.modelRuns;
             return true;
         };

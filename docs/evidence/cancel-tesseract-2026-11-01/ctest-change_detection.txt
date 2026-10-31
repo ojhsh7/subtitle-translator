@@ -1,0 +1,26 @@
+********* Start testing of ChangeChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : ChangeChecks::initTestCase()
+PASS   : ChangeChecks::staticLineIsProcessedOnce()
+PASS   : ChangeChecks::typewriterTextWaitsUntilComplete()
+QINFO  : ChangeChecks::typewriterReadsPerSentence(20 chars x 100 ms (2 s)) 20 chars x 100 ms: 3 complete and 0 partial reads in 3 sentences
+PASS   : ChangeChecks::typewriterReadsPerSentence(20 chars x 100 ms (2 s))
+QINFO  : ChangeChecks::typewriterReadsPerSentence(28 chars x 100 ms (2.8 s)) 28 chars x 100 ms: 3 complete and 0 partial reads in 3 sentences
+PASS   : ChangeChecks::typewriterReadsPerSentence(28 chars x 100 ms (2.8 s))
+QINFO  : ChangeChecks::typewriterReadsPerSentence(40 chars x 100 ms (4 s)) 40 chars x 100 ms: 3 complete and 3 partial reads in 3 sentences
+PASS   : ChangeChecks::typewriterReadsPerSentence(40 chars x 100 ms (4 s))
+QINFO  : ChangeChecks::typewriterReadsPerSentence(40 chars x 200 ms (8 s)) 40 chars x 200 ms: 3 complete and 6 partial reads in 3 sentences
+PASS   : ChangeChecks::typewriterReadsPerSentence(40 chars x 200 ms (8 s))
+PASS   : ChangeChecks::nextLineIsProcessedAgain()
+PASS   : ChangeChecks::oneNewCharacterIsAChange()
+PASS   : ChangeChecks::singlePixelNoiseIsIgnored()
+PASS   : ChangeChecks::animatedBackgroundIsProcessedAtMostEveryMaxWait()
+PASS   : ChangeChecks::smallSentenceEndingInsideLargeRegionIsDetected(japanese)
+PASS   : ChangeChecks::smallSentenceEndingInsideLargeRegionIsDetected(english)
+PASS   : ChangeChecks::intermittentlyAnimatedBackgroundCannotWaitForever()
+PASS   : ChangeChecks::failedOcrRetriesAreDelayedAndBounded()
+PASS   : ChangeChecks::forcedPartialReadIsConfirmedOnceWhenSettled()
+PASS   : ChangeChecks::resetForgetsTheProcessedLine()
+PASS   : ChangeChecks::cleanupTestCase()
+Totals: 18 passed, 0 failed, 0 skipped, 0 blacklisted, 166ms
+********* Finished testing of ChangeChecks *********

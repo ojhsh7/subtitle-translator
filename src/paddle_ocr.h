@@ -9,6 +9,22 @@
 #include <mutex>
 #include <vector>
 
+// Stops a read from another thread. It is checked before every line and model run, and the model
+// run in progress is aborted through ONNX Runtime instead of being finished (P-23: a large
+// detection alone kept the engine for about 260 ms). One per read.
+class OcrCancel {
+public:
+    OcrCancel();
+    ~OcrCancel();
+    void cancel(); // any thread
+    bool isCancelled() const { return cancelled_; }
+    struct Options; // the ONNX Runtime run options shared by this read's model runs
+    Options& options() const { return *options_; }
+private:
+    std::atomic<bool> cancelled_{false};
+    std::unique_ptr<Options> options_;
+};
+
 // Windows adapter: PaddleOCR PP-OCRv5 text detection and line recognition through ONNX Runtime.
 // The detection model finds the text lines inside the selected area (a dialog box also holds a
 // name tag, ruled lines, frames and scenery); the recognition model reads each line.
@@ -21,8 +37,8 @@ public:
     ~PaddleRecognizer();
     bool load(const QString& modelPath, QString& error);
     bool isLoaded() const { return model_ != nullptr; }
-    // runMs: adds the time spent inside ONNX Runtime (diagnostics).
-    Line recognize(const QImage& line, double* runMs = nullptr) const;
+    // runMs: adds the time spent inside ONNX Runtime (diagnostics). cancel: aborts the run; returns {}.
+    Line recognize(const QImage& line, double* runMs = nullptr, const OcrCancel* cancel = nullptr) const;
     // Model input, as RapidOCR prepares it: shorter side raised to 30 px (rounded to 32),
     // then height 48, width at least 320, BGR scaled to [-1, 1], zero padded on the right.
     static std::vector<float> inputTensor(const QImage& line, int& width);
@@ -40,8 +56,8 @@ public:
     ~PaddleDetector();
     bool load(const QString& modelPath, QString& error);
     // One box per text line in region coordinates, top to bottom; boxes on one line are joined.
-    // runMs: adds the time spent inside ONNX Runtime (diagnostics).
-    QList<QRect> lines(const QImage& region, double* runMs = nullptr) const;
+    // runMs: adds the time spent inside ONNX Runtime (diagnostics). cancel: aborts the run; returns {}.
+    QList<QRect> lines(const QImage& region, double* runMs = nullptr, const OcrCancel* cancel = nullptr) const;
     // Model input: the region enlarged 1.5x (shorter side at least 64, at most 2 million pixels,
     // longest side 2560), sides rounded to multiples of 32, BGR scaled to [-1, 1].
     static std::vector<float> inputTensor(const QImage& region, int& width, int& height);
@@ -118,13 +134,13 @@ public:
     static constexpr double StageTwoBelow = 0.85;
     explicit PaddleOcr(QString modelDir) : dir_(std::move(modelDir)) {}
     // Loads the needed models on first use. Safe to call from a worker thread.
-    // cancelled: checked before every line and model run, so a cancelled read releases the engine
-    // after at most one recognition instead of finishing the whole region (R-02, P-03).
+    // cancel: a cancelled read releases the engine at once instead of finishing the whole region
+    // (R-02, P-03, P-23); error is then "취소됨".
     Result read(const QImage& region, const QString& languages, QString& error,
-                const std::atomic<bool>* cancelled = nullptr);
+                const OcrCancel* cancel = nullptr);
     // Text lines the detection model finds, for engines that only recognize (Tesseract);
     // -1 when the detection model is not installed. Safe to call from a worker thread.
-    int countTextLines(const QImage& region);
+    int countTextLines(const QImage& region, const OcrCancel* cancel = nullptr);
     // Loads the detection model and, with recognition, the models a read of `languages` starts with,
     // and runs each once, so the first real read does not pay for loading. Safe from a worker thread.
     void warmUp(const QString& languages, bool recognition);

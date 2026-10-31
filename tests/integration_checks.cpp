@@ -221,6 +221,33 @@ private slots:
         const QString result = readWith(service, fixture);
         QVERIFY2(result.contains(expected), result.toUtf8().constData());
     }
+    // P-27: masks read side by side give the reading the one-by-one order gave, in less time.
+    void parallelAttemptsKeepTheSequentialReading() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_TESSERACT")) QSKIP("Actual Tesseract not configured");
+        const QDir dir(QStringLiteral(OCR_FIXTURE_DIR));
+        int withMasks = 0;
+        for (const char* file : {"outlined-en-18px.png", "outlined-ko-18px.png", "outlined-ja-22px.png",
+                                 "shadow-en-14px.png", "shadow-ko-14px.png", "shadow-ja-18px.png"}) {
+            const QImage image(dir.filePath(QString::fromLatin1(file)));
+            QVERIFY2(!image.isNull(), file);
+            OcrService service;
+            PaddleOcr::setThreads(1); // the attempt budget: one at a time
+            QElapsedTimer timer; timer.start();
+            const QString oneByOne = readWith(service, image);
+            const int used = service.attemptsUsed();
+            const qint64 oneByOneMs = timer.elapsed();
+            PaddleOcr::setThreads(4);
+            timer.restart();
+            const QString sideBySide = readWith(service, image);
+            const qint64 sideBySideMs = timer.elapsed();
+            PaddleOcr::setThreads(0);
+            qInfo("%s: %d attempts, one by one %lld ms, side by side %lld ms", file, used, oneByOneMs, sideBySideMs);
+            QCOMPARE(sideBySide, oneByOne);
+            QCOMPARE(service.attemptsUsed(), used);
+            withMasks += used > 1;
+        }
+        QVERIFY(withMasks > 0); // at least one image needed the masks, so attempts really ran together
+    }
     void cleanTextFixesStandaloneI() {
         QCOMPARE(OcrService::cleanText("| told you, didn't |?"), QString("I told you, didn't I?"));
         QCOMPARE(OcrService::cleanText("a|b"), QString("a|b"));

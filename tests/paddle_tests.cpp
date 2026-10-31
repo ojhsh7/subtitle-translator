@@ -405,7 +405,25 @@ private slots:
         qInfo("small read alone %lld ms; 8-line read %lld ms; small read right after cancelling it %lld ms (waited %lld ms)",
               alone, full, afterCancel, waited);
         QCOMPARE(recognized.last().first().toString(), QStringLiteral("はい"));
-        QVERIFY2(waited * 2 < full, "the cancelled read kept the engine busy");
+        // P-23: the model run in progress is aborted too, so only a fraction of one step remains.
+        QVERIFY2(waited * 5 < full, "the cancelled read kept the engine busy");
+    }
+    // P-23: a cancelled read stops before any model runs and reports "취소됨".
+    void cancelledTokenStopsTheRead() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        PaddleOcr ocr(models());
+        QString error;
+        OcrCancel cancel;
+        cancel.cancel();
+        const auto result = ocr.read(QImage(fixture("shadow-ko-14px.png")), "kor", error, &cancel);
+        QCOMPARE(error, QStringLiteral("취소됨"));
+        QVERIFY(result.text.isEmpty());
+        QCOMPARE(result.modelRuns, 0);
+        QCOMPARE(ocr.countTextLines(QImage(fixture("shadow-ko-14px.png")), &cancel), 0);
+        // The same engine reads normally with a new token.
+        OcrCancel fresh;
+        const auto read = ocr.read(QImage(fixture("shadow-ko-14px.png")), "kor", error, &fresh);
+        QVERIFY2(read.text.contains(QStringLiteral("날씨")), qPrintable(read.text));
     }
     void serviceUsesPaddleThenFallsBack() {
         if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
