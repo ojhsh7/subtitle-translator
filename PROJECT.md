@@ -27,6 +27,8 @@
 
 이 PC 환경(2026-10-25 구성): VS 2022 Build Tools(MSVC 14.44), CMake 4.4.4, Qt 6.8.3 msvc2022_64, ONNX Runtime 1.30.0, PaddleOCR 모델 8개, Tesseract 5.4 + tessdata_fast. 도구 폴더 `D:\SubtitleTranslatorToolchain`.
 
+저장소 위치: `C:\dev\subtitle-translator` (2026-11-01 OneDrive 문서 폴더에서 이동). **OneDrive 등 동기화 폴더에 두지 않는다**: 빌드할 때마다 배포 폴더(약 230MB)가 업로드되고 `.git` 내부 파일이 동기화 충돌을 일으킬 수 있으며, 경로에 한글이 들어가면 빌드 도구가 예외 설정을 요구한다.
+
 ```powershell
 # 전체 빌드 + CTest 7그룹 + 배포(dist\windows)
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1 `
@@ -111,4 +113,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 
 ## 파생 프로젝트
 
-이 저장소의 OCR 벤치마크(합성 픽스처 생성 → 네이티브 실행 → CER 채점) 경험은 모바일 프로그래밍 팀 프로젝트 **종이한장(OnePaper)**의 번역 기능 측정에 옮겨 썼다(저장소 `Documents\GitHub\onepaper`).
+이 저장소의 OCR 벤치마크(합성 픽스처 생성 → 네이티브 실행 → CER 채점) 경험은 모바일 프로그래밍 팀 프로젝트 **종이한장(OnePaper)**의 번역 기능 측정에 옮겨 썼다(저장소 `C:\dev\onepaper`, 원격 저장소 없음).
