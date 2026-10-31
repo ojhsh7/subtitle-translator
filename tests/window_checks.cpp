@@ -22,6 +22,11 @@
 #include <QScreen>
 #include <QPainter>
 #include <QTimer>
+#include <QAction>
+#include <QDialog>
+#include <QKeySequence>
+#include <QListWidget>
+#include <QSystemTrayIcon>
 #include <windows.h>
 namespace {
 // Logical -> physical -> logical conversion may round by a pixel on scaled monitors.
@@ -311,6 +316,82 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
         QVERIFY(window.isVisible()); // shown again after the capture
         QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")), qPrintable(window.original_->toPlainText()));
+        window.hide();
+    }
+    // P-29 U1/U2: closing hides the window into the tray; the tray menu follows the buttons.
+    void closeHidesToTrayAndMenuFollowsState() {
+        MainWindow window;
+        if (!window.tray_) QSKIP("No system tray on this desktop");
+        window.executable_ = qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
+        QSettings().setValue("ui/trayNoticeShown", true); // no balloon during tests
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QVERIFY(!window.close()); // ignored: the app keeps running
+        QVERIFY(!window.isVisible());
+        QVERIFY(window.tray_->isVisible());
+        QVERIFY(window.ocrReady());
+        window.trayHover_->trigger();
+        QVERIFY(window.hoverMode_->isChecked());
+        QVERIFY(window.trayHover_->isChecked());
+        QCOMPARE(window.stateBadge_->text(), QStringLiteral("마우스 올려두기"));
+        window.hoverMode_->setChecked(false); // the checkbox and the menu stay in step both ways
+        QVERIFY(!window.trayHover_->isChecked());
+        QCOMPARE(window.stateBadge_->text(), QStringLiteral("대기"));
+    }
+    // P-29 U5: shortcuts can be changed, are named in messages, and return to the defaults.
+    void shortcutsCanBeChangedAndRestored() {
+        unsigned modifiers = 0, key = 0;
+        QVERIFY(!MainWindow::nativeKey(QKeySequence(QStringLiteral("A")), modifiers, key)); // would take game typing
+        QVERIFY(!MainWindow::nativeKey(QKeySequence(QStringLiteral("Shift+A")), modifiers, key));
+        QVERIFY(!MainWindow::nativeKey(QKeySequence(QStringLiteral("Ctrl+Space")), modifiers, key));
+        QVERIFY(MainWindow::nativeKey(QKeySequence(QStringLiteral("F10")), modifiers, key));
+        QCOMPARE(key, unsigned(VK_F10));
+        QVERIFY(MainWindow::nativeKey(QKeySequence(QStringLiteral("Ctrl+Shift+5")), modifiers, key));
+        QCOMPARE(key, unsigned('5'));
+        QVERIFY(modifiers & MOD_SHIFT && modifiers & MOD_CONTROL && !(modifiers & MOD_ALT));
+        MainWindow window;
+        const QKeySequence chosen(QStringLiteral("Ctrl+Alt+Shift+F11"));
+        QSettings().setValue("hotkeys/auto", chosen.toString(QKeySequence::PortableText));
+        window.registerHotkeys();
+        QVERIFY(window.autoRegistered_);
+        QCOMPARE(window.autoShortcut_, chosen.toString(QKeySequence::NativeText));
+        QVERIFY2(window.auto_->text().contains(window.autoShortcut_), qPrintable(window.auto_->text()));
+        window.setStatus(QStringLiteral("자동 번역 중 · Ctrl + Alt + P로 멈춥니다."));
+        QVERIFY2(window.status_->text().contains(window.autoShortcut_), qPrintable(window.status_->text()));
+        QSettings().remove("hotkeys/auto");
+        window.registerHotkeys();
+        QCOMPARE(window.autoShortcut_, QStringLiteral("Ctrl+Alt+P"));
+    }
+    // P-29 U6: a bigger caption and a translucent panel keep the placement rules.
+    void captionStyleScalesTextAndKeepsPlacement() {
+        SubtitleOverlay overlay;
+        const QRect source(100, 100, 600, 40), work(0, 0, 1920, 1080);
+        QVERIFY(overlay.showText(QStringLiteral("자막 크기 확인"), source, work));
+        const int normal = overlay.height();
+        overlay.setStyle(1.5, true);
+        QVERIFY(overlay.showText(QStringLiteral("자막 크기 확인"), source, work));
+        QVERIFY(overlay.height() > normal);
+        QVERIFY(overlay.geometry().top() > source.bottom()); // still under the original line
+        QVERIFY(!overlay.geometry().intersects(source));
+        overlay.hide();
+    }
+    // P-29 U3/U4: the settings window has its pages, and each fits. SUBTITLE_TEST_SCREENSHOTS saves them.
+    void settingsPagesAreComplete() {
+        MainWindow window;
+        QCOMPARE(window.settingsPages_->count(), 7);
+        const QString shots = qEnvironmentVariable("SUBTITLE_TEST_SCREENSHOTS");
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        if (!shots.isEmpty()) window.grab().save(QDir(shots).filePath("main.png"));
+        window.reloadSettings_();
+        window.settingsWindow_->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window.settingsWindow_));
+        for (int i = 0; i < window.settingsPages_->count(); ++i) {
+            window.settingsPages_->setCurrentRow(i);
+            QTest::qWait(30);
+            if (!shots.isEmpty()) window.settingsWindow_->grab().save(QDir(shots).filePath(QStringLiteral("settings-%1.png").arg(i)));
+        }
+        window.settingsWindow_->hide();
         window.hide();
     }
     void fallbackResultWindowDoesNotBlockAutoCapture() {

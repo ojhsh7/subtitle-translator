@@ -47,7 +47,7 @@ bool SubtitleOverlay::showText(const QString& text, const QRect& source, const Q
     if (text.trimmed().isEmpty()) { hide(); return false; }
     // Match the size of the selected original text line.
     QFont captionFont = font();
-    captionFont.setPixelSize(std::clamp(source.height() * 3 / 5, 16, 36));
+    captionFont.setPixelSize(std::clamp(int(std::clamp(source.height() * 3 / 5, 16, 36) * scale_), 12, 54));
     setFont(captionFont);
     const int width = std::min(std::clamp(source.width(), 360, 1100), workArea.width() - 8);
     if (width <= Padding * 2) { hide(); return false; }
@@ -135,10 +135,16 @@ void SubtitleOverlay::paintEvent(QPaintEvent*) {
     painter.setRenderHint(QPainter::TextAntialiasing);
     painter.setFont(font());
     const int lineHeight = QFontMetrics(font()).lineSpacing();
+    if (box_) {
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(0, 0, 0, 170));
+        painter.drawRoundedRect(rect(), 6, 6);
+    }
     for (int i = 0; i < lines_.size(); ++i) {
         const QRect line(Padding, Padding + i * lineHeight, width() - Padding * 2, lineHeight);
         const int flags = Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine;
-        // Outline only: no background panel is painted.
+        // Outline by default: no background panel unless the user chose one.
         painter.setPen(QColor(0, 0, 0, 220));
         for (int dy = -1; dy <= 1; ++dy)
             for (int dx = -1; dx <= 1; ++dx)

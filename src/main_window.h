@@ -13,7 +13,13 @@
 #include <functional>
 #include <vector>
 #include <QRect>
+class QAction;
 class QComboBox;
+class QDialog;
+class QIcon;
+class QKeySequence;
+class QListWidget;
+class QSystemTrayIcon;
 class QTimer;
 class QLabel;
 class QPushButton;
@@ -29,11 +35,28 @@ public:
     MainWindow();
     ~MainWindow() override;
     bool autoTranslating() const;
+    // The app icon, drawn in code (no image files): taskbar, tray and windows.
+    static QIcon appIcon();
+    // Global shortcut ids for RegisterHotKey; defaults are Ctrl+Alt+ the letter in hotkeySpecs.
+    enum Hotkey { CaptureKey = 1, AutoKey, CursorKey, HoverKey, RegionKey };
+    // A shortcut RegisterHotKey can take: one key with modifiers. Letters and digits need Ctrl or Alt
+    // so typing in a game never triggers them; F1-F24 may stand alone.
+    static bool nativeKey(const QKeySequence& sequence, unsigned& modifiers, unsigned& virtualKey);
 protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
     void closeEvent(QCloseEvent*) override;
 private:
-    void settings();
+    // main_window_ui.cpp: windows, tray, settings pages and shortcuts.
+    void buildUi();
+    void buildSettings();
+    void buildTray();
+    void registerHotkeys();      // (re)registers every shortcut from the settings
+    void refreshUi();            // state badge, button texts, tray menu after any state change
+    void setStatus(const QString& text);
+    QString withShortcuts(QString text) const; // default key names in a message -> the keys in use
+    void showFromTray();
+    void quitApp();
+    void settings(int page = -1); // -1: the last page shown
     void chooseRegion(QScreen* screen = nullptr); // nullptr: the monitor chosen in the main window
     void chooseRegionUnderCursor();
     void setRegion(QScreen* screen, const QRect& region);
@@ -105,6 +128,15 @@ private:
     quint32 ignoreProcess_ = 0;             // our own process; tests use 0 to treat their windows as games
     std::function<GameWindow::Info()> foregroundWindow_; // the window in front; tests replace it
     QCheckBox* hoverMode_;
+    QLabel* stateBadge_ = nullptr;
+    QListWidget* settingsPages_ = nullptr;
+    QDialog* settingsWindow_ = nullptr;
+    std::function<void()> reloadSettings_; // fills the settings fields from the current values
+    std::function<bool()> saveSettings_;   // applies key, engine and shortcut fields; false keeps the window open
+    QSystemTrayIcon* tray_ = nullptr;
+    QAction* trayAuto_ = nullptr;
+    QAction* trayHover_ = nullptr;
+    bool quitting_ = false;
     QTimer* hoverTimer_;
     QPoint hoverAnchor_;
     qint64 hoverSince_ = -1;
@@ -157,6 +189,8 @@ private:
     bool cursorRegistered_ = false;
     bool hoverRegistered_ = false;
     bool regionRegistered_ = false;
+    QString captureShortcut_ = QStringLiteral("Ctrl+Alt+T");
+    QString autoShortcut_ = QStringLiteral("Ctrl+Alt+P");
     QString regionShortcut_ = QStringLiteral("Ctrl+Alt+R");
     QString hoverShortcut_ = QStringLiteral("Ctrl+Alt+H");
     QString cursorShortcut_ = QStringLiteral("Ctrl+Alt+M");

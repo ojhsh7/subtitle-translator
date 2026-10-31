@@ -7,11 +7,16 @@ class SubtitleOverlay final : public QWidget {
 public:
     SubtitleOverlay();
     bool showText(const QString& text, const QRect& source, const QRect& workArea);
+    // scale: multiplies the size matched to the original line (0.8-1.5). box: a translucent dark
+    // panel behind the text instead of an outline only.
+    void setStyle(double scale, bool box) { scale_ = scale; box_ = box; update(); }
     static QRect placement(const QRect& source, const QRect& workArea, const QSize& size);
 protected:
     void paintEvent(QPaintEvent*) override;
 private:
     QStringList lines_;
+    double scale_ = 1.0;
+    bool box_ = false;
 };
 
 class QTimer;

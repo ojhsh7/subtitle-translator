@@ -28,7 +28,7 @@ target_include_directories(subtitle_services PUBLIC src)
 target_include_directories(subtitle_services PRIVATE "${ONNXRUNTIME_ROOT}/include")
 target_link_libraries(subtitle_services PUBLIC Qt6::Widgets Qt6::Network subtitle_core PRIVATE Advapi32 Psapi User32 Dwmapi icu Qt6::Concurrent "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib")
 qt_add_executable(SubtitleTranslator WIN32
-  src/main.cpp src/main_window.cpp src/main_window.h
+  src/main.cpp src/main_window.cpp src/main_window_ui.cpp src/main_window.h
   src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
 target_link_libraries(SubtitleTranslator PRIVATE subtitle_services subtitle_core Qt6::Concurrent User32)
 # Windows ships an older onnxruntime.dll in System32; ours must sit next to every executable.
@@ -104,7 +104,7 @@ if(MSVC)
   target_compile_options(subtitle_cli PRIVATE /utf-8)
 endif()
 if(BUILD_TESTING)
-  qt_add_executable(window_checks tests/window_checks.cpp src/main_window.cpp src/main_window.h src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
+  qt_add_executable(window_checks tests/window_checks.cpp src/main_window.cpp src/main_window_ui.cpp src/main_window.h src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
   target_link_libraries(window_checks PRIVATE subtitle_services subtitle_core Qt6::Concurrent Qt6::Test User32)
   target_compile_definitions(window_checks PRIVATE OCR_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ocr")
   if(MSVC)

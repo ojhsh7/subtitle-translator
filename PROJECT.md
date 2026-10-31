@@ -8,13 +8,13 @@
 
 1. 이 파일의 **지금 하는 일**을 읽는다.
 2. [백로그](docs/plan/BACKLOG.md)의 `진행 중` 항목과 그 계획서를 연다. 계획서 5절 "일정"에서 끝난 단계 다음부터 이어 간다.
-3. 아래 **빌드·테스트**로 지금 코드가 통과하는지 먼저 확인한다(기대: 176 통과, 건너뜀 0).
+3. 아래 **빌드·테스트**로 지금 코드가 통과하는지 먼저 확인한다(기대: 180 통과, 건너뜀 0).
 4. 일을 끝내면 계획서 6절 결과 → 백로그 상태 → 이 파일의 "지금 하는 일"과 "흐름" 순서로 갱신하고 커밋한다.
 5. 기존 결정을 바꿀 때는 [결정 기록](docs/plan/DECISIONS.md)에 "변경" 줄을 추가한다.
 
 ## 지금 하는 일
 
-진행 중인 항목 없음. 방금 끝난 일: P-23 취소 즉시 반영(대기 264ms → 0), P-27 Tesseract 시도 동시 실행(베트남어 524 → 305ms) ([결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md), CTest 176). 그 전: P-26 OCR 인식 속도 ([결과](docs/plan/2026-11-01-ocr-speed.ko.md): 단축키 → 자막 351 → 83ms, 기본 설정 대사창 OCR 288 → 105ms, 인식 결과 차이 0, CTest 174). 구현 언어는 C++, 엔진은 PaddleOCR 유지로 결정(측정 근거는 같은 계획서 2절).
+진행 중인 항목 없음. 방금 끝난 일: P-29 앱 화면·설정 개편 ([결과](docs/plan/2026-11-01-app-ui.ko.md): 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 크기·배경, CTest 180). 그 전: P-23 취소 즉시 반영(대기 264ms → 0), P-27 Tesseract 시도 동시 실행(베트남어 524 → 305ms) ([결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md), CTest 176). 그 전: P-26 OCR 인식 속도 ([결과](docs/plan/2026-11-01-ocr-speed.ko.md): 단축키 → 자막 351 → 83ms, 기본 설정 대사창 OCR 288 → 105ms, 인식 결과 차이 0, CTest 174). 구현 언어는 C++, 엔진은 PaddleOCR 유지로 결정(측정 근거는 같은 계획서 2절).
 
 다음 후보 ([백로그](docs/plan/BACKLOG.md)):
 - P-22 배포 실행 파일 코드 서명 (Smart App Control이 켜진 PC에서 실행되도록)
@@ -43,7 +43,7 @@ $env:SUBTITLE_TEST_TESSERACT="$root\ocr\tesseract.exe"; $env:SUBTITLE_TEST_TESSD
 & "$root\windows-build\Release\window_checks.exe" 테스트이름 -o "$root\windows-build\single.txt,txt"
 ```
 
-마지막 결과(2026-11-01, 취소·Tesseract 개선 후): CTest 7/7 그룹, **176 통과 · 실패 0 · 건너뜀 0**. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.
+마지막 결과(2026-11-01, 앱 화면 개편 후): CTest 7/7 그룹, **180 통과 · 실패 0 · 건너뜀 0**. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.
 
 **건너뜀이 0이 아니면 통과로 보지 않는다.** Tesseract가 없으면 UI 테스트 9개가 "엔진 없음"으로 조용히 건너뛰어진다.
 
@@ -62,14 +62,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 
 - `subtitle_cli --translate`는 환경 변수 `SUBTITLE_TRANSLATOR_API_KEY`가 없으면 **자격 증명 저장소의 실제 키**로 DeepL을 호출한다. 확인 없이 실행하지 않는다.
 - 앱 설정 창에서 "키 저장"을 끈 채 저장하면 저장된 키가 **삭제**된다.
-- UI 테스트(`windows_flow`)는 실제 창을 띄우고 전역 단축키를 등록하며 마우스 커서를 움직인다. 실행 중에는 PC를 쓰지 않고, 설치된 SubtitleTranslator는 먼저 종료한다.
+- UI 테스트(`windows_flow`)는 실제 창을 띄우고 전역 단축키를 등록하며 마우스 커서를 움직인다. 실행 중에는 PC를 쓰지 않고, 설치된 SubtitleTranslator는 먼저 종료한다. 창이 없어도 트레이에서 실행 중일 수 있다(바로가기 실행은 트레이에서 시작): `Get-Process SubtitleTranslator | Stop-Process`.
 - 사용자 설정은 `HKCU\Software\PersonalTools\SubtitleTranslator`. 앱을 띄우는 QA 전에는 `reg export`로 백업한다(테스트는 별도 조직 이름을 써서 영향 없음).
 
 ## 플랫폼별 상태
 
 | 플랫폼 | 상태 | 검증 수준 |
 |---|---|---|
-| Windows | 기능 구현 완료, 오인식·속도 개선 | CTest 176/176, 합성 이미지 CER, 실제 DeepL(CLI) 10회 |
+| Windows | 기능 구현 완료, 오인식·속도·화면 개선 | CTest 180/180, 합성 이미지 CER, 실제 DeepL(CLI) 10회 |
 | Android | 프로토타입 (일본어 → 한국어, 이미지 선택·자르기) | 에뮬레이터 계측 테스트 3개. 실기기·실번역 미검증 (P-15) |
 | iOS | 설계만 | — |
 
@@ -88,6 +88,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 | 429/456 대응, 취소 지연, 로컬 HTTP 테스트, 모델 간 보정, Tesseract 전 글자 줄 확인 | 완료 (2026-10-25, CTest 171/171) | [계획·결과](docs/plan/2026-10-25-cleanup-and-reliability.ko.md) |
 | 인식 속도: 공용 스레드 풀, 모델 미리 불러오기, 캡처 대기 생략 | 완료 (2026-11-01, CTest 174/174) | [계획·결과](docs/plan/2026-11-01-ocr-speed.ko.md) |
 | 취소 즉시 반영, Tesseract 시도 동시 실행 | 완료 (2026-11-01, CTest 176/176) | [계획·결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md) |
+| 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 크기·배경 | 완료 (2026-11-01, CTest 180/180) | [계획·결과](docs/plan/2026-11-01-app-ui.ko.md) |
 | 코드 서명, 실제 게임·다중 모니터·장시간 확인 | 남음 | [백로그](docs/plan/BACKLOG.md) |
 
 ## 지금까지의 흐름
@@ -99,7 +100,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 | 2026-09-30 | Cowork QA 1–3단계: 문서 불일치 12건, 위험 19건, 테스트 계획 |
 | 2026-10-01 | 단색 빈 화면·결과 창 가림 수정, 특수기호 측정(B-04), QA 전체 실행(약 14분 후 중단) |
 | 2026-10-25 | 새 PC 빌드 환경 구성, QA 보고서, 게임 창 따라가기 등 편의 기능(CTest 137 → 143), 계획 문서 구조 정리(`docs/plan/`), 특수기호·빈 대사창 오인식 수정(CTest 154), 백로그 12개 일괄 처리(CTest 171), 기획서 개정 |
-| 2026-11-01 | 저장소를 `C:\dev`로 이동, OCR 인식 속도 개선(단축키 → 자막 351 → 83ms), 구현 언어·엔진 탐색(C++·PaddleOCR 유지), 취소 즉시 반영·Tesseract 동시 시도, CTest 176 |
+| 2026-11-01 | 저장소를 `C:\dev`로 이동, OCR 인식 속도 개선(단축키 → 자막 351 → 83ms), 구현 언어·엔진 탐색(C++·PaddleOCR 유지), 취소 즉시 반영·Tesseract 동시 시도, 앱 화면·설정 개편(트레이·단축키 변경), CTest 180 |
 
 ## 측정 수치 (근거가 있는 것만)
 
