@@ -13,7 +13,10 @@
 #include <functional>
 #include <vector>
 #include <QRect>
+class QAbstractButton;
 class QAction;
+class QEvent;
+class CaptionStage;
 class QComboBox;
 class QDialog;
 class QIcon;
@@ -45,6 +48,7 @@ public:
 protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
     void closeEvent(QCloseEvent*) override;
+    void changeEvent(QEvent* event) override;
 private:
     // main_window_ui.cpp: windows, tray, settings pages and shortcuts.
     void buildUi();
@@ -55,6 +59,7 @@ private:
     void setStatus(const QString& text);
     QString withShortcuts(QString text) const; // default key names in a message -> the keys in use
     void showFromTray();
+    void refreshIcons();         // icons are drawn in the text colour: again after a light/dark switch
     void quitApp();
     void settings(int page = -1); // -1: the last page shown
     void chooseRegion(QScreen* screen = nullptr); // nullptr: the monitor chosen in the main window
@@ -129,6 +134,9 @@ private:
     std::function<GameWindow::Info()> foregroundWindow_; // the window in front; tests replace it
     QCheckBox* hoverMode_;
     QLabel* stateBadge_ = nullptr;
+    CaptionStage* stage_ = nullptr;        // the last line as it looks over the game
+    QWidget* detailsWindow_ = nullptr;     // capture image and OCR text, from the more menu
+    std::vector<std::pair<QAbstractButton*, char16_t>> glyphButtons_;
     QListWidget* settingsPages_ = nullptr;
     QDialog* settingsWindow_ = nullptr;
     std::function<void()> reloadSettings_; // fills the settings fields from the current values

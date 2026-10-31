@@ -87,7 +87,7 @@ bool PaddleRecognizer::load(const QString& modelPath, QString& error) {
         model->output = model->session.GetOutputNameAllocated(0, allocator).get();
         // The character list travels inside the model file as metadata.
         const auto characters = model->session.GetModelMetadata().LookupCustomMetadataMapAllocated("character", allocator);
-        if (!characters) { error = QStringLiteral("OCR 모델에 문자 목록이 없습니다: %1").arg(QFileInfo(modelPath).fileName()); return false; }
+        if (!characters) { error = QStringLiteral("OCR 모델에 문자 목록이 없어요: %1").arg(QFileInfo(modelPath).fileName()); return false; }
         QStringList dictionary = QString::fromUtf8(characters.get()).split('\n');
         for (QString& entry : dictionary) if (entry.endsWith('\r')) entry.chop(1);
         // Like Python's splitlines(): a final newline (the Korean model has one) adds no entry.
@@ -96,14 +96,14 @@ bool PaddleRecognizer::load(const QString& modelPath, QString& error) {
         dictionary.append(QStringLiteral(" "));
         const auto shape = model->session.GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
         if (shape.size() != 3 || (shape[2] > 0 && shape[2] != dictionary.size())) {
-            error = QStringLiteral("OCR 모델의 문자 수가 목록과 다릅니다: %1").arg(QFileInfo(modelPath).fileName()); return false;
+            error = QStringLiteral("OCR 모델의 문자 수가 목록과 달라요: %1").arg(QFileInfo(modelPath).fileName()); return false;
         }
         model->arabic = QFileInfo(modelPath).fileName() == QLatin1String(PaddleOcr::ArabicModel);
         model->dictionary = std::move(dictionary);
         model_ = std::move(model);
         return true;
     } catch (const Ort::Exception& e) {
-        error = QStringLiteral("OCR 모델을 불러오지 못했습니다 (%1): %2").arg(QFileInfo(modelPath).fileName(), QString::fromUtf8(e.what()));
+        error = QStringLiteral("OCR 모델을 불러오지 못했어요 (%1): %2").arg(QFileInfo(modelPath).fileName(), QString::fromUtf8(e.what()));
         return false;
     }
 }
@@ -183,7 +183,7 @@ bool PaddleDetector::load(const QString& modelPath, QString& error) {
         model_ = std::move(model);
         return true;
     } catch (const Ort::Exception& e) {
-        error = QStringLiteral("글자 위치 모델을 불러오지 못했습니다 (%1): %2").arg(QFileInfo(modelPath).fileName(), QString::fromUtf8(e.what()));
+        error = QStringLiteral("글자 위치 모델을 불러오지 못했어요 (%1): %2").arg(QFileInfo(modelPath).fileName(), QString::fromUtf8(e.what()));
         return false;
     }
 }
@@ -546,7 +546,7 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
         return true;
     };
     const QStringList files = modelFiles(languages);
-    if (files.isEmpty()) { error = QStringLiteral("지원하지 않는 OCR 언어입니다."); return {}; }
+    if (files.isEmpty()) { error = QStringLiteral("지원하지 않는 OCR 언어이에요."); return {}; }
     keepOnly(files);
     // Multi-language auto-detect reads with the Korean and Chinese/Japanese/English models first
     // and asks the other five only when that reading is doubtful; Latin-only text also gets the
@@ -577,7 +577,7 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
         const QImage& line = lines[index];
         if (line.isNull()) continue;
         if (double(line.width()) / std::max(1, line.height()) > 8192.0 / 48) {
-            error = QStringLiteral("자막 영역이 너무 길고 얇습니다. 한두 줄의 글자와 여백을 함께 선택하세요.");
+            error = QStringLiteral("자막 영역이 너무 길고 얇아요. 한두 줄의 글자와 여백을 함께 선택하세요.");
             return {};
         }
         if (stop()) return {};

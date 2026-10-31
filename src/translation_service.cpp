@@ -16,20 +16,20 @@ bool validLanguage(const QString& code) {
 QString statusMessage(int status) {
     switch(status) {
     case 401: case 403: return QStringLiteral("DeepL 인증 실패. API 키와 Free/Pro 설정을 확인하세요.");
-    case 429: return QStringLiteral("DeepL 요청이 너무 많습니다.");
-    case 456: return QStringLiteral("DeepL 사용 한도에 도달했습니다. 계정 한도를 확인하세요.");
-    case 413: return QStringLiteral("요청 크기가 너무 큽니다. 자막 영역을 줄이세요.");
+    case 429: return QStringLiteral("DeepL 요청이 너무 많아요.");
+    case 456: return QStringLiteral("DeepL 사용 한도에 도달했어요. 계정 한도를 확인하세요.");
+    case 413: return QStringLiteral("요청 크기가 너무 커요. 자막 영역을 줄이세요.");
     default:
-        if(status >= 300 && status < 400) return QStringLiteral("번역 서버의 주소 이동 응답을 거부했습니다.");
-        if(status >= 500) return QStringLiteral("번역 서버 오류입니다. 잠시 후 재시도하세요.");
-        return QStringLiteral("예상하지 못한 번역 HTTP 응답입니다 (%1).").arg(status);
+        if(status >= 300 && status < 400) return QStringLiteral("번역 서버의 주소 이동 응답을 거부했어요.");
+        if(status >= 500) return QStringLiteral("번역 서버 오류이에요. 잠시 후 재시도하세요.");
+        return QStringLiteral("예상하지 못한 번역 HTTP 응답이에요 (%1).").arg(status);
     }
 }
 }
 TranslationService::TranslationService(QObject* parent) : QObject(parent), network_(this) {
     deadline_.setSingleShot(true);
     connect(&deadline_, &QTimer::timeout, this, [this] {
-        failCurrent(QStringLiteral("번역 시간이 %1초를 초과했습니다. 네트워크를 확인하세요.").arg(timeoutMs_ / 1000));
+        failCurrent(QStringLiteral("번역 시간이 %1초를 초과했어요. 네트워크를 확인하세요.").arg(timeoutMs_ / 1000));
     });
 }
 QNetworkRequest TranslationService::request(bool freeApi, const char* path, const QString& key) const {
@@ -56,7 +56,7 @@ bool TranslationService::readAvailable() {
     if (!reply_) return false;
     response_ += reply_->read(MaxResponseBytes - response_.size() + 1);
     if (response_.size() > MaxResponseBytes) {
-        failCurrent(QStringLiteral("번역 응답이 허용 크기를 초과했습니다.")); return false;
+        failCurrent(QStringLiteral("번역 응답이 허용 크기를 초과했어요.")); return false;
     }
     return true;
 }
@@ -78,13 +78,13 @@ void TranslationService::translate(const QStringList& texts, const QString& apiK
         bytes += text.toUtf8().size();
     }
     if (texts.isEmpty() || texts.size() > MaxTexts || bytes < 0 || bytes > 32768) {
-        emit failed(QStringLiteral("번역할 텍스트가 비어 있거나 너무 깁니다.")); return;
+        emit failed(QStringLiteral("번역할 텍스트가 비어 있거나 너무 길어요.")); return;
     }
     if (!validLanguage(targetLang) || (!sourceLang.isEmpty() && !validLanguage(sourceLang))) {
-        emit failed(QStringLiteral("지원하지 않는 번역 언어 설정입니다.")); return;
+        emit failed(QStringLiteral("지원하지 않는 번역 언어 설정이에요.")); return;
     }
     const QByteArray body = requestBody(texts, targetLang, sourceLang);
-    if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 큽니다.")); return; }
+    if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 커요.")); return; }
     QNetworkRequest post = request(freeApi, "/v2/translate", key);
     post.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     expected_ = texts.size();
@@ -106,7 +106,7 @@ void TranslationService::start(QNetworkReply* reply, Kind kind) {
     connect(reply,&QNetworkReply::readyRead,this,[this,reply] { if(reply_ == reply) readAvailable(); });
     connect(reply,&QNetworkReply::metaDataChanged,this,[this,reply] {
         if(reply_ == reply && reply->header(QNetworkRequest::ContentLengthHeader).toLongLong() > MaxResponseBytes)
-            failCurrent(QStringLiteral("번역 응답이 허용 크기를 초과했습니다."));
+            failCurrent(QStringLiteral("번역 응답이 허용 크기를 초과했어요."));
     });
     connect(reply,&QNetworkReply::finished,this,[this,reply,kind] {
         if(reply_ != reply || !readAvailable()) return;
@@ -121,8 +121,8 @@ void TranslationService::start(QNetworkReply* reply, Kind kind) {
         // An HTTP error status is reported as-is; a transport error only matters without one.
         if((status == 0 || status == 200) && networkError != QNetworkReply::NoError) {
             emit failed(networkError == QNetworkReply::TimeoutError
-                ? QStringLiteral("번역 연결 시간이 초과되었습니다.")
-                : QStringLiteral("번역 서버에 안전하게 연결하지 못했습니다. 네트워크와 시스템 날짜를 확인하세요."));
+                ? QStringLiteral("번역 연결 시간이 초과되었어요.")
+                : QStringLiteral("번역 서버에 안전하게 연결하지 못했어요. 네트워크와 시스템 날짜를 확인하세요."));
             return;
         }
         QString error;
@@ -149,7 +149,7 @@ bool TranslationService::decodeUsage(int status, const QByteArray& body, qint64&
     const auto object = document.object();
     const auto count = object.value("character_count");
     if(!count.isDouble() || count.toInteger(-1) < 0) {
-        error = QStringLiteral("사용량 응답에 필수 필드가 없습니다."); return false;
+        error = QStringLiteral("사용량 응답에 필수 필드가 없어요."); return false;
     }
     used = count.toInteger();
     const auto max = object.value("character_limit");
@@ -169,14 +169,14 @@ QStringList TranslationService::decodeResponses(int status, const QByteArray& bo
     }
     // One translation per requested piece, in the same order.
     const auto array = document.object().value("translations").toArray();
-    if(expected < 1 || array.size() != expected) { error = QStringLiteral("번역 응답에 필수 필드가 없습니다."); return {}; }
+    if(expected < 1 || array.size() != expected) { error = QStringLiteral("번역 응답에 필수 필드가 없어요."); return {}; }
     QStringList results;
     for(const auto& item : array) {
         if(!item.isObject() || !item.toObject().value("text").isString()) {
-            error = QStringLiteral("번역 응답에 필수 필드가 없습니다."); return {};
+            error = QStringLiteral("번역 응답에 필수 필드가 없어요."); return {};
         }
         const QString text = item.toObject().value("text").toString();
-        if(text.trimmed().isEmpty()) { error = QStringLiteral("서버가 빈 번역 결과를 반환했습니다."); return {}; }
+        if(text.trimmed().isEmpty()) { error = QStringLiteral("서버가 빈 번역 결과를 반환했어요."); return {}; }
         results << text;
     }
     // Optional; only a well-formed language code is passed on to the UI.

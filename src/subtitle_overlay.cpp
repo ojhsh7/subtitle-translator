@@ -135,21 +135,30 @@ void SubtitleOverlay::paintEvent(QPaintEvent*) {
     painter.setRenderHint(QPainter::TextAntialiasing);
     painter.setFont(font());
     const int lineHeight = QFontMetrics(font()).lineSpacing();
-    if (box_) {
+    if (box_) paintCaption(painter, QRect(), rect(), QString(), 0, true);
+    for (int i = 0; i < lines_.size(); ++i) {
+        const QRect line(Padding, Padding + i * lineHeight, width() - Padding * 2, lineHeight);
+        paintCaption(painter, line, QRect(), lines_[i], Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, box_);
+    }
+}
+
+void SubtitleOverlay::paintCaption(QPainter& painter, const QRect& textArea, const QRect& panel, const QString& text, int flags, bool box) {
+    if (box && panel.isValid()) {
+        painter.save();
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setPen(Qt::NoPen);
         painter.setBrush(QColor(0, 0, 0, 170));
-        painter.drawRoundedRect(rect(), 6, 6);
+        painter.drawRoundedRect(panel, 6, 6);
+        painter.restore();
     }
-    for (int i = 0; i < lines_.size(); ++i) {
-        const QRect line(Padding, Padding + i * lineHeight, width() - Padding * 2, lineHeight);
-        const int flags = Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine;
-        // Outline by default: no background panel unless the user chose one.
+    if (text.isEmpty()) return;
+    // Outline by default: no background panel unless the user chose one.
+    if (!box) {
         painter.setPen(QColor(0, 0, 0, 220));
         for (int dy = -1; dy <= 1; ++dy)
             for (int dx = -1; dx <= 1; ++dx)
-                if (dx || dy) painter.drawText(line.translated(dx, dy), flags, lines_[i]);
-        painter.setPen(Qt::white);
-        painter.drawText(line, flags, lines_[i]);
+                if (dx || dy) painter.drawText(textArea.translated(dx, dy), flags, text);
     }
+    painter.setPen(Qt::white);
+    painter.drawText(textArea, flags, text);
 }

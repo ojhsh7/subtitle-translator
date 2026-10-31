@@ -7,13 +7,13 @@ namespace Languages {
 struct Option { const char* label; const char* code; };
 // Multi is a Paddle-only experimental selection. Other codes are also Tesseract model codes.
 inline constexpr std::array<Option, 17> Ocr{{
-    {"자동 감지 · 한국어·일본어·중국어·영어 (권장)", "jpn+eng+kor"},
-    {"자동 감지 · 한국어·일본어·중국어·영어 (대체 엔진에 중국어 간체 포함)", "jpn+eng+kor+chi_sim"},
-    {"자동 감지 · 다국어 13종 (메모리 많이 사용)", "multi"},
+    {"자동 감지: 한국어, 일본어, 중국어, 영어", "jpn+eng+kor"},
+    {"자동 감지: 한중일영 + 중국어 간체 (Tesseract)", "jpn+eng+kor+chi_sim"},
+    {"자동 감지: 13개 언어 (메모리 많이 씀)", "multi"},
     {"일본어", "jpn"}, {"영어", "eng"}, {"한국어", "kor"},
     {"중국어(간체)", "chi_sim"}, {"중국어(번체)", "chi_tra"},
     {"프랑스어", "fra"}, {"독일어", "deu"}, {"스페인어", "spa"},
-    {"포르투갈어", "por"}, {"베트남어 · 전용 Tesseract", "vie"}, {"러시아어", "rus"},
+    {"포르투갈어", "por"}, {"베트남어", "vie"}, {"러시아어", "rus"},
     {"태국어", "tha"}, {"아랍어", "ara"}, {"힌디어", "hin"},
 }};
 inline constexpr std::array<Option, 6> Target{{

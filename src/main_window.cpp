@@ -7,6 +7,7 @@
 #include "region_selector.h"
 #include "subtitle/text.h"
 #include "subtitle_overlay.h"
+#include "fluent_widgets.h"
 #include <QApplication>
 #include <QCheckBox>
 #include <QCloseEvent>
@@ -41,8 +42,7 @@
 
 namespace {
 QString describeRegion(const QScreen* screen, const QRect& region) {
-    return QStringLiteral("%1 · 위치 (%2, %3) · %4 × %5 논리 픽셀")
-        .arg(screen->name()).arg(region.x()).arg(region.y()).arg(region.width()).arg(region.height());
+    return QStringLiteral("%1 화면의 %2×%3 영역").arg(screen->name()).arg(region.width()).arg(region.height());
 }
 // Settings group of one game. A program path has '/' and ':', which QSettings would treat as structure.
 QString gameGroup(const QString& key) {
@@ -80,8 +80,8 @@ MainWindow::MainWindow() {
         setHoverTranslate(false);
         cancel(); subtitleOverlay_->hide(); selectedScreen_ = nullptr; region_ = {}; refreshScreens();
         regionLabel_->setText(game_.key.isEmpty()
-            ? QStringLiteral("모니터 구성이 바뀌었습니다. 영역을 다시 선택하세요.")
-            : QStringLiteral("모니터 구성이 바뀌었습니다. 게임 창 %1 기준 영역은 다시 계산합니다.").arg(game_.name));
+            ? QStringLiteral("모니터 구성이 바뀌었어요. 영역을 다시 선택하세요.")
+            : QStringLiteral("모니터 구성이 바뀌었어요. 게임 창 %1 기준 영역은 다시 계산해요.").arg(game_.name));
     });
     connect(&ocr_, &OcrService::recognized, this, [this](const QString& text) {
         if (!busy_) return;
@@ -96,20 +96,20 @@ MainWindow::MainWindow() {
                 subtitleOverlay_->hide(); setBusy(false);
                 const bool retry = detector_.retryAfterFailure(autoClock_.elapsed());
                 setStatus(retry
-                    ? QStringLiteral("자동 번역 중 · 글자가 없어 3초 뒤 다시 확인합니다.")
-                    : QStringLiteral("자동 번역 중 · 글자를 찾지 못했습니다. 다음 대사를 기다리며, 캡처 영역도 확인해 주세요."));
+                    ? QStringLiteral("글자가 보이지 않아요. 3초 뒤에 다시 확인할게요.")
+                    : QStringLiteral("글자를 찾지 못했어요. 다음 대사를 기다리는 동안 영역이 맞는지 확인해 주세요."));
                 return;
             }
-            resultStatus_->setText(QStringLiteral("OCR 결과를 번역할 수 없습니다."));
-            finish(decision == ST_EMPTY ? QStringLiteral("인식한 글자가 없습니다.")
-                : QStringLiteral("인식 텍스트가 너무 깁니다. 자막 부분만 선택하세요."));
+            resultStatus_->setText(QStringLiteral("OCR 결과를 번역할 수 없어요."));
+            finish(decision == ST_EMPTY ? QStringLiteral("인식한 글자가 없어요.")
+                : QStringLiteral("인식 텍스트가 너무 길어요. 자막 부분만 선택하세요."));
             return;
         }
         if (decision == ST_CACHED) {
             result_->setPlainText(QString::fromUtf8(st_translation(session_)));
-            resultStatus_->setText(QStringLiteral("동일 원문 · 최근 번역 재사용"));
+            resultStatus_->setText(QStringLiteral("앞과 같은 대사라서 지난 번역을 다시 보여 줘요."));
             presentTranslation();
-            finish(QStringLiteral("동일한 원문이므로 번역 API를 다시 호출하지 않았습니다."));
+            finish(QStringLiteral("동일한 원문이므로 번역 API를 다시 호출하지 않았어요."));
             return;
         }
         // Only foreign-script runs are translated; text already in the target language stays.
@@ -123,26 +123,26 @@ MainWindow::MainWindow() {
             if (segment.translate) { pieces << QString::fromStdString(segment.utf8); scripts |= subtitle::scriptsIn(segment.utf8); }
         if (pieces.isEmpty()) {
             st_finish_ocr(session_, request_);
-            resultStatus_->setText(QStringLiteral("원문이 이미 %1입니다 · 번역하지 않았습니다.").arg(target));
+            resultStatus_->setText(QStringLiteral("원문이 이미 %1라서 번역하지 않았어요.").arg(target));
             if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE) {
                 subtitleOverlay_->hide(); setBusy(false);
-                setStatus(QStringLiteral("자동 번역 중 · 원문이 이미 %1라 번역하지 않았습니다.").arg(target));
+                setStatus(QStringLiteral("원문이 이미 %1라서 번역하지 않았어요.").arg(target));
                 return;
             }
-            finish(QStringLiteral("원문이 이미 %1라 번역 요청을 보내지 않았습니다.").arg(target));
+            finish(QStringLiteral("원문이 이미 %1라 번역 요청을 보내지 않았어요.").arg(target));
             return;
         }
         if (apiKey_.isEmpty() || !consent_) {
             st_finish_ocr(session_, request_);
-            resultStatus_->setText(QStringLiteral("OCR 완료 · 번역 미실행. 설정에서 API 키와 전송 동의를 확인하세요."));
-            finish(QStringLiteral("OCR 완료. API 키·전송 동의가 없어 번역 요청은 보내지 않았습니다."));
+            resultStatus_->setText(QStringLiteral("OCR 완료. 번역하려면 설정의 번역 페이지에서 API 키와 전송 동의를 확인해 주세요."));
+            finish(QStringLiteral("OCR 완료. API 키나 전송 동의가 없어서 번역 요청은 보내지 않았어요."));
             return;
         }
         if (autoTranslating() && autoClock_.elapsed() < translationPausedUntil_) {
             st_finish_ocr(session_, request_);
             const qint64 left = (translationPausedUntil_ - autoClock_.elapsed() + 999) / 1000;
-            resultStatus_->setText(QStringLiteral("요청 제한 대기 중 · 번역 요청을 보내지 않았습니다."));
-            finish(QStringLiteral("DeepL 요청 제한으로 %1초 동안 원문만 표시합니다.").arg(left));
+            resultStatus_->setText(QStringLiteral("요청 제한 때문에 잠시 번역을 보내지 않고 있어요."));
+            finish(QStringLiteral("DeepL 요청 제한으로 %1초 동안 원문만 표시해요.").arg(left));
             return;
         }
         setStatus(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(target));
@@ -152,10 +152,10 @@ MainWindow::MainWindow() {
     connect(&ocr_, &OcrService::failed, this, [this](const QString& error) {
         if (!busy_) return;
         st_fail(session_, request_);
-        resultStatus_->setText(QStringLiteral("OCR 실패 · 번역 없음"));
+        resultStatus_->setText(QStringLiteral("글자를 읽지 못해서 번역하지 않았어요."));
         const bool retry = autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE &&
                            detector_.retryAfterFailure(autoClock_.elapsed());
-        finish(retry ? error + QStringLiteral("\n자동 번역: 3초 뒤 다시 확인합니다 (같은 화면에서 최대 2회).") : error);
+        finish(retry ? error + QStringLiteral("\n자동 번역: 3초 뒤 다시 확인해요 (같은 화면에서 최대 2회).") : error);
     });
     connect(&translation_, &TranslationService::translated, this, [this](const QStringList& pieces, const QString& detected) {
         if (!busy_) return;
@@ -164,8 +164,8 @@ MainWindow::MainWindow() {
         const std::string joined = subtitle::joinTranslated(segments_, translations);
         if (joined.empty()) {
             st_fail(session_, request_);
-            resultStatus_->setText(QStringLiteral("번역 실패 · 원문은 앱에서 확인할 수 있습니다."));
-            finish(QStringLiteral("번역 응답 개수가 요청과 달라 결과를 표시하지 않았습니다."));
+            resultStatus_->setText(QStringLiteral("번역하지 못했어요. 원문은 더 보기의 인식 내용에서 볼 수 있어요."));
+            finish(QStringLiteral("번역 응답 개수가 요청과 달라 결과를 표시하지 않았어요."));
             return;
         }
         if (!st_complete(session_, request_, joined.c_str())) return;
@@ -174,23 +174,23 @@ MainWindow::MainWindow() {
         const QString target = Languages::targetLabel(targetLanguage());
         const bool partial = std::any_of(segments_.begin(), segments_.end(), [](const auto& s) { return !s.translate; });
         resultStatus_->setText(Languages::sameLanguage(detected, targetLanguage())
-            ? QStringLiteral("원문이 이미 %1입니다 · DeepL이 그대로 돌려준 문장입니다.").arg(target)
-            : QStringLiteral("번역 완료 · DeepL · %1 → %2%3")
-                  .arg(detected.isEmpty() ? QStringLiteral("자동 감지") : Languages::languageName(detected), target,
-                       partial ? QStringLiteral(" · 외국어 부분만 번역") : QString()));
+            ? QStringLiteral("원문이 이미 %1라서 DeepL이 그대로 돌려줬어요.").arg(target)
+            : QStringLiteral("%1에서 %2로 번역했어요%3.")
+                  .arg(detected.isEmpty() ? QStringLiteral("원문") : Languages::languageName(detected), target,
+                       partial ? QStringLiteral(" (외국어 부분만)") : QString()));
         presentTranslation();
-        finish(autoTranslating() ? QStringLiteral("자동 번역 중 · 번역 완료. 다음 대사를 기다립니다.")
+        finish(autoTranslating() ? QStringLiteral("번역했어요. 다음 대사를 기다리고 있어요.")
                                  : QStringLiteral("번역 완료. 다음 자막에서 Ctrl + Alt + T를 누르세요."));
     });
     connect(&translation_, &TranslationService::failed, this, [this](const QString& error) {
         if (!busy_) return;
         st_fail(session_, request_);
-        resultStatus_->setText(QStringLiteral("번역 실패 · 원문은 앱에서 확인할 수 있습니다."));
+        resultStatus_->setText(QStringLiteral("번역하지 못했어요. 원문은 더 보기의 인식 내용에서 볼 수 있어요."));
         const int status = translation_.lastHttpStatus();
         if (status == 456 && autoTranslating()) {
             // Quota exhausted: every further line would fail and keep showing an error caption.
             setAutoTranslate(false);
-            finish(error + QStringLiteral("\n자동 번역을 멈췄습니다. 한도를 확인한 뒤 Ctrl+Alt+P로 다시 켜세요."));
+            finish(error + QStringLiteral("\n자동 번역을 멈췄어요. 한도를 확인한 뒤 Ctrl+Alt+P로 다시 켜세요."));
             return;
         }
         if (status == 429) {
@@ -198,7 +198,7 @@ MainWindow::MainWindow() {
             if (autoTranslating()) {
                 // Too many requests: keep reading lines but send none until the server allows it again.
                 translationPausedUntil_ = autoClock_.elapsed() + qint64(seconds) * 1000;
-                finish(error + QStringLiteral("\n%1초 동안 번역 요청을 보내지 않고 원문만 표시합니다.").arg(seconds));
+                finish(error + QStringLiteral("\n%1초 동안 번역 요청을 보내지 않고 원문만 표시해요.").arg(seconds));
             } else {
                 finish(error + QStringLiteral("\n%1초 뒤에 다시 시도하세요.").arg(seconds));
             }
@@ -240,7 +240,7 @@ MainWindow::MainWindow() {
     foregroundWindow_ = [this] { return GameWindow::foreground(ignoreProcess_); };
     restoreRegion();
     registerHotkeys();
-    QString ready = QStringLiteral("준비됨 · 게임 언어를 고르고 영역을 선택한 뒤 자동 번역을 시작하세요.");
+    QString ready = QStringLiteral("게임 언어를 고르고 자막 영역을 선택한 다음 자동 번역을 켜 주세요.");
     QStringList taken;
     if (!regionRegistered_) taken << regionShortcut_;
     if (!autoRegistered_) taken << autoShortcut_;
@@ -248,7 +248,7 @@ MainWindow::MainWindow() {
     if (!cursorRegistered_) taken << cursorShortcut_;
     if (!hoverRegistered_) taken << hoverShortcut_;
     if (!taken.isEmpty())
-        ready += QStringLiteral("\n다른 앱이 쓰고 있어 등록하지 못한 단축키: %1 · 설정 > 단축키에서 바꿀 수 있습니다.").arg(taken.join(", "));
+        ready += QStringLiteral("\n%1 키는 다른 앱이 쓰고 있어서 등록하지 못했어요. 설정의 단축키 페이지에서 바꿀 수 있어요.").arg(taken.join(", "));
     setStatus(ready);
     const bool setupComplete = saved.value("setupComplete", false).toBool();
     // The desktop shortcut passes --auto: the user chose to start translating right away.
@@ -256,7 +256,7 @@ MainWindow::MainWindow() {
         if (setupComplete && hasRegion()) setAutoTranslate(true);
         else {
             autoPending_ = true;
-            setStatus(QStringLiteral("설정을 마치고 자막 영역을 선택하면 자동 번역이 바로 시작됩니다."));
+            setStatus(QStringLiteral("설정을 마치고 자막 영역을 선택하면 자동 번역이 바로 시작돼요."));
         }
     }
     if (!credentialError.isEmpty()) setStatus(credentialError);
@@ -282,7 +282,7 @@ void MainWindow::refreshScreens() {
     screens_->clear();
     const auto list = QGuiApplication::screens();
     for (int i = 0; i < list.size(); ++i)
-        screens_->addItem(QStringLiteral("%1 · %2 (%3 × %4)").arg(i + 1).arg(list[i]->name())
+        screens_->addItem(QStringLiteral("%1번 모니터 %2 (%3×%4)").arg(i + 1).arg(list[i]->name())
             .arg(list[i]->size().width()).arg(list[i]->size().height()));
 }
 void MainWindow::chooseRegionUnderCursor() {
@@ -310,7 +310,7 @@ void MainWindow::chooseRegion(QScreen* requested) {
         if (!modal_ || !screen) { modal_ = false; restoreWindows(); return; }
         const QPixmap snapshot = screen->grabWindow(0);
         if (snapshot.isNull()) {
-            modal_ = false; restoreWindows(); finish(QStringLiteral("모니터 화면을 읽을 수 없습니다.")); return;
+            modal_ = false; restoreWindows(); finish(QStringLiteral("모니터 화면을 읽을 수 없어요.")); return;
         }
         RegionSelector selector(snapshot, screen->geometry(), selectedScreen_.data() == screen.data() ? region_ : QRect());
         const bool selected = selector.exec() == QDialog::Accepted && screen;
@@ -318,8 +318,8 @@ void MainWindow::chooseRegion(QScreen* requested) {
             restoreOverlay_ = false;
             setRegion(screen, selector.selectedRegion());
             setStatus(game_.key.isEmpty()
-                ? QStringLiteral("영역 선택 완료. 자동 번역을 켜거나 Ctrl + Alt + T를 누르세요.")
-                : QStringLiteral("영역 선택 완료 · 게임 창 %1을(를) 따라갑니다. 자동 번역을 켜거나 Ctrl + Alt + T를 누르세요.").arg(game_.name));
+                ? QStringLiteral("영역을 저장했어요. 자동 번역을 켜거나 Ctrl+Alt+T를 눌러 보세요.")
+                : QStringLiteral("영역을 저장했어요. %1 창을 옮겨도 따라가요. 자동 번역을 켜거나 Ctrl+Alt+T를 눌러 보세요.").arg(game_.name));
         }
         modal_ = false;
         restoreWindows();
@@ -337,7 +337,7 @@ void MainWindow::startCapture() {
         setStatus(QStringLiteral("먼저 자막 영역을 선택하세요.")); return;
     }
     if (!followGame()) {
-        setStatus(QStringLiteral("게임 창 %1이(가) 보이지 않습니다. 게임 창을 띄운 뒤 다시 누르세요.").arg(game_.name)); return;
+        setStatus(QStringLiteral("게임 창 %1이(가) 보이지 않아요. 게임 창을 띄운 뒤 다시 누르세요.").arg(game_.name)); return;
     }
     beginScreenCapture(selectedArea(), QStringLiteral("선택 영역 캡처 중…"));
 }
@@ -347,7 +347,7 @@ void MainWindow::scheduleCursorCapture() {
     setAutoTranslate(false);
     setBusy(true);
     const quint64 ticket = ++generation_;
-    setStatus(QStringLiteral("3초 안에 번역할 글자 위로 마우스를 옮기세요. 취소 버튼으로 중단할 수 있습니다."));
+    setStatus(QStringLiteral("3초 안에 번역할 글자 위로 마우스를 옮기세요. 취소 버튼으로 중단할 수 있어요."));
     QTimer::singleShot(3000, this, [this, ticket] {
         if (!busy_ || ticket != generation_) return;
         setBusy(false);
@@ -363,16 +363,16 @@ void MainWindow::startCursorCapture() {
     setAutoTranslate(false); // Keep the next game subtitle from replacing this one-shot result.
     if (busy_) cancel();     // A newer mouse request replaces unfinished work.
     if (!screen) {
-        setStatus(QStringLiteral("마우스가 있는 모니터를 찾지 못했습니다. 화면 안으로 옮긴 뒤 다시 시도하세요."));
+        setStatus(QStringLiteral("마우스가 있는 모니터를 찾지 못했어요. 화면 안으로 옮긴 뒤 다시 시도하세요."));
         return;
     }
     const auto rect = Capture::aroundPoint(screen->geometry(), point, cursorSizeBox_->currentData().toSize());
     if (rect.isEmpty()) {
-        setStatus(QStringLiteral("마우스 주변 캡처 범위를 만들지 못했습니다. 범위와 화면 설정을 확인하세요."));
+        setStatus(QStringLiteral("마우스 주변 캡처 범위를 만들지 못했어요. 범위와 화면 설정을 확인하세요."));
         return;
     }
     beginScreenCapture({screen, screen->geometry(), rect, screen->devicePixelRatio()},
-                       QStringLiteral("마우스 주변 캡처 중… · 자동 번역은 Ctrl+Alt+P로 다시 켤 수 있습니다."));
+                       QStringLiteral("마우스 주변을 읽는 중… 자동 번역은 Ctrl+Alt+P로 다시 켤 수 있어요."));
 }
 void MainWindow::setHoverTranslate(bool enabled) {
     const bool wasEnabled = hoverMode_->isChecked() || hoverTimer_->isActive();
@@ -383,7 +383,7 @@ void MainWindow::setHoverTranslate(bool enabled) {
     }
     if (enabled && !ocrReady()) {
         hoverMode_->setChecked(false);
-        setStatus(QStringLiteral("OCR 엔진을 먼저 준비하세요. 설정에서 모델과 실행 파일을 확인할 수 있습니다."));
+        setStatus(QStringLiteral("OCR 엔진을 먼저 준비하세요. 설정에서 모델과 실행 파일을 확인할 수 있어요."));
         return;
     }
     hoverMode_->setChecked(enabled);
@@ -394,7 +394,7 @@ void MainWindow::setHoverTranslate(bool enabled) {
         if (hoverRequest_ && busy_) cancel();
         hoverRequest_ = false;
         subtitleOverlay_->hide();
-        setStatus(QStringLiteral("마우스 올려두기 번역을 껐습니다."));
+        setStatus(QStringLiteral("마우스 올려두기 번역을 껐어요."));
         return;
     }
     setAutoTranslate(false);
@@ -404,8 +404,8 @@ void MainWindow::setHoverTranslate(bool enabled) {
     hoverTimer_->start();
     // Keep the target visible. If no global stop key was registered, leave the checkbox visible.
     if (hoverRegistered_) showMinimized();
-    setStatus(QStringLiteral("마우스 번역 켜짐 · 글자 위에서 1초 멈추세요. 같은 위치는 한 번만 읽습니다.%1")
-        .arg(hoverRegistered_ ? QStringLiteral(" %1로 끕니다.").arg(hoverShortcut_) : QStringLiteral(" 체크를 해제하면 꺼집니다.")));
+    setStatus(QStringLiteral("마우스 올려두기를 켰어요. 글자 위에서 1초 멈추면 번역해요.%1")
+        .arg(hoverRegistered_ ? QStringLiteral(" %1로 끌 수 있어요.").arg(hoverShortcut_) : QStringLiteral(" 스위치를 끄면 멈춰요.")));
 }
 void MainWindow::hoverTick() {
     // Query global physical button state even while the game owns mouse input.
@@ -440,23 +440,23 @@ void MainWindow::updateHover(const QPoint& point, qint64 nowMs, bool mousePresse
     hoverConsumed_ = true;
     if (!ocrReady()) {
         setHoverTranslate(false);
-        setStatus(QStringLiteral("OCR 엔진을 찾지 못해 마우스 번역을 껐습니다. 설정을 확인하세요."));
+        setStatus(QStringLiteral("OCR 엔진을 찾지 못해 마우스 번역을 껐어요. 설정을 확인하세요."));
         return;
     }
     hoverRequest_ = true;
     beginScreenCapture({screen, screen->geometry(), local, screen->devicePixelRatio()},
-        QStringLiteral("마우스 주변 캡처 중… · 마우스를 옮기면 현재 처리를 취소합니다."));
+        QStringLiteral("마우스 주변을 읽는 중… 마우스를 옮기면 취소돼요."));
 }
 void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& status) {
     if (busy_ || modal_) return;
     if (!area.screen || area.rect.isEmpty() || area.screen->geometry() != area.screenGeometry ||
         area.screen->devicePixelRatio() != area.dpr) {
         subtitleOverlay_->hide();
-        setStatus(QStringLiteral("모니터 해상도나 배율이 바뀌었습니다. 영역을 다시 선택하거나 마우스 번역을 다시 실행하세요."));
+        setStatus(QStringLiteral("모니터 해상도나 배율이 바뀌었어요. 영역을 다시 선택하거나 마우스 번역을 다시 실행하세요."));
         return;
     }
     if (!ocrReady()) {
-        setStatus(QStringLiteral("OCR 엔진이 없습니다. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
+        setStatus(QStringLiteral("OCR 엔진이 없어요. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
         return;
     }
     // Checked before resetOutput() hides the old caption: a window hidden just now is still on screen.
@@ -466,7 +466,7 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
     resetOutput();
     activeSource_ = ST_SCREEN_CAPTURE;
     captionArea_ = area;
-    resultStatus_->setText(QStringLiteral("새 자막 처리 중 · 아직 번역 결과가 없습니다."));
+    resultStatus_->setText(QStringLiteral("새 자막을 읽는 중이에요."));
     setStatus(status);
     const quint64 ticket = ++generation_;
     // Our windows are hidden, and the compositor given 180 ms to remove them, only when they would be
@@ -483,7 +483,7 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
         QImage image;
         if (!area.screen || area.screen->geometry() != area.screenGeometry ||
             area.screen->devicePixelRatio() != area.dpr)
-            error = QStringLiteral("캡처 전에 모니터 구성이 바뀌었습니다. 다시 시도하세요.");
+            error = QStringLiteral("캡처 전에 모니터 구성이 바뀌었어요. 다시 시도하세요.");
         else
             image = Capture::region(area.screen, area.rect, error);
         restoreWindows();
@@ -503,9 +503,10 @@ void MainWindow::setBusy(bool busy) {
     refreshUi();
 }
 void MainWindow::finish(const QString& status) {
+    if (!original_->toPlainText().isEmpty()) stage_->setContent(original_->toPlainText(), result_->toPlainText());
     setBusy(false); setStatus(resultPlacementWarning_.isEmpty() ? status : resultPlacementWarning_);
     if (activeSource_ == ST_SCREEN_CAPTURE && inlineCaptions_->isChecked() && result_->toPlainText().isEmpty())
-        showSubtitle(QStringLiteral("번역 없음 · ") + status);
+        showSubtitle(QStringLiteral("번역하지 못했어요. ") + status);
 }
 void MainWindow::restoreWindows() {
     if (restoreMain_) show();
@@ -522,8 +523,8 @@ void MainWindow::cancel() {
     restoreWindows();
     if (wasBusy) {
         subtitleOverlay_->hide();
-        setStatus(QStringLiteral("처리를 취소했습니다. 이미 전송된 요청의 비용은 취소되지 않을 수 있습니다."));
-        resultStatus_->setText(QStringLiteral("처리 취소 · 번역 결과 없음"));
+        setStatus(QStringLiteral("처리를 취소했어요. 이미 전송된 요청의 비용은 취소되지 않을 수 있어요."));
+        resultStatus_->setText(QStringLiteral("취소했어요."));
     }
 }
 bool MainWindow::moveResultOutside(const QRect& source) {
@@ -555,7 +556,7 @@ bool MainWindow::moveResultOutside(const QRect& source) {
 }
 void MainWindow::stopAutoForResultOverlap() {
     setAutoTranslate(false);
-    resultPlacementWarning_ = QStringLiteral("결과 창을 놓을 빈 공간이 없어 자동 번역을 멈췄습니다. 자막 영역을 줄이거나 결과 창을 다른 모니터로 옮긴 뒤 Ctrl+Alt+P로 다시 시작하세요.");
+    resultPlacementWarning_ = QStringLiteral("결과 창을 놓을 빈 공간이 없어 자동 번역을 멈췄어요. 자막 영역을 줄이거나 결과 창을 다른 모니터로 옮긴 뒤 Ctrl+Alt+P로 다시 시작하세요.");
     setStatus(resultPlacementWarning_);
     resultStatus_->setText(resultPlacementWarning_);
 }
@@ -574,6 +575,7 @@ bool MainWindow::showSubtitle(const QString& text, bool selectionPreview) {
                                       area.screen->availableGeometry());
 }
 void MainWindow::presentTranslation() {
+    stage_->setContent(original_->toPlainText(), result_->toPlainText());
     if (activeSource_ == ST_SCREEN_CAPTURE && showSubtitle(result_->toPlainText())) return;
     showResult();
 }
@@ -584,9 +586,9 @@ void MainWindow::previewSubtitle() {
         setStatus(QStringLiteral("먼저 원문 글자 부분만 자막 영역으로 선택하세요.")); return;
     }
     inlineCaptions_->setChecked(true);
-    if (showSubtitle(QStringLiteral("번역 위치 미리보기 · 실제 번역 아님"), true))
-        setStatus(QStringLiteral("미리보기 글자가 번역 위치입니다. 앱을 최소화하고 Ctrl+Alt+T로 번역하세요."));
-    else setStatus(QStringLiteral("자막을 표시할 빈 공간이 없습니다. 원문 글자 부분만 영역으로 다시 선택하세요."));
+    if (showSubtitle(QStringLiteral("번역 자막은 여기에 나와요 (미리보기)"), true))
+        setStatus(QStringLiteral("미리보기 글자가 번역 위치이에요. 앱을 최소화하고 Ctrl+Alt+T로 번역하세요."));
+    else setStatus(QStringLiteral("자막을 표시할 빈 공간이 없어요. 원문 글자 부분만 영역으로 다시 선택하세요."));
 }
 bool MainWindow::nativeEvent(const QByteArray&, void* message, qintptr* result) {
     auto* msg = static_cast<MSG*>(message);
@@ -614,8 +616,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         event->ignore();
         hide();
         if (!QSettings().value("ui/trayNoticeShown", false).toBool()) {
-            tray_->showMessage(QStringLiteral("자막 번역은 계속 실행 중입니다"),
-                QStringLiteral("단축키와 자동 번역은 그대로 동작합니다. 종료는 트레이 아이콘을 오른쪽 클릭하세요."),
+            tray_->showMessage(QStringLiteral("자막 번역은 트레이에서 실행 중이에요"),
+                QStringLiteral("단축키와 자동 번역은 그대로 동작해요. 끝내려면 트레이 아이콘을 오른쪽 클릭하세요."),
                 appIcon(), 5000);
             QSettings().setValue("ui/trayNoticeShown", true);
         }
@@ -633,14 +635,14 @@ void MainWindow::resetOutput() {
     resultPlacementWarning_.clear();
     original_->clear(); result_->clear(); preview_->clear();
     subtitleOverlay_->hide(); restoreOverlay_ = false;
-    resultStatus_->setText(QStringLiteral("새 이미지 처리 중 · 아직 번역 결과가 없습니다."));
+    resultStatus_->setText(QStringLiteral("이미지를 읽는 중이에요."));
 }
 void MainWindow::processImage(const QImage& image, int source) {
     resultPlacementWarning_.clear();
     activeSource_ = source;
     // Every image source enters here. The core sees only portable metadata and UTF-8 OCR.
     request_ = st_begin(session_, source, image.width(), image.height());
-    if (!request_) { finish(QStringLiteral("이미지가 너무 크거나 이전 요청이 진행 중입니다.")); return; }
+    if (!request_) { finish(QStringLiteral("이미지가 너무 크거나 이전 요청이 진행 중이에요.")); return; }
     lastImage_ = image; lastSource_ = source;
     if (source == ST_SCREEN_CAPTURE) lastCaptionArea_ = captionArea_;
     setBusy(true);
@@ -665,7 +667,7 @@ void MainWindow::importImage() {
         watcher->deleteLater();
         if (ticket != generation_ || !busy_) return;
         if (image.isNull()) {
-            finish(QStringLiteral("이미지를 읽지 못했습니다. PNG/JPEG 형식과 최대 1,600만 픽셀 제한을 확인하세요."));
+            finish(QStringLiteral("이미지를 읽지 못했어요. PNG/JPEG 형식과 최대 1,600만 픽셀 제한을 확인하세요."));
             return;
         }
         processImage(image, ST_IMAGE_FILE);
@@ -693,13 +695,13 @@ void MainWindow::setAutoTranslate(bool enabled) {
         if (!autoTimer_->isActive()) return;
         autoTimer_->stop();
         subtitleOverlay_->hide();
-        setStatus(QStringLiteral("자동 번역을 껐습니다. Ctrl + Alt + P로 다시 켜거나 Ctrl + Alt + T로 한 번씩 번역하세요."));
+        setStatus(QStringLiteral("자동 번역을 껐어요. Ctrl + Alt + P로 다시 켜거나 Ctrl + Alt + T로 한 번씩 번역하세요."));
         return;
     }
     if (!hasRegion()) {
         auto_->setChecked(false);
         autoPending_ = true;
-        setStatus(QStringLiteral("먼저 자막 영역을 선택하세요. 선택하면 자동 번역이 바로 시작됩니다."));
+        setStatus(QStringLiteral("먼저 자막 영역을 선택하세요. 선택하면 자동 번역이 바로 시작돼요."));
         return;
     }
     autoPending_ = false;
@@ -708,28 +710,28 @@ void MainWindow::setAutoTranslate(bool enabled) {
     autoTimer_->start();
     showMinimized(); // Keep the app window off the game's subtitle.
     const bool visible = followGame();
-    setStatus(visible ? QStringLiteral("자동 번역 중 · 대사가 바뀌면 번역합니다. Ctrl + Alt + P로 멈춥니다.")
-        : QStringLiteral("자동 번역 대기 · 게임 창 %1이(가) 보이면 읽기 시작합니다. Ctrl + Alt + P로 멈춥니다.").arg(game_.name));
+    setStatus(visible ? QStringLiteral("자동 번역을 켰어요. 대사가 바뀌면 바로 번역해요. Ctrl+Alt+P로 끌 수 있어요.")
+        : QStringLiteral("자동 번역 대기 중이에요. %1 창이 보이면 읽기 시작해요. Ctrl+Alt+P로 끌 수 있어요.").arg(game_.name));
     captionArea_ = selectedArea();
-    if (visible) showSubtitle(QStringLiteral("자동 번역 켜짐 · 대사가 바뀌면 여기에 번역이 나옵니다 (Ctrl+Alt+P 멈춤)"));
+    if (visible) showSubtitle(QStringLiteral("자동 번역을 켰어요. 대사가 바뀌면 여기에 번역이 나와요."));
 }
 void MainWindow::autoTick() {
     if (busy_ || modal_) return;
     if (!followGame()) {
         // A minimized or closed game is a pause, not an error: keep auto mode and wait for it.
         subtitleOverlay_->hide();
-        setStatus(QStringLiteral("자동 번역 대기 · 게임 창 %1이(가) 최소화되었거나 닫혀 있습니다. 창이 보이면 다시 읽습니다.").arg(game_.name));
+        setStatus(QStringLiteral("자동 번역 대기 중이에요. %1 창이 최소화되었거나 닫혀 있어요. 창이 보이면 다시 읽어요.").arg(game_.name));
         return;
     }
     if (!selectedScreen_ || region_.isEmpty() || selectedScreen_->geometry() != selectedGeometry_ ||
         selectedScreen_->devicePixelRatio() != selectedDpr_) {
         setAutoTranslate(false);
-        setStatus(QStringLiteral("모니터 구성이 바뀌어 자동 번역을 멈췄습니다. 영역을 다시 선택하세요."));
+        setStatus(QStringLiteral("모니터 구성이 바뀌어 자동 번역을 멈췄어요. 영역을 다시 선택하세요."));
         return;
     }
     if (!ocrReady()) {
         setAutoTranslate(false);
-        setStatus(QStringLiteral("OCR 엔진이 없습니다. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
+        setStatus(QStringLiteral("OCR 엔진이 없어요. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
         return;
     }
     const QRect source = region_.translated(selectedGeometry_.topLeft());
@@ -740,7 +742,7 @@ void MainWindow::autoTick() {
     }
     // Polling does not hide windows (that would flicker), so skip frames our own windows cover.
     if (coversRegion(source)) {
-        setStatus(QStringLiteral("앱 창이 자막 영역을 가리고 있어 자동 번역을 잠시 건너뜁니다. 창을 옮기거나 최소화하세요."));
+        setStatus(QStringLiteral("앱 창이 자막 영역을 가리고 있어 자동 번역을 잠시 건너뛰어요. 창을 옮기거나 최소화하세요."));
         return;
     }
     QString error;
@@ -777,7 +779,7 @@ void MainWindow::setRegion(QScreen* screen, const QRect& region) {
             game_ = {info.key, info.name, GameWindow::relativeTo(inside, info.client), info.client.size(), info.handle};
     }
     regionLabel_->setText(describeRegion(screen, region_) +
-        (game_.key.isEmpty() ? QString() : QStringLiteral(" · 게임 창 %1 기준").arg(game_.name)));
+        (game_.key.isEmpty() ? QString() : QStringLiteral(" (게임 창 %1 기준)").arg(game_.name)));
     saveRegion();
     detector_.reset();
 }
@@ -812,7 +814,7 @@ bool MainWindow::followGame(bool switchToForeground) {
         area.screen->devicePixelRatio() != selectedDpr_) {
         selectedScreen_ = area.screen; region_ = area.rect;
         selectedGeometry_ = area.screen->geometry(); selectedDpr_ = area.screen->devicePixelRatio();
-        regionLabel_->setText(describeRegion(area.screen, region_) + QStringLiteral(" · 게임 창 %1을(를) 따라감").arg(game_.name));
+        regionLabel_->setText(describeRegion(area.screen, region_) + QStringLiteral(" (게임 창 %1을(를) 따라감)").arg(game_.name));
     }
     return true;
 }
@@ -839,8 +841,8 @@ void MainWindow::restoreRegion() {
     saved.endGroup();
     if (followGame_->isChecked()) game_ = knownGames_.value(saved.value("capture/game").toString());
     if (!game_.key.isEmpty()) {
-        if (followGame(false)) { regionLabel_->setText(regionLabel_->text() + QStringLiteral(" · 저장된 영역")); return; }
-        regionLabel_->setText(QStringLiteral("게임 창 %1 기준 저장된 영역 · 게임을 실행하면 영역을 다시 계산합니다.").arg(game_.name));
+        if (followGame(false)) { regionLabel_->setText(regionLabel_->text() + QStringLiteral(" (저장된 영역)")); return; }
+        regionLabel_->setText(QStringLiteral("%1 창 기준으로 저장된 영역이에요. 게임을 실행하면 위치를 다시 맞춰요.").arg(game_.name));
         return;
     }
     const QRect region = saved.value("capture/region").toRect();
@@ -855,10 +857,10 @@ void MainWindow::restoreRegion() {
         selectedScreen_ = screen; selectedGeometry_ = screen->geometry();
         selectedDpr_ = screen->devicePixelRatio(); region_ = region;
         screens_->setCurrentIndex(i);
-        regionLabel_->setText(describeRegion(screen, region_) + QStringLiteral(" · 저장된 영역"));
+        regionLabel_->setText(describeRegion(screen, region_) + QStringLiteral(" (저장된 영역)"));
         return;
     }
-    regionLabel_->setText(QStringLiteral("저장한 영역의 모니터 구성이 바뀌었습니다. 영역을 다시 선택하세요."));
+    regionLabel_->setText(QStringLiteral("저장한 영역의 모니터 구성이 바뀌었어요. 영역을 다시 선택하세요."));
 }
 QString MainWindow::ocrLanguages() const { return ocrLanguageBox_->currentData().toString(); }
 QString MainWindow::targetLanguage() const { return targetLanguageBox_->currentData().toString(); }

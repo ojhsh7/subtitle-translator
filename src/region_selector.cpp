@@ -44,11 +44,11 @@ void RegionSelector::paintEvent(QPaintEvent*) {
     } else if (!current_.isEmpty()) {
         p.setPen(QPen(QColor("#facc15"), 2, Qt::DashLine));
         p.drawRect(current_.adjusted(0, 0, -1, -1));
-        drawTag(p, rect(), current_, QStringLiteral("현재 영역 · %1").arg(sizeText(current_)), QColor("#facc15"));
+        drawTag(p, rect(), current_, QStringLiteral("지금 영역 %1").arg(sizeText(current_)), QColor("#facc15"));
     }
     const QString hint = current_.isEmpty()
-        ? QStringLiteral("자막 영역을 드래그하세요 · Esc: 취소 · 한 모니터 안에서 선택")
-        : QStringLiteral("드래그: 새 영역 · 방향키: 현재 영역 이동 (Shift 10px, Ctrl 크기) · Enter: 현재 영역 확정 · Esc: 취소");
+        ? QStringLiteral("자막이 나오는 부분을 드래그하세요. 취소는 Esc예요.")
+        : QStringLiteral("새로 드래그하거나 방향키로 지금 영역을 옮기세요(Shift는 10px, Ctrl은 크기). 확정은 Enter, 취소는 Esc예요.");
     const QRect box(16, 16, QFontMetrics(p.font()).horizontalAdvance(hint) + 32, 44);
     p.fillRect(box, QColor(20, 26, 36, 230));
     p.setPen(Qt::white);

@@ -15,7 +15,7 @@
 OcrService::OcrService(QObject* parent) : QObject(parent) {
     deadline_.setSingleShot(true);
     connect(&deadline_, &QTimer::timeout, this, [this] {
-        fail(QStringLiteral("OCR 처리 시간이 20초를 넘었습니다. 영역을 줄여 다시 시도하세요."));
+        fail(QStringLiteral("OCR 처리 시간이 20초를 넘었어요. 영역을 줄여 다시 시도하세요."));
     });
     memoryTimer_.setInterval(25);
     connect(&memoryTimer_, &QTimer::timeout, this, &OcrService::sample);
@@ -158,11 +158,11 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
     if (busy_) return;
     probing_ = false;
     if (image.isNull() || qint64(image.width()) * image.height() > 16000000) {
-        emit failed(QStringLiteral("OCR 이미지가 비어 있거나 너무 큽니다.")); return;
+        emit failed(QStringLiteral("OCR 이미지가 비어 있거나 너무 커요.")); return;
     }
     psm = resolvePsm(psm, image.size());
-    if (psm != 6 && psm != 7) { emit failed(QStringLiteral("지원하지 않는 OCR 배치입니다.")); return; }
-    if (!Languages::isOcrCode(languages)) { emit failed(QStringLiteral("지원하지 않는 OCR 언어입니다.")); return; }
+    if (psm != 6 && psm != 7) { emit failed(QStringLiteral("지원하지 않는 OCR 배치이에요.")); return; }
+    if (!Languages::isOcrCode(languages)) { emit failed(QStringLiteral("지원하지 않는 OCR 언어이에요.")); return; }
     languages_ = languages; executable_ = executable;
     // Plain text (real spacing) and TSV (per-word confidence) in one run; -c avoids tessdata/configs files.
     arguments_ = QStringList{"stdin", "stdout", "-l", languages, "--oem", "1", "--psm", QString::number(psm),
@@ -247,7 +247,7 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
         }
         // Nothing read (or the models failed to load): let Tesseract try the same image.
         if (QFileInfo(executable_).isFile()) { runTesseract(image, ticket); return; }
-        fail(outcome.error.isEmpty() ? QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요.") : outcome.error);
+        fail(outcome.error.isEmpty() ? QStringLiteral("글자를 인식하지 못했어요. 영역과 글자 크기를 확인하세요.") : outcome.error);
     });
     const auto paddle = paddle_;
     const QString languages = languages_;
@@ -261,7 +261,7 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
 }
 void OcrService::runTesseract(const QImage& image, quint64 ticket) {
     if (languages_ == QLatin1String("multi")) {
-        fail(QStringLiteral("다국어 자동 감지는 PaddleOCR 모델 7개가 필요합니다. 모델을 설치하거나 원문 언어 하나를 선택하세요."));
+        fail(QStringLiteral("다국어 자동 감지는 PaddleOCR 모델 7개가 필요해요. 모델을 설치하거나 원문 언어 하나를 선택하세요."));
         return;
     }
     auto* watcher = new QFutureWatcher<QList<QByteArray>>(this);
@@ -269,7 +269,7 @@ void OcrService::runTesseract(const QImage& image, quint64 ticket) {
         const auto candidates = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
         if (candidates.isEmpty() || candidates.first().isEmpty()) {
-            fail(QStringLiteral("이미지 인코딩에 실패했거나 이미지가 너무 큽니다.")); return;
+            fail(QStringLiteral("이미지 인코딩에 실패했거나 이미지가 너무 커요.")); return;
         }
         attempts_ = candidates;
         launchAttempts();
@@ -320,7 +320,7 @@ void OcrService::judgeAttempts() {
             cancel(); // stops attempts still running
             engineUsed_ = QStringLiteral("Tesseract");
             tesseractConfidence_ = best.text.isEmpty() ? -1 : best.confidence;
-            if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했습니다. 영역과 글자 크기를 확인하세요."));
+            if (best.text.isEmpty()) emit failed(QStringLiteral("글자를 인식하지 못했어요. 영역과 글자 크기를 확인하세요."));
             else if (isUnsureReading(best)) emit recognized(QString()); // invented on an empty or decorated area
             else emit recognized(cleanText(best.text));
             return;
@@ -342,10 +342,10 @@ void OcrService::collect(QProcess* process) {
     if (!running) return;
     running->output += process->readAllStandardOutput(); running->errors += process->readAllStandardError();
     if (running->output.size() > 1024 * 1024 || running->errors.size() > 1024 * 1024)
-        fail(QStringLiteral("OCR 출력이 허용 크기를 초과했습니다."));
+        fail(QStringLiteral("OCR 출력이 허용 크기를 초과했어요."));
 }
 void OcrService::launch(const QString& executable, const QStringList& args, QByteArray bytes, int attempt) {
-    if (!QFileInfo(executable).isFile()) { fail(QStringLiteral("Tesseract 실행 파일을 찾을 수 없습니다.")); return; }
+    if (!QFileInfo(executable).isFile()) { fail(QStringLiteral("Tesseract 실행 파일을 찾을 수 없어요.")); return; }
     auto* p = new QProcess(this);
     jobs_.push_back({p, attempt});
     p->setProcessChannelMode(QProcess::SeparateChannels);
@@ -354,15 +354,15 @@ void OcrService::launch(const QString& executable, const QStringList& args, QByt
         if (!running) return;
         running->handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, DWORD(p->processId()));
         sample(); memoryTimer_.start();
-        if (!bytes.isEmpty() && p->write(bytes) != bytes.size()) { fail(QStringLiteral("OCR 이미지 전달에 실패했습니다.")); return; }
+        if (!bytes.isEmpty() && p->write(bytes) != bytes.size()) { fail(QStringLiteral("OCR 이미지 전달에 실패했어요.")); return; }
         p->closeWriteChannel();
     });
     connect(p, &QProcess::readyReadStandardOutput, this, [this, p] { collect(p); });
     connect(p, &QProcess::readyReadStandardError, this, [this, p] { collect(p); });
     connect(p, &QProcess::errorOccurred, this, [this, p](QProcess::ProcessError e) {
         if (!job(p)) return;
-        if (e == QProcess::FailedToStart) fail(QStringLiteral("Tesseract를 시작하지 못했습니다. 실행 파일과 DLL을 확인하세요."));
-        else if (e != QProcess::Crashed) fail(QStringLiteral("OCR 프로세스 통신 오류입니다."));
+        if (e == QProcess::FailedToStart) fail(QStringLiteral("Tesseract를 시작하지 못했어요. 실행 파일과 DLL을 확인하세요."));
+        else if (e != QProcess::Crashed) fail(QStringLiteral("OCR 프로세스 통신 오류이에요."));
     });
     connect(p, qOverload<int,QProcess::ExitStatus>(&QProcess::finished), this,
         [this, p](int code, QProcess::ExitStatus exit) {
@@ -375,7 +375,7 @@ void OcrService::launch(const QString& executable, const QStringList& args, QByt
             }
             QStringDecoder decoder(QStringDecoder::Utf8);
             const QString decoded = decoder(running->output);
-            if (decoder.hasError()) { fail(QStringLiteral("OCR 출력의 문자 인코딩을 읽지 못했습니다.")); return; }
+            if (decoder.hasError()) { fail(QStringLiteral("OCR 출력의 문자 인코딩을 읽지 못했어요.")); return; }
             const int attempt = running->attempt;
             sample();
             if (running->handle) CloseHandle(static_cast<HANDLE>(running->handle));
@@ -391,7 +391,7 @@ void OcrService::launch(const QString& executable, const QStringList& args, QByt
             for (const QString& model : languages_.split('+'))
                 if (!installed.contains(model)) missing << model;
             emit probeFinished(missing.isEmpty(), missing.isEmpty()
-                ? QStringLiteral("OCR 엔진과 필요한 언어 모델(%1)을 확인했습니다.").arg(languages_.split('+').join(", "))
+                ? QStringLiteral("OCR 엔진과 필요한 언어 모델(%1)을 확인했어요.").arg(languages_.split('+').join(", "))
                 : QStringLiteral("없는 언어 모델: %1. tessdata 폴더에 해당 traineddata를 준비하세요.").arg(missing.join(", ")));
         });
     p->start(executable, args, QIODevice::ReadWrite);

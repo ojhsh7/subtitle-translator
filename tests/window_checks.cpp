@@ -11,6 +11,7 @@
 #include <QScopeGuard>
 #include "region_selector.h"
 #include "subtitle_overlay.h"
+#include "fluent_widgets.h"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QSettings>
@@ -382,7 +383,18 @@ private slots:
         const QString shots = qEnvironmentVariable("SUBTITLE_TEST_SCREENSHOTS");
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
-        if (!shots.isEmpty()) window.grab().save(QDir(shots).filePath("main.png"));
+        if (!shots.isEmpty()) {
+            window.grab().save(QDir(shots).filePath("main.png"));
+            // The stage with a line, and the auto switch drawn on (state only, no capture runs).
+            window.stage_->setContent(QStringLiteral("今日はいい天気ですね。"), QStringLiteral("오늘은 날씨가 좋네요."));
+            {
+                const QSignalBlocker blocker(window.auto_);
+                window.auto_->setChecked(true);
+            }
+            window.grab().save(QDir(shots).filePath("main-line.png"));
+            const QSignalBlocker blocker(window.auto_);
+            window.auto_->setChecked(false);
+        }
         window.reloadSettings_();
         window.settingsWindow_->show();
         QVERIFY(QTest::qWaitForWindowExposed(window.settingsWindow_));

@@ -14,7 +14,7 @@
 
 ## 지금 하는 일
 
-진행 중인 항목 없음. 방금 끝난 일: P-29 앱 화면·설정 개편 ([결과](docs/plan/2026-11-01-app-ui.ko.md): 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 크기·배경, CTest 180). 그 전: P-23 취소 즉시 반영(대기 264ms → 0), P-27 Tesseract 시도 동시 실행(베트남어 524 → 305ms) ([결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md), CTest 176). 그 전: P-26 OCR 인식 속도 ([결과](docs/plan/2026-11-01-ocr-speed.ko.md): 단축키 → 자막 351 → 83ms, 기본 설정 대사창 OCR 288 → 105ms, 인식 결과 차이 0, CTest 174). 구현 언어는 C++, 엔진은 PaddleOCR 유지로 결정(측정 근거는 같은 계획서 2절).
+진행 중인 항목 없음. 방금 끝난 일: P-30 디자인 다듬기 ([결과](docs/plan/2026-11-01-design-pass.ko.md): 시스템 색·Fluent 아이콘·스위치, 메인 창 자막 무대, 문구 해요체, CTest 180). 그 전: P-29 앱 화면·설정 개편 ([결과](docs/plan/2026-11-01-app-ui.ko.md): 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 크기·배경, CTest 180). 그 전: P-23 취소 즉시 반영(대기 264ms → 0), P-27 Tesseract 시도 동시 실행(베트남어 524 → 305ms) ([결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md), CTest 176). 그 전: P-26 OCR 인식 속도 ([결과](docs/plan/2026-11-01-ocr-speed.ko.md): 단축키 → 자막 351 → 83ms, 기본 설정 대사창 OCR 288 → 105ms, 인식 결과 차이 0, CTest 174). 구현 언어는 C++, 엔진은 PaddleOCR 유지로 결정(측정 근거는 같은 계획서 2절).
 
 다음 후보 ([백로그](docs/plan/BACKLOG.md)):
 - P-22 배포 실행 파일 코드 서명 (Smart App Control이 켜진 PC에서 실행되도록)
@@ -89,6 +89,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 | 인식 속도: 공용 스레드 풀, 모델 미리 불러오기, 캡처 대기 생략 | 완료 (2026-11-01, CTest 174/174) | [계획·결과](docs/plan/2026-11-01-ocr-speed.ko.md) |
 | 취소 즉시 반영, Tesseract 시도 동시 실행 | 완료 (2026-11-01, CTest 176/176) | [계획·결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md) |
 | 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 크기·배경 | 완료 (2026-11-01, CTest 180/180) | [계획·결과](docs/plan/2026-11-01-app-ui.ko.md) |
+| 디자인 다듬기: 시스템 색·Fluent 아이콘·스위치, 자막 무대, 문구 정리 | 완료 (2026-11-01, CTest 180/180) | [계획·결과](docs/plan/2026-11-01-design-pass.ko.md) |
 | 코드 서명, 실제 게임·다중 모니터·장시간 확인 | 남음 | [백로그](docs/plan/BACKLOG.md) |
 
 ## 지금까지의 흐름
