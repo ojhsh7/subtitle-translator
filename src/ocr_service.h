@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QFuture>
 #include <QImage>
 #include <QProcess>
 #include <QTimer>
@@ -20,6 +21,11 @@ public:
     // Folder with the PP-OCRv5 models; empty disables PaddleOCR. recognition false (Tesseract chosen
     // as the engine) still uses the detection model to skip areas without a text line.
     void setPaddleModelDir(const QString& dir, bool recognition = true);
+    // Loads and runs once, in the background, the PaddleOCR models a read of `languages` starts with,
+    // so the first read after start or a settings change is as fast as the next. A read started
+    // meanwhile waits for it instead of loading the same models again.
+    void warmUp(const QString& languages);
+    void waitForWarmUp() { warmUp_.waitForFinished(); } // benchmark and tests
     QString engineUsed() const { return engineUsed_; } // "PaddleOCR" or "Tesseract" for the last result
     void probe(const QString& executable, const QString& tessdataDir,
                const QString& languages = QStringLiteral("jpn+eng+kor"));
@@ -81,6 +87,7 @@ private:
     QString languages_, executable_, engineUsed_, paddleDir_;
     std::shared_ptr<PaddleOcr> paddle_; // shared with the worker thread, which may outlive a cancel
     bool paddleRecognition_ = true;
+    QFuture<void> warmUp_;
     std::shared_ptr<std::atomic<bool>> cancelled_; // the running PaddleOCR read stops early when set
     QStringList arguments_;
     QList<QByteArray> attempts_; // PNG candidates: original, light mask, thickened mask, bright mask

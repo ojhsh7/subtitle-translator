@@ -24,8 +24,11 @@ int main(int argc, char** argv) {
         {"models", "Paddle model directory.", "dir"}, {"output", "JSON report.", "file"},
         {"mode", "selected, legacy or multi.", "mode", "selected"},
         {"tesseract", "Tesseract executable for Vietnamese.", "file"}, {"tessdata", "Tesseract models.", "dir"},
-        {"engine", "paddle (default) or tesseract: Tesseract reads, the detection model in --models only checks for text.", "name", "paddle"}});
+        {"engine", "paddle (default) or tesseract: Tesseract reads, the detection model in --models only checks for text.", "name", "paddle"},
+        {"threads", "ONNX Runtime threads (0 = the app default).", "count", "0"},
+        {"warm-up", "Warm the models up, untimed, before the first read of each language (as the app does)."}});
     parser.process(app);
+    PaddleOcr::setThreads(parser.value("threads").toInt());
     const QString mode = parser.value("mode");
     if (mode != "selected" && mode != "legacy" && mode != "multi") return 2;
     QFile manifest(parser.value("manifest"));
@@ -56,6 +59,10 @@ int main(int argc, char** argv) {
             : mode == "legacy" ? QStringLiteral("jpn+eng+kor") : QStringLiteral("multi");
         const QStringList selected = PaddleOcr::modelFiles(language);
         row["coldModelLoad"] = selected != previousModels;
+        if (parser.isSet("warm-up") && selected != previousModels) {
+            ocr.warmUp(language);
+            ocr.waitForWarmUp();
+        }
         actual.clear(); error.clear(); completed = false;
         QElapsedTimer timer; timer.start();
         ocr.recognize(image, parser.value("tesseract"), parser.value("tessdata"), 0, language);
@@ -77,6 +84,10 @@ int main(int argc, char** argv) {
         }
         row["paddleLines"] = lines;
         row["detectorBoxes"] = ocr.paddleDetails().detectorBoxes;
+        row["detectMs"] = ocr.paddleDetails().detectMs;
+        row["detectRunMs"] = ocr.paddleDetails().detectRunMs;
+        row["recognizeMs"] = ocr.paddleDetails().recognizeMs;
+        row["recognizeRunMs"] = ocr.paddleDetails().recognizeRunMs;
         row["tesseractConfidence"] = ocr.tesseractConfidence();
         // "Nothing read" is a measured outcome (an empty reading counts as all characters wrong), not a crash.
         if (!error.isEmpty()) ++failures;
@@ -87,7 +98,9 @@ int main(int argc, char** argv) {
     PROCESS_MEMORY_COUNTERS memory{};
     GetProcessMemoryInfo(GetCurrentProcess(), &memory, sizeof(memory));
     // v2: rows also carry paddleLines (text, confidence, per-piece probabilities), detectorBoxes, tesseractConfidence.
-    const QJsonObject report{{"schema", "subtitle.ocr-benchmark.v2"}, {"mode", mode},
+    // v3: rows also carry detectMs/recognizeMs and their ONNX Runtime parts; the report, threads and warm-up.
+    const QJsonObject report{{"schema", "subtitle.ocr-benchmark.v3"}, {"mode", mode},
+        {"threads", PaddleOcr::threads()}, {"warmUp", parser.isSet("warm-up")},
         {"platform", "Windows x64 CPU, native C++ implementation"}, {"totalMs", total.elapsed()},
         {"peakWorkingSetBytes", qint64(memory.PeakWorkingSetSize)}, {"networkUsed", false}, {"failedReads", failures},
         {"mobileMeasured", false}, {"data", "Synthetic text images; not a real-game accuracy estimate"}, {"rows", rows}};

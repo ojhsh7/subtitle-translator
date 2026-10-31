@@ -1,0 +1,140 @@
+{
+  "dialogue, language selected": {
+    "before": {
+      "cer": 11.056,
+      "exact": 64,
+      "warmMedian": 189.6,
+      "warmP95": 498.8,
+      "firstReadMedian": 234.3,
+      "firstReadMax": 316.1,
+      "threads": 1,
+      "warmUp": false
+    },
+    "after": {
+      "cer": 11.056,
+      "exact": 64,
+      "warmMedian": 73.6,
+      "warmP95": 477.8,
+      "firstReadMedian": 66.6,
+      "firstReadMax": 154.3,
+      "threads": 4,
+      "warmUp": true
+    },
+    "changedOutputs": 0
+  },
+  "one line, language selected": {
+    "before": {
+      "cer": 6.544,
+      "exact": 449,
+      "warmMedian": 44.3,
+      "warmP95": 99.8,
+      "firstReadMedian": 104.3,
+      "firstReadMax": 162.4,
+      "threads": 1,
+      "warmUp": false
+    },
+    "after": {
+      "cer": 6.544,
+      "exact": 449,
+      "warmMedian": 17.5,
+      "warmP95": 87.3,
+      "firstReadMedian": 13.2,
+      "firstReadMax": 75.5,
+      "threads": 4,
+      "warmUp": true
+    },
+    "changedOutputs": 0
+  },
+  "dialogue, default kor+jpn+eng": {
+    "before": {
+      "cer": 32.867,
+      "exact": 29,
+      "warmMedian": 288.0,
+      "warmP95": 406.8,
+      "firstReadMedian": 436.1,
+      "firstReadMax": 436.1,
+      "threads": 1,
+      "warmUp": false
+    },
+    "after": {
+      "cer": 32.867,
+      "exact": 29,
+      "warmMedian": 104.9,
+      "warmP95": 159.9,
+      "firstReadMedian": 119.8,
+      "firstReadMax": 119.8,
+      "threads": 4,
+      "warmUp": true
+    },
+    "changedOutputs": 0
+  },
+  "one line, default kor+jpn+eng": {
+    "before": {
+      "cer": 32.997,
+      "exact": 265,
+      "warmMedian": 76.6,
+      "warmP95": 126.4,
+      "firstReadMedian": 237.9,
+      "firstReadMax": 237.9,
+      "threads": 1,
+      "warmUp": false
+    },
+    "after": {
+      "cer": 32.997,
+      "exact": 265,
+      "warmMedian": 28.9,
+      "warmP95": 46.1,
+      "firstReadMedian": 23.8,
+      "firstReadMax": 23.8,
+      "threads": 4,
+      "warmUp": true
+    },
+    "changedOutputs": 0
+  },
+  "dialogue, no warm-up": {
+    "before": {
+      "cer": 11.056,
+      "exact": 64,
+      "warmMedian": 189.6,
+      "warmP95": 498.8,
+      "firstReadMedian": 234.3,
+      "firstReadMax": 316.1,
+      "threads": 1,
+      "warmUp": false
+    },
+    "after": {
+      "cer": 11.056,
+      "exact": 64,
+      "warmMedian": 75.4,
+      "warmP95": 469.3,
+      "firstReadMedian": 145.9,
+      "firstReadMax": 202.6,
+      "threads": 4,
+      "warmUp": false
+    },
+    "changedOutputs": 0
+  },
+  "one line, no warm-up": {
+    "before": {
+      "cer": 6.544,
+      "exact": 449,
+      "warmMedian": 44.3,
+      "warmP95": 99.8,
+      "firstReadMedian": 104.3,
+      "firstReadMax": 162.4,
+      "threads": 1,
+      "warmUp": false
+    },
+    "after": {
+      "cer": 6.544,
+      "exact": 449,
+      "warmMedian": 17.5,
+      "warmP95": 87.3,
+      "firstReadMedian": 86.6,
+      "firstReadMax": 144.8,
+      "threads": 4,
+      "warmUp": false
+    },
+    "changedOutputs": 0
+  }
+}

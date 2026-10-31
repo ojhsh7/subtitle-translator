@@ -4,25 +4,42 @@
 #include <QRegularExpression>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <thread>
 #include <onnxruntime_cxx_api.h>
 #include <icu.h> // Windows SDK; kept outside the portable core
 #include "languages.h"
 
 namespace {
+std::atomic<int> threadSetting{0};
 Ort::Env& environment() {
-    static Ort::Env env(ORT_LOGGING_LEVEL_ERROR, "subtitle-translator"); // one per process
+    // One thread pool for all models instead of one per model. Idle threads sleep instead of
+    // spinning, so they take no CPU from the game between reads.
+    static Ort::Env env = [] {
+        Ort::ThreadingOptions threading;
+        threading.SetGlobalIntraOpNumThreads(PaddleOcr::threads());
+        threading.SetGlobalInterOpNumThreads(1);
+        threading.SetGlobalSpinControl(0);
+        return Ort::Env(threading, ORT_LOGGING_LEVEL_ERROR, "subtitle-translator");
+    }();
     return env;
 }
 Ort::SessionOptions sessionOptions() {
     Ort::SessionOptions options;
-    // Each cached model owns a thread pool. Bound it and stop idle spinning while gaming.
-    options.SetIntraOpNumThreads(1);
-    options.SetInterOpNumThreads(1);
-    options.AddConfigEntry("session.intra_op.allow_spinning", "0");
-    options.AddConfigEntry("session.inter_op.allow_spinning", "0");
+    options.DisablePerSessionThreads();
     options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     return options;
+}
+// Runs a session and adds the time spent to *runMs when given.
+std::vector<Ort::Value> timedRun(Ort::Session& session, const std::string& input, Ort::Value& tensor,
+                                 const std::string& output, double* runMs) {
+    const char* inputs[] = {input.c_str()};
+    const char* outputs[] = {output.c_str()};
+    const auto start = std::chrono::steady_clock::now();
+    auto result = session.Run(Ort::RunOptions{nullptr}, inputs, &tensor, 1, outputs, 1);
+    if (runMs) *runMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    return result;
 }
 // Pillow's greyscale conversion (ITU-R 601-2), so line finding matches the measured benchmark.
 int luma(QRgb p) { return (qRed(p) * 19595 + qGreen(p) * 38470 + qBlue(p) * 7471 + 0x8000) >> 16; }
@@ -119,7 +136,7 @@ PaddleRecognizer::Line PaddleRecognizer::decode(const float* probabilities, int 
     return line;
 }
 
-PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image) const {
+PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image, double* runMs) const {
     if (!model_ || image.isNull()) return {};
     int width = 0;
     std::vector<float> data = inputTensor(image, width);
@@ -127,9 +144,7 @@ PaddleRecognizer::Line PaddleRecognizer::recognize(const QImage& image) const {
     try {
         const auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         Ort::Value input = Ort::Value::CreateTensor<float>(memory, data.data(), data.size(), shape.data(), shape.size());
-        const char* inputs[] = {model_->input.c_str()};
-        const char* outputs[] = {model_->output.c_str()};
-        auto result = model_->session.Run(Ort::RunOptions{nullptr}, inputs, &input, 1, outputs, 1);
+        auto result = timedRun(model_->session, model_->input, input, model_->output, runMs);
         const auto out = result[0].GetTensorTypeAndShapeInfo().GetShape(); // [1, steps, classes]
         if (out.size() != 3) return {};
         auto line = decode(result[0].GetTensorData<float>(), int(out[1]), int(out[2]), model_->dictionary);
@@ -251,7 +266,7 @@ QList<QRect> PaddleDetector::joinLines(QList<QRect> boxes) {
     return lines;
 }
 
-QList<QRect> PaddleDetector::lines(const QImage& region) const {
+QList<QRect> PaddleDetector::lines(const QImage& region, double* runMs) const {
     if (!model_ || region.isNull()) return {};
     int width = 0, height = 0;
     std::vector<float> data = inputTensor(region, width, height);
@@ -260,9 +275,7 @@ QList<QRect> PaddleDetector::lines(const QImage& region) const {
     try {
         const auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         Ort::Value input = Ort::Value::CreateTensor<float>(memory, data.data(), data.size(), shape.data(), shape.size());
-        const char* inputs[] = {model_->input.c_str()};
-        const char* outputs[] = {model_->output.c_str()};
-        auto result = model_->session.Run(Ort::RunOptions{nullptr}, inputs, &input, 1, outputs, 1);
+        auto result = timedRun(model_->session, model_->input, input, model_->output, runMs);
         const auto out = result[0].GetTensorTypeAndShapeInfo().GetShape(); // [1, 1, height, width]
         if (out.size() != 4 || out[2] != height || out[3] != width) return {};
         return joinLines(boxes(result[0].GetTensorData<float>(), width, height, region.size()));
@@ -468,6 +481,36 @@ PaddleOcr::Filtered PaddleOcr::filterLine(const QList<PaddleRecognizer::Piece>& 
     }
     return result;
 }
+void PaddleOcr::setThreads(int threads) { threadSetting = std::max(0, threads); }
+int PaddleOcr::threads() { return threadSetting > 0 ? threadSetting.load() : defaultThreads(); }
+int PaddleOcr::defaultThreads() { return std::clamp(int(std::thread::hardware_concurrency()) / 4, 1, 4); }
+void PaddleOcr::keepOnly(const QStringList& files) {
+    for (auto it = models_.begin(); it != models_.end();)
+        if (!files.contains(it->first)) it = models_.erase(it); else ++it;
+}
+PaddleRecognizer* PaddleOcr::recognizer(const QString& file, QString& error) {
+    auto found = models_.find(file);
+    if (found != models_.end()) return found->second.get();
+    auto loaded = std::make_unique<PaddleRecognizer>();
+    if (!loaded->load(QDir(dir_).filePath(file), error)) return nullptr;
+    return models_.emplace(file, std::move(loaded)).first->second.get();
+}
+void PaddleOcr::warmUp(const QString& languages, bool recognition) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // A blank line-sized image: each model's first run sets up its memory, which a real read would wait for.
+    QImage blank(320, 48, QImage::Format_RGB32);
+    blank.fill(Qt::white);
+    loadDetector();
+    if (detector_) detector_->lines(blank);
+    if (!recognition) return;
+    QStringList files = modelFiles(languages);
+    keepOnly(files);
+    // Multi-language reads ask the other five models only for doubtful lines; leave those to load on demand.
+    if (languages == QLatin1String("multi")) files = {QLatin1String(KoreanModel), QLatin1String(CjkModel)};
+    QString ignored; // a model that cannot load reports it on the real read
+    for (const QString& file : files)
+        if (PaddleRecognizer* model = recognizer(file, ignored)) model->recognize(blank);
+}
 void PaddleOcr::loadDetector() {
     // The detection model is optional: older installs without it keep the edge-band line finder.
     if (detectorTried_) return;
@@ -493,16 +536,7 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
     };
     const QStringList files = modelFiles(languages);
     if (files.isEmpty()) { error = QStringLiteral("지원하지 않는 OCR 언어입니다."); return {}; }
-    // Release models no longer selected instead of retaining all seven after switching languages.
-    for (auto it = models_.begin(); it != models_.end();)
-        if (!files.contains(it->first)) it = models_.erase(it); else ++it;
-    auto model = [&](const QString& file) -> PaddleRecognizer* {
-        auto found = models_.find(file);
-        if (found != models_.end()) return found->second.get();
-        auto loaded = std::make_unique<PaddleRecognizer>(); // loaded on first use
-        if (!loaded->load(QDir(dir_).filePath(file), error)) return nullptr;
-        return models_.emplace(file, std::move(loaded)).first->second.get();
-    };
+    keepOnly(files);
     // Multi-language auto-detect reads with the Korean and Chinese/Japanese/English models first
     // and asks the other five only when that reading is doubtful; Latin-only text also gets the
     // Latin and Cyrillic models, so accents are kept and Russian is not mistaken for Latin.
@@ -511,17 +545,22 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
     QStringList texts;
     double weighted = 0;
     qsizetype letters = 0;
+    using Clock = std::chrono::steady_clock;
+    auto since = [](Clock::time_point start) { return std::chrono::duration<double, std::milli>(Clock::now() - start).count(); };
     loadDetector();
+    const auto detectStart = Clock::now();
     QList<QImage> lines, taller;
     // Crops as RapidOCR makes them: extra padding was measured as no better (horizontal) or worse (vertical).
     if (detector_)
-        for (const QRect& box : detector_->lines(region)) lines << region.copy(box);
+        for (const QRect& box : detector_->lines(region, &result.detectRunMs)) lines << region.copy(box);
     if (detector_) result.detectorBoxes = int(lines.size());
     result.detected = !lines.isEmpty();
     if (!result.detected) {
         lines = textLines(region);
         if (files.contains(QLatin1String(HindiModel))) taller = textLines(region, true);
     }
+    result.detectMs = since(detectStart);
+    const auto recognizeStart = Clock::now();
     for (qsizetype index = 0; index < lines.size(); ++index) {
         const QImage& line = lines[index];
         if (line.isNull()) continue;
@@ -534,11 +573,11 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
         auto run = [&](const QString& file) {
             if (std::any_of(readings.begin(), readings.end(), [&](const Reading& r) { return r.file == file; })) return true;
             if (stop()) return false;
-            PaddleRecognizer* recognizer = model(file);
-            if (!recognizer) return false;
+            PaddleRecognizer* model = recognizer(file, error);
+            if (!model) return false;
             // Devanagari vowel signs can sit above the dense stroke band; keep enough vertical padding.
             const QImage& input = file == QLatin1String(HindiModel) && index < taller.size() ? taller[index] : line;
-            readings.push_back({file, recognizer->recognize(input)});
+            readings.push_back({file, model->recognize(input, &result.recognizeRunMs)});
             ++result.modelRuns;
             return true;
         };
@@ -582,6 +621,7 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
         texts << text;
         weighted += chosen.line.confidence * text.size(); letters += text.size();
     }
+    result.recognizeMs = since(recognizeStart);
     result.text = texts.join(QLatin1Char('\n'));
     result.confidence = letters ? weighted / letters : 0;
     return result;

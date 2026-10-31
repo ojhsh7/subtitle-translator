@@ -21,7 +21,8 @@ public:
     ~PaddleRecognizer();
     bool load(const QString& modelPath, QString& error);
     bool isLoaded() const { return model_ != nullptr; }
-    Line recognize(const QImage& line) const;
+    // runMs: adds the time spent inside ONNX Runtime (diagnostics).
+    Line recognize(const QImage& line, double* runMs = nullptr) const;
     // Model input, as RapidOCR prepares it: shorter side raised to 30 px (rounded to 32),
     // then height 48, width at least 320, BGR scaled to [-1, 1], zero padded on the right.
     static std::vector<float> inputTensor(const QImage& line, int& width);
@@ -39,7 +40,8 @@ public:
     ~PaddleDetector();
     bool load(const QString& modelPath, QString& error);
     // One box per text line in region coordinates, top to bottom; boxes on one line are joined.
-    QList<QRect> lines(const QImage& region) const;
+    // runMs: adds the time spent inside ONNX Runtime (diagnostics).
+    QList<QRect> lines(const QImage& region, double* runMs = nullptr) const;
     // Model input: the region enlarged 1.5x (shorter side at least 64, at most 2 million pixels,
     // longest side 2560), sides rounded to multiples of 32, BGR scaled to [-1, 1].
     static std::vector<float> inputTensor(const QImage& region, int& width, int& height);
@@ -77,10 +79,20 @@ public:
     // detected: the lines came from the detection model (not the fallback line finder).
     // detectorBoxes: text lines the detection model found; -1 when the model is not installed.
     // dropped: lines removed or shortened by filterLine, as read before filtering.
+    // detectMs, recognizeMs: wall time of finding and of reading the lines; the *RunMs parts were
+    // spent inside ONNX Runtime, the rest in our image preparation and decoding.
     struct Result {
         QString text; double confidence = 0; int modelRuns = 0; bool detected = false;
         int detectorBoxes = -1; QList<LineInfo> lines; QStringList dropped;
+        double detectMs = 0, detectRunMs = 0, recognizeMs = 0, recognizeRunMs = 0;
     };
+    // ONNX Runtime threads: one pool shared by every model in the process. Takes effect only before
+    // the first model loads; 0 = defaultThreads().
+    static void setThreads(int threads);
+    static int threads();
+    // A quarter of the logical processors, 1 to 4: the game keeps the rest. Measured in
+    // docs/plan/2026-11-01-ocr-speed.ko.md: a dialogue box took 193 ms on 1 thread, 74 ms on 4, 58 ms on 8.
+    static int defaultThreads();
     // False-text filters. Game symbols missing from the model dictionaries come out as look-alike
     // letters ("○" -> "O", "♪ Hello ♪" -> "s Hello s"). Thresholds from measurements in
     // docs/plan/2026-10-25-ocr-false-text.ko.md: on such lines the surest letter scored 0.14-0.78,
@@ -113,12 +125,19 @@ public:
     // Text lines the detection model finds, for engines that only recognize (Tesseract);
     // -1 when the detection model is not installed. Safe to call from a worker thread.
     int countTextLines(const QImage& region);
+    // Loads the detection model and, with recognition, the models a read of `languages` starts with,
+    // and runs each once, so the first real read does not pay for loading. Safe from a worker thread.
+    void warmUp(const QString& languages, bool recognition);
     static QStringList modelFiles(const QString& languages);
     static bool needsKorean(const QString& languages) { return modelFiles(languages).contains(QLatin1String(KoreanModel)); }
     static bool needsCjk(const QString& languages) { return modelFiles(languages).contains(QLatin1String(CjkModel)); }
     static bool available(const QString& modelDir, const QString& languages);
 private:
     void loadDetector(); // once; caller holds mutex_
+    // Drops models not in `files`, instead of retaining all seven after switching languages; caller holds mutex_.
+    void keepOnly(const QStringList& files);
+    // The model for `file`, loaded on first use; nullptr and `error` when it cannot load. Caller holds mutex_.
+    PaddleRecognizer* recognizer(const QString& file, QString& error);
     QString dir_;
     std::mutex mutex_;
     std::map<QString, std::unique_ptr<PaddleRecognizer>> models_;

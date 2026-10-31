@@ -237,6 +237,7 @@ MainWindow::MainWindow() {
     // A new language changes what the current line means: forget the cache and read it again.
     connect(ocrLanguageBox_, &QComboBox::currentIndexChanged, this, [this] {
         QSettings().setValue("ocr/languages", ocrLanguages());
+        ocr_.warmUp(ocrLanguages());
         st_reset_cache(session_); detector_.reset();
         if (hoverRequest_ && busy_) cancel();
         hoverSince_ = -1; hoverConsumed_ = false; hoverRequest_ = false;
@@ -845,6 +846,9 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
         status_->setText(QStringLiteral("OCR 엔진이 없습니다. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
         return;
     }
+    // Checked before resetOutput() hides the old caption: a window hidden just now is still on screen.
+    const QRect global = area.rect.translated(area.screenGeometry.topLeft());
+    const bool covered = coversRegion(global) || (captureFlash_->isVisible() && captureFlash_->geometry().intersects(global));
     setBusy(true);
     resetOutput();
     activeSource_ = ST_SCREEN_CAPTURE;
@@ -852,11 +856,15 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
     resultStatus_->setText(QStringLiteral("새 자막 처리 중 · 아직 번역 결과가 없습니다."));
     status_->setText(status);
     const quint64 ticket = ++generation_;
-    restoreMain_ = isVisible() && !isMinimized(); restoreResult_ = resultWindow_->isVisible();
-    restoreOverlay_ = subtitleOverlay_->isVisible();
-    if (!isMinimized()) hide();
-    resultWindow_->hide(); subtitleOverlay_->hide(); captureFlash_->hide();
-    QTimer::singleShot(180, this, [this, ticket, area] {
+    // Our windows are hidden, and the compositor given 180 ms to remove them, only when they would be
+    // in the picture. Otherwise the capture starts at once (docs/plan/2026-11-01-ocr-speed.ko.md).
+    if (covered) {
+        restoreMain_ = isVisible() && !isMinimized(); restoreResult_ = resultWindow_->isVisible();
+        restoreOverlay_ = subtitleOverlay_->isVisible();
+        if (!isMinimized()) hide();
+        resultWindow_->hide(); subtitleOverlay_->hide(); captureFlash_->hide();
+    }
+    QTimer::singleShot(covered ? 180 : 0, this, [this, ticket, area] {
         if (!busy_ || ticket != generation_) return;
         QString error;
         QImage image;
@@ -1231,6 +1239,7 @@ QString MainWindow::targetLanguage() const { return targetLanguageBox_->currentD
 void MainWindow::applyOcrEngine() {
     // With Tesseract chosen, the bundled detection model still checks that a text line exists.
     ocr_.setPaddleModelDir(QDir(paddleDir_).exists() ? paddleDir_ : QString(), paddleEngine_);
+    ocr_.warmUp(ocrLanguages());
 }
 bool MainWindow::ocrReady() const {
     return (paddleEngine_ && PaddleOcr::available(paddleDir_, ocrLanguages())) ||

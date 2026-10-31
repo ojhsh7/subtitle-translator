@@ -181,7 +181,13 @@ void OcrService::setPaddleModelDir(const QString& dir, bool recognition) {
     paddleRecognition_ = recognition;
     if (dir == paddleDir_) return;
     paddleDir_ = dir;
-    paddle_ = dir.isEmpty() ? nullptr : std::make_shared<PaddleOcr>(dir); // models load on first use
+    paddle_ = dir.isEmpty() ? nullptr : std::make_shared<PaddleOcr>(dir); // models load on first use or warmUp
+}
+void OcrService::warmUp(const QString& languages) {
+    if (!paddle_ || !Languages::isOcrCode(languages)) return;
+    const auto paddle = paddle_;
+    const bool recognition = paddleRecognition_;
+    warmUp_ = QtConcurrent::run([paddle, languages, recognition] { paddle->warmUp(languages, recognition); });
 }
 void OcrService::runDetectorThenTesseract(const QImage& image, quint64 ticket) {
     // Tesseract invents letters on empty, bordered or noisy areas ("Po", "이"); the detection model

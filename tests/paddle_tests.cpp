@@ -10,7 +10,9 @@
 #include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <algorithm>
 #include <cmath>
+#include <thread>
 namespace {
 QString fixture(const QString& name) { return QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath(name); }
 QString models() { return qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); }
@@ -328,6 +330,37 @@ private slots:
         std::sort(times.begin(), times.end());
         qInfo("warm read, auto-detect (2 models): median %lld ms", times[times.size() / 2]);
         QVERIFY(times[times.size() / 2] < 1000);
+    }
+    // S1 (docs/plan/2026-11-01-ocr-speed.ko.md): a quarter of the processors, never more than 4.
+    void defaultThreadsLeaveTheGameMostOfTheCpu() {
+        const int processors = int(std::thread::hardware_concurrency());
+        QCOMPARE(PaddleOcr::defaultThreads(), std::clamp(processors / 4, 1, 4));
+        QCOMPARE(PaddleOcr::threads(), PaddleOcr::defaultThreads()); // nothing set in this process
+        qInfo("%d logical processors -> %d OCR threads", processors, PaddleOcr::threads());
+    }
+    // S2: warming up loads the models a read starts with and changes no reading.
+    void warmUpLoadsTheModelsBeforeTheFirstRead() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        const QImage image(fixture("outlined-ko-18px.png"));
+        QString error;
+        PaddleOcr cold(models());
+        QElapsedTimer timer; timer.start();
+        const auto coldRead = cold.read(image, "jpn+eng+kor", error);
+        const qint64 coldMs = timer.elapsed();
+        PaddleOcr warm(models());
+        warm.warmUp("jpn+eng+kor", true);
+        timer.restart();
+        const auto warmRead = warm.read(image, "jpn+eng+kor", error);
+        const qint64 warmMs = timer.elapsed();
+        qInfo("first read without warm-up %lld ms, after warm-up %lld ms", coldMs, warmMs);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(warmRead.text, coldRead.text);
+        QVERIFY2(warmMs < coldMs, "the first read still loaded models");
+        // Through the service, as the app calls it; a Tesseract-engine setup warms only the detection model.
+        OcrService service;
+        service.setPaddleModelDir(models(), false);
+        service.warmUp("jpn+eng+kor");
+        service.waitForWarmUp();
     }
     // R-02 / P-03: moving the mouse in hover mode cancels the read. The cancelled PaddleOCR work must
     // release the engine at the next line instead of finishing the whole region first.

@@ -277,6 +277,42 @@ private slots:
         QVERIFY(!window.captureFlash_->isVisible());
     }
 
+    // S3 (docs/plan/2026-11-01-ocr-speed.ko.md): our windows are hidden for a capture, with a 180 ms
+    // wait, only when they would be in the picture. Elsewhere they stay and the capture starts at once.
+    void captureHidesOnlyWindowsInThePicture() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:44px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(900, 160); fixture.move(30, 30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        MainWindow window;
+        window.executable_.clear();
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_.clear(); window.consent_ = false;
+        window.followGame_->setChecked(false); window.showCaptureRange_->setChecked(false);
+        window.inlineCaptions_->setChecked(false);
+        window.setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+        const QRect source(fixture.mapToGlobal(QPoint()), fixture.size());
+        window.show(); window.move(source.bottomLeft() + QPoint(0, 120));
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QVERIFY(!window.frameGeometry().intersects(source));
+        window.startCapture();
+        QVERIFY(window.isVisible()); // not in the picture: never hidden, so no flicker either
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QVERIFY(window.isVisible());
+        QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")), qPrintable(window.original_->toPlainText()));
+        window.move(source.topLeft()); // now over the subtitle area
+        QTest::qWait(100);
+        QVERIFY(window.frameGeometry().intersects(source));
+        window.startCapture();
+        QVERIFY(!window.isVisible());
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QVERIFY(window.isVisible()); // shown again after the capture
+        QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")), qPrintable(window.original_->toPlainText()));
+        window.hide();
+    }
     void fallbackResultWindowDoesNotBlockAutoCapture() {
         MainWindow window;
         window.executable_=qEnvironmentVariable("SUBTITLE_TEST_TESSERACT");
