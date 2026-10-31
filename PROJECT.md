@@ -113,4 +113,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 
 ## 파생 프로젝트
 
-이 저장소의 OCR 벤치마크(합성 픽스처 생성 → 네이티브 실행 → CER 채점) 경험은 모바일 프로그래밍 팀 프로젝트 **종이한장(OnePaper)**의 번역 기능 측정에 옮겨 썼다(저장소 `C:\dev\onepaper`, 원격 저장소 없음).
+이 저장소의 OCR 벤치마크(합성 픽스처 생성 → 네이티브 실행 → CER 채점) 경험은 모바일 프로그래밍 팀 프로젝트 **종이한장(OnePaper)**의 번역 기능 측정에 옮겨 썼다(저장소 `C:\dev\onepaper`, 원격 `github.com/ojhsh7/onepaper` 비공개).
