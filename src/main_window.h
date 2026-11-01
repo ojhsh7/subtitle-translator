@@ -113,6 +113,13 @@ private:
     void restoreRegion();
     QString ocrLanguages() const;
     void applyOcrEngine();
+    // P-31 (docs/plan/2026-11-02-translation-latency.ko.md): translation pipeline.
+    void requestTranslation(const QStringList& pieces, unsigned scripts);
+    void applyTranslation(const QStringList& translations, const QString& detected, bool remembered);
+    void dropHeld();        // the held line changed or was cancelled: release its core request
+    void warmTranslation(); // opens the DeepL connection ahead of a likely request
+    // Ends like a finished sentence (。！？.!?」』… and the like); other lines wait SentenceSettleMs.
+    static bool looksFinished(const QString& text);
     bool ocrReady() const;
     QString targetLanguage() const;
     QComboBox* screens_;
@@ -161,6 +168,15 @@ private:
     qint64 translationPausedUntil_ = -1;
     static constexpr int MinRateLimitPauseSeconds = 10;
     ChangeDetector detector_;
+    bool holding_ = false; // an unfinished-looking line, already read, waits for the frame to stay still
+    QStringList heldPieces_;
+    unsigned heldScripts_ = 0;
+    // Recent translations by target, source language and pieces; memory only, gone when the app closes.
+    struct Remembered { QStringList translations; QString detected; };
+    QHash<QString, Remembered> translationCache_;
+    QStringList cacheOrder_; // oldest first
+    QString pendingCacheKey_;
+    static constexpr int CacheLines = 200;
     QImage lastImage_;
     int lastSource_ = ST_IMAGE_FILE;
     int activeSource_ = ST_IMAGE_FILE;

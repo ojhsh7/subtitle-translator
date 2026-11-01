@@ -145,9 +145,17 @@ MainWindow::MainWindow() {
             finish(QStringLiteral("DeepL 요청 제한으로 %1초 동안 원문만 표시해요.").arg(left));
             return;
         }
-        setStatus(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(target));
-        resultStatus_->setText(QStringLiteral("번역 중…"));
-        translation_.translate(pieces, apiKey_, freeApi_, targetLanguage(), Languages::sourceForScripts(scripts, ocrLanguages()));
+        // A line that does not look finished is read but waits until the frame stays still for
+        // SentenceSettleMs, so a typewriter pause at a comma never sends half a line.
+        if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE &&
+            !looksFinished(QString::fromUtf8(st_source_text(session_))) &&
+            detector_.stableMs(autoClock_.elapsed()) < ChangeDetector::SentenceSettleMs) {
+            holding_ = true; heldPieces_ = pieces; heldScripts_ = scripts;
+            setBusy(false);
+            setStatus(QStringLiteral("문장이 끝나기를 기다리는 중이에요."));
+            return;
+        }
+        requestTranslation(pieces, scripts);
     });
     connect(&ocr_, &OcrService::failed, this, [this](const QString& error) {
         if (!busy_) return;
@@ -158,29 +166,7 @@ MainWindow::MainWindow() {
         finish(retry ? error + QStringLiteral("\n자동 번역: 3초 뒤 다시 확인해요 (같은 화면에서 최대 2회).") : error);
     });
     connect(&translation_, &TranslationService::translated, this, [this](const QStringList& pieces, const QString& detected) {
-        if (!busy_) return;
-        std::vector<std::string> translations;
-        for (const QString& piece : pieces) translations.push_back(piece.toStdString());
-        const std::string joined = subtitle::joinTranslated(segments_, translations);
-        if (joined.empty()) {
-            st_fail(session_, request_);
-            resultStatus_->setText(QStringLiteral("번역하지 못했어요. 원문은 더 보기의 인식 내용에서 볼 수 있어요."));
-            finish(QStringLiteral("번역 응답 개수가 요청과 달라 결과를 표시하지 않았어요."));
-            return;
-        }
-        if (!st_complete(session_, request_, joined.c_str())) return;
-        const QString text = QString::fromStdString(joined);
-        result_->setPlainText(text);
-        const QString target = Languages::targetLabel(targetLanguage());
-        const bool partial = std::any_of(segments_.begin(), segments_.end(), [](const auto& s) { return !s.translate; });
-        resultStatus_->setText(Languages::sameLanguage(detected, targetLanguage())
-            ? QStringLiteral("원문이 이미 %1라서 DeepL이 그대로 돌려줬어요.").arg(target)
-            : QStringLiteral("%1에서 %2로 번역했어요%3.")
-                  .arg(detected.isEmpty() ? QStringLiteral("원문") : Languages::languageName(detected), target,
-                       partial ? QStringLiteral(" (외국어 부분만)") : QString()));
-        presentTranslation();
-        finish(autoTranslating() ? QStringLiteral("번역했어요. 다음 대사를 기다리고 있어요.")
-                                 : QStringLiteral("번역 완료. 다음 자막에서 Ctrl + Alt + T를 누르세요."));
+        if (busy_) applyTranslation(pieces, detected, false);
     });
     connect(&translation_, &TranslationService::failed, this, [this](const QString& error) {
         if (!busy_) return;
@@ -301,6 +287,7 @@ void MainWindow::chooseRegion(QScreen* requested) {
     if (!requested && (screens_->currentIndex() < 0 || screens_->currentIndex() >= list.size())) return;
     QPointer<QScreen> screen = requested ? requested : list[screens_->currentIndex()];
     followGame(false); // Show the region where it is now, also after the game window moved.
+    warmTranslation();  // a translation usually follows choosing a region
     modal_ = true;
     restoreMain_ = isVisible() && !isMinimized(); restoreResult_ = resultWindow_->isVisible();
     restoreOverlay_ = subtitleOverlay_->isVisible();
@@ -434,6 +421,7 @@ void MainWindow::updateHover(const QPoint& point, qint64 nowMs, bool mousePresse
         if (hoverRequest_) subtitleOverlay_->hide();
         hoverRequest_ = false;
         hoverAnchor_ = point; hoverSince_ = nowMs; hoverConsumed_ = false;
+        warmTranslation(); // the dwell before the read covers opening the DeepL connection
         return;
     }
     if (hoverConsumed_ || busy_ || nowMs - hoverSince_ < DwellMs) return;
@@ -459,6 +447,7 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
         setStatus(QStringLiteral("OCR 엔진이 없어요. 설정에서 tesseract.exe 경로를 지정하거나 PaddleOCR 모델을 확인하세요."));
         return;
     }
+    warmTranslation();
     // Checked before resetOutput() hides the old caption: a window hidden just now is still on screen.
     const QRect global = area.rect.translated(area.screenGeometry.topLeft());
     const bool covered = coversRegion(global) || (captureFlash_->isVisible() && captureFlash_->geometry().intersects(global));
@@ -518,6 +507,7 @@ void MainWindow::cancel() {
     const bool wasBusy = busy_;
     ++generation_;
     setBusy(false);
+    holding_ = false; heldPieces_.clear();
     st_cancel(session_);
     ocr_.cancel(); translation_.cancel();
     restoreWindows();
@@ -641,6 +631,7 @@ void MainWindow::processImage(const QImage& image, int source) {
     resultPlacementWarning_.clear();
     activeSource_ = source;
     // Every image source enters here. The core sees only portable metadata and UTF-8 OCR.
+    dropHeld(); // a new read replaces a line still waiting to be sent
     request_ = st_begin(session_, source, image.width(), image.height());
     if (!request_) { finish(QStringLiteral("이미지가 너무 크거나 이전 요청이 진행 중이에요.")); return; }
     lastImage_ = image; lastSource_ = source;
@@ -690,6 +681,7 @@ void MainWindow::setAutoTranslate(bool enabled) {
     }
     detector_.reset();
     if (!enabled) {
+        dropHeld();
         autoPending_ = false;
         auto_->setChecked(false);
         if (!autoTimer_->isActive()) return;
@@ -706,6 +698,7 @@ void MainWindow::setAutoTranslate(bool enabled) {
     }
     autoPending_ = false;
     resultPlacementWarning_.clear();
+    warmTranslation();
     auto_->setChecked(true);
     autoTimer_->start();
     showMinimized(); // Keep the app window off the game's subtitle.
@@ -752,7 +745,22 @@ void MainWindow::autoTick() {
         setStatus(error);
         return;
     }
-    if (detector_.feed(image, autoClock_.elapsed()) != ChangeDetector::Decision::Process) return;
+    const qint64 now = autoClock_.elapsed();
+    const auto decision = detector_.feed(image, now);
+    // A new line just appeared: open the DeepL connection while it settles and is read.
+    if (detector_.stableMs(now) == 0) warmTranslation();
+    if (holding_) {
+        if (decision == ChangeDetector::Decision::Unchanged) {
+            if (detector_.stableMs(now) >= ChangeDetector::SentenceSettleMs) {
+                holding_ = false;
+                setBusy(true);
+                requestTranslation(heldPieces_, heldScripts_);
+            }
+            return;
+        }
+        dropHeld(); // the line changed; the newer one is read when it settles
+    }
+    if (decision != ChangeDetector::Decision::Process) return;
     // Keep the previous caption on screen until the new line has a result.
     original_->clear(); result_->clear();
     captionArea_ = selectedArea();
@@ -872,4 +880,64 @@ void MainWindow::applyOcrEngine() {
 bool MainWindow::ocrReady() const {
     return (paddleEngine_ && PaddleOcr::available(paddleDir_, ocrLanguages())) ||
            (ocrLanguages() != QLatin1String("multi") && !executable_.isEmpty() && QFileInfo::exists(executable_));
+}
+void MainWindow::requestTranslation(const QStringList& pieces, unsigned scripts) {
+    const QString source = Languages::sourceForScripts(scripts, ocrLanguages());
+    const QString key = QStringList{targetLanguage(), source, pieces.join(QChar(0x1e))}.join(QChar(0x1f));
+    const auto found = translationCache_.constFind(key);
+    if (found != translationCache_.constEnd()) {
+        // Translated within the last CacheLines lines: show it at once and spare the request.
+        const Remembered remembered = *found;
+        cacheOrder_.removeOne(key); cacheOrder_.append(key);
+        pendingCacheKey_.clear();
+        applyTranslation(remembered.translations, remembered.detected, true);
+        return;
+    }
+    pendingCacheKey_ = key;
+    setStatus(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(Languages::targetLabel(targetLanguage())));
+    resultStatus_->setText(QStringLiteral("번역 중…"));
+    translation_.translate(pieces, apiKey_, freeApi_, targetLanguage(), source);
+}
+void MainWindow::applyTranslation(const QStringList& pieces, const QString& detected, bool remembered) {
+    std::vector<std::string> translations;
+    for (const QString& piece : pieces) translations.push_back(piece.toStdString());
+    const std::string joined = subtitle::joinTranslated(segments_, translations);
+    if (joined.empty()) {
+        st_fail(session_, request_);
+        resultStatus_->setText(QStringLiteral("번역하지 못했어요. 원문은 더 보기의 인식 내용에서 볼 수 있어요."));
+        finish(QStringLiteral("번역 응답 개수가 요청과 달라 결과를 표시하지 않았어요."));
+        return;
+    }
+    if (!st_complete(session_, request_, joined.c_str())) return;
+    if (!remembered && !pendingCacheKey_.isEmpty() && !translationCache_.contains(pendingCacheKey_)) {
+        if (translationCache_.size() >= CacheLines) translationCache_.remove(cacheOrder_.takeFirst());
+        translationCache_.insert(pendingCacheKey_, {pieces, detected});
+        cacheOrder_.append(pendingCacheKey_);
+    }
+    result_->setPlainText(QString::fromStdString(joined));
+    const QString target = Languages::targetLabel(targetLanguage());
+    const bool partial = std::any_of(segments_.begin(), segments_.end(), [](const auto& s) { return !s.translate; });
+    resultStatus_->setText(Languages::sameLanguage(detected, targetLanguage())
+        ? QStringLiteral("원문이 이미 %1라서 DeepL이 그대로 돌려줬어요.").arg(target)
+        : QStringLiteral("%1에서 %2로 번역했어요%3.")
+              .arg(detected.isEmpty() ? QStringLiteral("원문") : Languages::languageName(detected), target,
+                   (partial ? QStringLiteral(" (외국어 부분만)") : QString()) +
+                   (remembered ? QStringLiteral(" (기억해 둔 번역)") : QString())));
+    presentTranslation();
+    finish(autoTranslating() ? QStringLiteral("번역했어요. 다음 대사를 기다리고 있어요.")
+                             : QStringLiteral("번역 완료. 다음 자막에서 Ctrl + Alt + T를 누르세요."));
+}
+void MainWindow::dropHeld() {
+    if (!holding_) return;
+    holding_ = false; heldPieces_.clear();
+    st_fail(session_, request_);
+}
+void MainWindow::warmTranslation() {
+    if (!apiKey_.isEmpty() && consent_) translation_.warmUp(freeApi_);
+}
+bool MainWindow::looksFinished(const QString& text) {
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty()) return true;
+    static const QString endings = QStringLiteral("。．.！!？?…‥」』）)】〉》\"”’'～~♪");
+    return endings.contains(trimmed.back());
 }

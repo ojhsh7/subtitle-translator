@@ -1,4 +1,5 @@
 #include "translation_service.h"
+#include <QSslConfiguration>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -98,7 +99,21 @@ void TranslationService::checkUsage(const QString& apiKey, bool freeApi) {
     }
     start(network_.get(request(freeApi, "/v2/usage", key)), Kind::Usage);
 }
+bool TranslationService::warmUp(bool freeApi) {
+    if (lastUse_.isValid() && lastUse_.elapsed() < WarmAfterIdleMs) return false;
+    lastUse_.restart();
+    if (testEndpoint_.isValid()) {
+        network_.connectToHost(testEndpoint_.host(), quint16(testEndpoint_.port(80)));
+        return true;
+    }
+    // ALPN with h2: the server speaks HTTP/2, and requests then share this connection.
+    QSslConfiguration ssl = QSslConfiguration::defaultConfiguration();
+    ssl.setAllowedNextProtocols({QSslConfiguration::ALPNProtocolHTTP2, QSslConfiguration::NextProtocolHttp1_1});
+    network_.connectToHostEncrypted(QString::fromLatin1(freeApi ? "api-free.deepl.com" : "api.deepl.com"), 443, ssl);
+    return true;
+}
 void TranslationService::start(QNetworkReply* reply, Kind kind) {
+    lastUse_.restart();
     response_.clear();
     lastStatus_ = 0; lastRetryAfter_ = -1;
     reply_ = reply;

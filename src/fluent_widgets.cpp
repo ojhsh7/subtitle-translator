@@ -190,10 +190,16 @@ void SwitchRow::paintEvent(QPaintEvent*) {
 CaptionStage::CaptionStage(QWidget* parent) : QWidget(parent) {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMinimumHeight(118);
+    setAccessibleName(QStringLiteral("마지막 대사"));
 }
 void CaptionStage::setContent(const QString& source, const QString& translation) {
     source_ = source.simplified();
     translation_ = translation.simplified();
+    // Screen readers (and the QA harness) read the line in the name: "마지막 대사: original / translation".
+    QString name = QStringLiteral("마지막 대사");
+    if (!source_.isEmpty()) name += QStringLiteral(": ") + source_;
+    if (!translation_.isEmpty()) name += QStringLiteral(" / ") + translation_;
+    setAccessibleName(name);
     update();
 }
 void CaptionStage::setStyle(double scale, bool box) { scale_ = scale; box_ = box; update(); }

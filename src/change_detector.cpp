@@ -23,15 +23,14 @@ ChangeDetector::Decision ChangeDetector::feed(const QImage& frame, qint64 nowMs)
     const QImage current = signature(frame);
     bool forced = false;
     if (previous_.isNull() || differs(current, previous_)) {
-        previous_ = current; stableTicks_ = 0;
+        previous_ = current; lastChange_ = nowMs;
         if (changingSince_ < 0) changingSince_ = nowMs;
         if (nowMs - changingSince_ < MaxWaitMs) return Decision::Wait;
         changingSince_ = nowMs;
         forced = true;
     } else {
-        if (stableTicks_ < StableTicks) ++stableTicks_;
-        if (stableTicks_ < StableTicks) return Decision::Wait;
         // One quiet poll between animated frames is not a settled dialogue.
+        if (nowMs - lastChange_ < SettleMs) return Decision::Wait;
         changingSince_ = -1;
     }
     const bool changed = processed_.isNull() || differs(current, processed_);
@@ -52,6 +51,6 @@ bool ChangeDetector::retryAfterFailure(qint64 nowMs) {
 }
 void ChangeDetector::reset() {
     previous_ = QImage(); processed_ = QImage();
-    stableTicks_ = 0; changingSince_ = -1;
+    lastChange_ = -1; changingSince_ = -1;
     retryAt_ = -1; retries_ = 0; sampledWhileChanging_ = false;
 }

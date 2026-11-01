@@ -3,6 +3,8 @@
 #include <QtTest>
 using Decision = ChangeDetector::Decision;
 namespace {
+// The app polls every PollMs; a still frame is read on the second quiet poll.
+constexpr qint64 P = ChangeDetector::PollMs;
 // Synthetic dialogue line; only the change decisions are checked, never OCR.
 QImage line(const QString& text, int boxX = -1) {
     QImage image(1000, 60, QImage::Format_RGB32);
@@ -19,13 +21,19 @@ QImage line(const QString& text, int boxX = -1) {
 class ChangeChecks : public QObject {
     Q_OBJECT
 private slots:
+    void settleIsTwoPolls() {
+        QCOMPARE(ChangeDetector::SettleMs, 2 * P);
+        QVERIFY(ChangeDetector::SentenceSettleMs > ChangeDetector::SettleMs);
+    }
     void staticLineIsProcessedOnce() {
         ChangeDetector detector;
         const QImage frame = line(QStringLiteral("今日はいい天気です。"));
         QCOMPARE(detector.feed(frame, 0), Decision::Wait);
-        QCOMPARE(detector.feed(frame, 400), Decision::Wait);
-        QCOMPARE(detector.feed(frame, 800), Decision::Process);
-        for (int i = 3; i < 20; ++i) QCOMPARE(detector.feed(frame, i * 400), Decision::Unchanged);
+        QCOMPARE(detector.stableMs(0), qint64(0));
+        QCOMPARE(detector.feed(frame, P), Decision::Wait);
+        QCOMPARE(detector.feed(frame, 2 * P), Decision::Process);
+        QCOMPARE(detector.stableMs(2 * P), 2 * P);
+        for (int i = 3; i < 20; ++i) QCOMPARE(detector.feed(frame, i * P), Decision::Unchanged);
     }
     void typewriterTextWaitsUntilComplete() {
         ChangeDetector detector;
@@ -36,9 +44,8 @@ private slots:
         QCOMPARE(detector.feed(line(full), now), Decision::Wait);
         QCOMPARE(detector.feed(line(full), now + 400), Decision::Process);
     }
-    // P-08 (R-05): measurement of reads per sentence for typewriter text, polled every 400 ms like the app.
-    // A sentence typed for longer than MaxWaitMs is read once while still typing (a partial sentence is
-    // sent for translation) and once when complete; shorter ones are read once.
+    // P-08 (R-05): reads per sentence for typewriter text, polled like the app. A sentence typed for
+    // longer than MaxWaitMs is read once while still typing and once when complete; shorter ones once.
     void typewriterReadsPerSentence_data() {
         QTest::addColumn<int>("characters");
         QTest::addColumn<int>("msPerCharacter");
@@ -68,7 +75,7 @@ private slots:
             const QString full = kana.mid(sentence, characters);
             const qint64 start = now, typed = start + qint64(characters) * msPerCharacter, end = typed + 2500;
             int partial = 0, complete = 0;
-            for (; now < end; now += 400) {
+            for (; now < end; now += P) {
                 const int shown = int(std::min<qint64>(characters, (now - start) / msPerCharacter + 1));
                 if (detector.feed(line(full.left(shown)), now) == Decision::Process) (shown < characters ? partial : complete)++;
             }
@@ -82,11 +89,12 @@ private slots:
         ChangeDetector detector;
         const QImage first = line(QStringLiteral("今日はいい天気です。"));
         const QImage second = line(QStringLiteral("明日は雨が降ります。"));
-        detector.feed(first, 0); detector.feed(first, 400);
-        QCOMPARE(detector.feed(first, 800), Decision::Process);
-        QCOMPARE(detector.feed(second, 1200), Decision::Wait);
-        QCOMPARE(detector.feed(second, 1600), Decision::Wait);
-        QCOMPARE(detector.feed(second, 2000), Decision::Process);
+        detector.feed(first, 0); detector.feed(first, P);
+        QCOMPARE(detector.feed(first, 2 * P), Decision::Process);
+        QCOMPARE(detector.feed(second, 3 * P), Decision::Wait);
+        QCOMPARE(detector.stableMs(3 * P), qint64(0)); // the moment a new line appears (connection warm-up)
+        QCOMPARE(detector.feed(second, 4 * P), Decision::Wait);
+        QCOMPARE(detector.feed(second, 5 * P), Decision::Process);
     }
     void oneNewCharacterIsAChange() {
         QVERIFY(ChangeDetector::differs(ChangeDetector::signature(line(QStringLiteral("今日はいい天気"))),
@@ -100,12 +108,12 @@ private slots:
     void animatedBackgroundIsProcessedAtMostEveryMaxWait() {
         ChangeDetector detector;
         QList<qint64> processed;
-        for (int i = 0; i <= 17; ++i) {
-            const qint64 now = i * 400;
+        for (int i = 0; i <= 45; ++i) {
+            const qint64 now = i * P;
             if (detector.feed(line(QStringLiteral("今日はいい天気です。"), (i * 50) % 900), now) == Decision::Process)
                 processed.append(now);
         }
-        QCOMPARE(processed, (QList<qint64>{3200, 6400}));
+        QCOMPARE(processed, (QList<qint64>{ChangeDetector::MaxWaitMs, 2 * ChangeDetector::MaxWaitMs}));
     }
     void smallSentenceEndingInsideLargeRegionIsDetected_data() {
         QTest::addColumn<QString>("text");
@@ -120,62 +128,64 @@ private slots:
         QFont f("Yu Gothic"); f.setPixelSize(18); p.setFont(f); p.setPen(QColor(220,220,220));
         p.drawText(QPoint(1820,260),text); p.end();
         ChangeDetector detector;
-        detector.feed(before,0); detector.feed(before,400);
-        QCOMPARE(detector.feed(before,800),Decision::Process);
-        QCOMPARE(detector.feed(after,1200),Decision::Wait);
-        QCOMPARE(detector.feed(after,1600),Decision::Wait);
-        QCOMPARE(detector.feed(after,2000),Decision::Process);
+        detector.feed(before,0); detector.feed(before,P);
+        QCOMPARE(detector.feed(before,2*P),Decision::Process);
+        QCOMPARE(detector.feed(after,3*P),Decision::Wait);
+        QCOMPARE(detector.feed(after,4*P),Decision::Wait);
+        QCOMPARE(detector.feed(after,5*P),Decision::Process);
     }
     void intermittentlyAnimatedBackgroundCannotWaitForever() {
         ChangeDetector detector;
         QList<qint64> processed;
         // Each scene frame lasts two polls: never enough stable polls, but not changing every poll.
-        for (int i=0;i<=17;++i) {
-            if (detector.feed(line(QStringLiteral("今日はいい天気です。"),((i/2)*50)%900),i*400)==Decision::Process)
-                processed.append(i*400);
+        for (int i=0;i<=45;++i) {
+            if (detector.feed(line(QStringLiteral("今日はいい天気です。"),((i/2)*50)%900),i*P)==Decision::Process)
+                processed.append(i*P);
         }
-        QCOMPARE(processed,(QList<qint64>{3200,6400}));
+        QCOMPARE(processed,(QList<qint64>{ChangeDetector::MaxWaitMs, 2 * ChangeDetector::MaxWaitMs}));
     }
     void failedOcrRetriesAreDelayedAndBounded() {
         ChangeDetector detector;
         const QImage frame=line(QStringLiteral("今日はいい天気です。"));
-        detector.feed(frame,0); detector.feed(frame,400);
-        QCOMPARE(detector.feed(frame,800),Decision::Process);
-        QVERIFY(detector.retryAfterFailure(900));
-        QVERIFY(!detector.retryAfterFailure(950)); // Duplicate failure cannot consume another retry.
-        QCOMPARE(detector.feed(frame,3800),Decision::Unchanged);
-        QCOMPARE(detector.feed(frame,3900),Decision::Process);
-        QVERIFY(detector.retryAfterFailure(4000));
-        QCOMPARE(detector.feed(frame,6999),Decision::Unchanged);
-        QCOMPARE(detector.feed(frame,7000),Decision::Process);
-        QVERIFY(!detector.retryAfterFailure(7100));
+        detector.feed(frame,0); detector.feed(frame,P);
+        QCOMPARE(detector.feed(frame,2*P),Decision::Process);
+        QVERIFY(detector.retryAfterFailure(400));
+        QVERIFY(!detector.retryAfterFailure(450)); // Duplicate failure cannot consume another retry.
+        QCOMPARE(detector.feed(frame,3399),Decision::Unchanged);
+        QCOMPARE(detector.feed(frame,3400),Decision::Process);
+        QVERIFY(detector.retryAfterFailure(3500));
+        QCOMPARE(detector.feed(frame,6499),Decision::Unchanged);
+        QCOMPARE(detector.feed(frame,6500),Decision::Process);
+        QVERIFY(!detector.retryAfterFailure(6600));
         QCOMPARE(detector.feed(frame,20000),Decision::Unchanged);
         const QImage next=line(QStringLiteral("明日は雨が降ります。"));
-        detector.feed(next,20400); detector.feed(next,20800);
-        QCOMPARE(detector.feed(next,21200),Decision::Process);
-        QVERIFY(detector.retryAfterFailure(21300)); // New dialogue gets its own retry allowance.
+        detector.feed(next,20000+P); detector.feed(next,20000+2*P);
+        QCOMPARE(detector.feed(next,20000+3*P),Decision::Process);
+        QVERIFY(detector.retryAfterFailure(20500)); // New dialogue gets its own retry allowance.
         detector.reset();
-        QVERIFY(!detector.retryAfterFailure(21400));
+        QVERIFY(!detector.retryAfterFailure(20600));
     }
     void forcedPartialReadIsConfirmedOnceWhenSettled() {
         ChangeDetector detector;
         QImage last;
-        for(int i=0;i<=8;++i) {
+        const int forcedAt = int(ChangeDetector::MaxWaitMs / P);
+        for(int i=0;i<=forcedAt;++i) {
             last=line(QStringLiteral("今日はいい天気です。"),i*50);
-            detector.feed(last,i*400);
+            detector.feed(last,i*P);
         }
-        QCOMPARE(detector.feed(last,3600),Decision::Wait);
-        QCOMPARE(detector.feed(last,4000),Decision::Process);
-        QCOMPARE(detector.feed(last,4400),Decision::Unchanged);
+        const qint64 forced = forcedAt * P;
+        QCOMPARE(detector.feed(last,forced+P),Decision::Wait);
+        QCOMPARE(detector.feed(last,forced+2*P),Decision::Process);
+        QCOMPARE(detector.feed(last,forced+3*P),Decision::Unchanged);
     }
     void resetForgetsTheProcessedLine() {
         ChangeDetector detector;
         const QImage frame = line(QStringLiteral("今日はいい天気です。"));
-        detector.feed(frame, 0); detector.feed(frame, 400);
-        QCOMPARE(detector.feed(frame, 800), Decision::Process);
+        detector.feed(frame, 0); detector.feed(frame, P);
+        QCOMPARE(detector.feed(frame, 2 * P), Decision::Process);
         detector.reset();
-        detector.feed(frame, 1200); detector.feed(frame, 1600);
-        QCOMPARE(detector.feed(frame, 2000), Decision::Process);
+        detector.feed(frame, 3 * P); detector.feed(frame, 4 * P);
+        QCOMPARE(detector.feed(frame, 5 * P), Decision::Process);
     }
 };
 QTEST_MAIN(ChangeChecks)

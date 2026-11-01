@@ -1,0 +1,3 @@
+﻿new connection    median 1057.83 ms
+opened by warmUp  median 252.371 ms
+reused connection median 250.6 ms

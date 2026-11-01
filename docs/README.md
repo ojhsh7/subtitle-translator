@@ -20,6 +20,7 @@
 | [BACKLOG.md](plan/BACKLOG.md) | 다음에 무엇을 할지 정할 때. 남은 일은 여기에만 적는다 |
 | [DECISIONS.md](plan/DECISIONS.md) | "왜 이렇게 했지?"가 궁금할 때, 기존 결정을 바꾸기 전 |
 | [TEMPLATE.md](plan/TEMPLATE.md) | 새 기능 계획서를 만들 때 |
+| [2026-11-02-translation-latency](plan/2026-11-02-translation-latency.ko.md) | 완료: 번역 표시 지연 (감지·대기 단축, DeepL 미리 연결, 번역 기억) (P-31) |
 | [2026-11-01-design-pass](plan/2026-11-01-design-pass.ko.md) | 완료: 디자인 다듬기, 레퍼런스·토큰·문구 원칙 (P-30) |
 | [2026-11-01-app-ui](plan/2026-11-01-app-ui.ko.md) | 완료: 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 모양 (P-29) |
 | [2026-11-01-cancel-and-tesseract](plan/2026-11-01-cancel-and-tesseract.ko.md) | 완료: 취소 즉시 반영, Tesseract 시도 동시 실행 (P-23, P-27) |

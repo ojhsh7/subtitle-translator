@@ -188,7 +188,7 @@ function Get-UiaMain {
     foreach ($top in @($AE::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCond))) {
         # Qt reports the minimized main window as 'SubtitleTranslator' instead of its title.
         try { if (@('자막 번역', 'SubtitleTranslator') -notcontains $top.Current.Name) { continue } } catch { continue }
-        $edit = $null; $auto = $null; $all = New-Object System.Collections.ArrayList
+        $edit = $null; $auto = $null; $stage = $null; $all = New-Object System.Collections.ArrayList
         $stack = New-Object System.Collections.Stack; $stack.Push($top)
         while ($stack.Count) {
             $el = $stack.Pop(); $ch = $walker.GetFirstChild($el)
@@ -197,18 +197,22 @@ function Get-UiaMain {
                     $c = $ch.Current; [void]$all.Add($ch)
                     if (!$edit -and $c.ControlType -eq [System.Windows.Automation.ControlType]::Edit) { $edit = $ch }
                     if (!$auto -and $c.Name -and $c.Name.StartsWith('자동 번역') -and $c.ControlType -ne [System.Windows.Automation.ControlType]::Text) { $auto = $ch }
+                    # Since the 2026-11-01 redesign the OCR text box lives in a separate window; the main
+                    # window's stage carries the last line in its name: '마지막 대사: original / translation'.
+                    if (!$stage -and $c.Name -and $c.Name.StartsWith('마지막 대사')) { $stage = $ch }
                 } catch { }
                 $stack.Push($ch); $ch = $walker.GetNextSibling($ch)
             }
         }
-        $script:Uia = @{ Main = $top; Edit = $edit; Auto = $auto; All = $all; Pid = $script:AppProc.Id }
+        $script:Uia = @{ Main = $top; Edit = $edit; Auto = $auto; Stage = $stage; All = $all; Pid = $script:AppProc.Id }
         return $script:Uia
     }
     return $null
 }
 function Get-OcrText {
-    $u = Get-UiaMain; if (!$u -or !$u.Edit) { return $null }
+    $u = Get-UiaMain; if (!$u -or (!$u.Edit -and !$u.Stage)) { return $null }
     try {
+        if (!$u.Edit) { $n = $u.Stage.Current.Name; if ($n.StartsWith('마지막 대사: ')) { return ($n.Substring(8) -split ' / ')[0] }; return '' }
         $vp = $null
         if ($u.Edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) { return $vp.Current.Value }
         $tp = $null

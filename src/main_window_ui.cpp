@@ -346,9 +346,10 @@ void MainWindow::buildUi() {
     hoverTimer_ = new QTimer(this);
     hoverTimer_->setInterval(150);
     autoTimer_ = new QTimer(this);
-    autoTimer_->setInterval(400);
+    autoTimer_->setInterval(ChangeDetector::PollMs);
     autoClock_.start();
     subtitleOverlay_ = new SubtitleOverlay;
+    subtitleOverlay_->winId(); // the native window is made now, not when the first caption is due
     subtitleOverlay_->setStyle(QSettings().value("display/captionScale", 100).toInt() / 100.0,
                                QSettings().value("display/captionBox", false).toBool());
     captureFlash_ = new CaptureFlash;

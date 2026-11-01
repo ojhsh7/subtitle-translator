@@ -1,4 +1,5 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QTimer>
@@ -20,6 +21,12 @@ public:
     void checkUsage(const QString& apiKey, bool freeApi);
     void cancel();
     bool isBusy() const { return reply_ != nullptr; }
+    // Opens the HTTPS connection before a request needs it, sending no request and no key (P-31).
+    // From Korea a new connection to DeepL took about 0.5 s of TCP and TLS round trips on top of the
+    // 0.25 s request, and the server closed idle connections within 15-45 s. Does nothing while a
+    // connection was used in the last WarmAfterIdleMs. Returns true when it opened one.
+    bool warmUp(bool freeApi);
+    static constexpr qint64 WarmAfterIdleMs = 15000;
     static QStringList decodeResponses(int httpStatus, const QByteArray& body, qsizetype expected, QString& error,
                                        QString* detectedLanguage = nullptr);
     static QString decodeResponse(int httpStatus, const QByteArray& body, QString& error,
@@ -52,6 +59,7 @@ private:
     bool readAvailable();
     QNetworkAccessManager network_;
     QNetworkReply* reply_ = nullptr;
+    QElapsedTimer lastUse_; // since the connection last carried a request or was opened
     QTimer deadline_;
     QByteArray response_;
     qsizetype expected_ = 1;

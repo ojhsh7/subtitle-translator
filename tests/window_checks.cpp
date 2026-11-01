@@ -24,6 +24,7 @@
 #include <QPainter>
 #include <QTimer>
 #include <QAction>
+#include <QElapsedTimer>
 #include <QDialog>
 #include <QKeySequence>
 #include <QListWidget>
@@ -41,6 +42,78 @@ class WindowChecks : public QObject {
     Q_OBJECT
 private slots:
 
+    // P-31 L2: which reads count as finished sentences (others wait for SentenceSettleMs of stillness).
+    void sentenceEndsAreRecognized() {
+        for (const char* finished : {"今日はいい天気です。", "「行こう！」", "Really?", "えっと…", "Wait.", "やった♪"})
+            QVERIFY2(MainWindow::looksFinished(QString::fromUtf8(finished)), finished);
+        for (const char* unfinished : {"今日は、", "今日はいい天気", "Hello, my", "そして"})
+            QVERIFY2(!MainWindow::looksFinished(QString::fromUtf8(unfinished)), unfinished);
+    }
+    // P-31 L4: a line translated within the last CacheLines lines is shown from memory, with no request.
+    void repeatedLineIsTranslatedFromMemory() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        auto line = [](const QString& text) {
+            QImage image(1000, 140, QImage::Format_RGB32); image.fill(Qt::white);
+            QPainter p(&image); QFont f("Yu Gothic"); f.setPixelSize(52); p.setFont(f); p.setPen(Qt::black);
+            p.drawText(image.rect(), Qt::AlignCenter, text); p.end();
+            return image;
+        };
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"오늘은 날씨가 좋아요.\"}]}"}
+                     << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"내일은 비가 와요.\"}]}"};
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true; window.freeApi_ = true;
+        window.translation_.setEndpointForTests(http.url());
+        window.processImage(line(QStringLiteral("今日はいい天気です。")), ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QCOMPARE(int(http.requests.size()), 1);
+        window.processImage(line(QStringLiteral("明日は雨が降ります。")), ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QElapsedTimer clock; clock.start();
+        window.processImage(line(QStringLiteral("今日はいい天気です。")), ST_IMAGE_FILE); // not the last line: the core's one-line cache cannot answer
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        qInfo("repeated line shown %lld ms after the read began (OCR included, no request)", clock.elapsed());
+        QCOMPARE(int(http.requests.size()), 2);
+        QVERIFY2(window.result_->toPlainText().contains(QStringLiteral("오늘은")), qPrintable(window.result_->toPlainText()));
+        QVERIFY2(window.resultStatus_->text().contains(QStringLiteral("기억해 둔")), qPrintable(window.resultStatus_->text()));
+        window.resultWindow_->hide();
+    }
+    // P-31 L2: in auto mode a line without a sentence ending is read at once but sent only after the
+    // frame stayed still for SentenceSettleMs, and only once.
+    void unfinishedLineWaitsThenIsSentOnce() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:44px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(900, 160); fixture.move(30, 30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        QTest::qWait(200);
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"오늘은 좋은 날씨\"}]}"};
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true; window.freeApi_ = true;
+        window.translation_.setEndpointForTests(http.url());
+        window.followGame_->setChecked(false);
+        window.setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+        QElapsedTimer clock; clock.start();
+        window.setAutoTranslate(true);
+        QTRY_VERIFY_WITH_TIMEOUT(window.holding_ || !http.requests.isEmpty(), 10000);
+        QVERIFY(window.holding_);                        // read, not yet sent
+        QVERIFY(http.requests.isEmpty());
+        QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 1, 10000);
+        const qint64 sent = clock.elapsed();
+        QTRY_VERIFY_WITH_TIMEOUT(window.result_->toPlainText().contains(QStringLiteral("오늘은")), 10000);
+        QTest::qWait(1000);
+        QCOMPARE(int(http.requests.size()), 1);          // the same still line is not sent again
+        qInfo("unfinished line sent %lld ms after auto translation started", sent);
+        QVERIFY(sent >= ChangeDetector::SentenceSettleMs);
+        window.setAutoTranslate(false);
+    }
     // P-05: in auto mode, 456 (quota exhausted) stops auto translation; 429 (too many requests)
     // keeps it running but sends nothing until the server allows it. Local HTTP server, never DeepL.
     void autoTranslationHandlesRateLimitAndQuota() {
