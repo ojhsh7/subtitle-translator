@@ -44,6 +44,7 @@ public:
     // stays fixed for users (no setting, environment variable or CLI option reaches these).
     void setEndpointForTests(const QUrl& base) { testEndpoint_ = base; }
     void setTimeoutForTests(int milliseconds) { timeoutMs_ = milliseconds; }
+    bool hasTestEndpoint() const { return testEndpoint_.isValid(); }
 signals:
     void translated(QStringList texts, QString detectedLanguage);
     void usageChecked(qint64 used, qint64 limit);

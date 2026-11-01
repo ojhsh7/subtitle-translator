@@ -12,7 +12,7 @@ namespace Look {
 enum Glyph : char16_t {
     Settings = 0xE713, SelectArea = 0xE8E6, Translate = 0xE8C1, Mouse = 0xE962, More = 0xE712,
     Captions = 0xE7F0, Keyboard = 0xE765, Globe = 0xE774, Scan = 0xEE6F, Camera = 0xE722,
-    Info = 0xE946, System = 0xE770, Forward = 0xE72A, Document = 0xE8A5,
+    Info = 0xE946, System = 0xE770, Forward = 0xE72A, Document = 0xE8A5, Edit = 0xE70F,
 };
 // The stage shows a line the way it looks over a game: a dim scene, white caption, dark outline.
 constexpr QRgb Scene = 0xFF1F2228, Caption = 0xFFFFFFFF, Source = 0xFFC9CED6;
@@ -82,6 +82,7 @@ public:
     void setContent(const QString& source, const QString& translation);
     void setStyle(double scale, bool box);
     void setPlaceholder(const QString& text) { placeholder_ = text; update(); }
+    QString placeholder() const { return placeholder_; }
     QString translation() const { return translation_; }
     QSize sizeHint() const override { return {420, 118}; }
 protected:

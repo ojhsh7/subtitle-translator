@@ -8,6 +8,10 @@
 #include "subtitle_overlay.h"
 #include "fluent_widgets.h"
 #include <QApplication>
+#include <QClipboard>
+#include <QHeaderView>
+#include <QTableWidget>
+#include <QTime>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -173,6 +177,17 @@ void MainWindow::refreshUi() {
         : QStringLiteral("누르고 3초 안에 글자 위로 마우스를 옮기면 그 주변을 번역해요."));
     static_cast<ToggleSwitch*>(hoverMode_)->setHint(hoverRegistered_ ? hoverShortcut_ : QString());
     cancel_->setVisible(busy_);
+    // Before anything was read, the stage says what to do next.
+    if (stage_) stage_->setPlaceholder(apiKey_.isEmpty() || !consent_
+        ? QStringLiteral("번역하려면 설정의 번역 페이지에서 DeepL 키를 넣고 전송에 동의해 주세요. 키가 없어도 글자 읽기는 돼요.")
+        : !hasRegion() ? QStringLiteral("영역 선택을 누르고 게임의 대사창을 드래그하세요.")
+        : QStringLiteral("자동 번역을 켜면 마지막 대사가 여기에 보여요."));
+    if (usageAction_) {
+        usageAction_->setVisible(usageLimit_ > 0);
+        if (usageLimit_ > 0)
+            usageAction_->setText(QStringLiteral("DeepL 이번 달 %1% 사용, %2자 남음").arg(usageUsed_ * 100 / usageLimit_)
+                .arg(QLocale().toString(qMax<qint64>(0, usageLimit_ - usageUsed_))));
+    }
     if (tray_) {
         {
             const QSignalBlocker autoBlocker(trayAuto_), hoverBlocker(trayHover_);
@@ -370,11 +385,42 @@ void MainWindow::buildUi() {
     auto* copy = new QPushButton(QStringLiteral("전체 선택"));
     resultLayout->addWidget(copy, 0, Qt::AlignLeft);
 
+    // Lines already shown, newest at the bottom like a game's own backlog.
+    backlogWindow_ = new QWidget(nullptr, Qt::Window);
+    backlogWindow_->setWindowTitle(QStringLiteral("대사 기록"));
+    backlogWindow_->setWindowIcon(appIcon());
+    backlogWindow_->resize(560, 560);
+    auto* backlogLayout = new QVBoxLayout(backlogWindow_);
+    backlogLayout->setContentsMargins(16, 14, 16, 14);
+    backlogLayout->addWidget(new Note(QStringLiteral("화면에 나온 최근 %1줄이에요. 두 번 클릭하면 번역을 복사해요. 앱을 닫으면 지워져요.").arg(BacklogLines)));
+    backlogList_ = new QListWidget;
+    backlogList_->setWordWrap(true);
+    backlogList_->setAlternatingRowColors(true);
+    backlogList_->setSpacing(2);
+    backlogLayout->addWidget(backlogList_, 1);
+    auto* backlogActions = new QHBoxLayout;
+    auto* copyLine = new QPushButton(QStringLiteral("복사"));
+    auto* clearLines = new QPushButton(QStringLiteral("모두 지우기"));
+    backlogActions->addWidget(copyLine);
+    backlogActions->addStretch(1);
+    backlogActions->addWidget(clearLines);
+    backlogLayout->addLayout(backlogActions);
+    auto copyItem = [this] {
+        if (QListWidgetItem* item = backlogList_->currentItem()) QApplication::clipboard()->setText(item->data(Qt::UserRole).toString());
+    };
+    connect(backlogList_, &QListWidget::itemDoubleClicked, this, copyItem);
+    connect(copyLine, &QPushButton::clicked, this, copyItem);
+    connect(clearLines, &QPushButton::clicked, this, [this] { backlog_.clear(); backlogList_->clear(); });
+
     auto* moreMenu = new QMenu(more);
+    moreMenu->addAction(QStringLiteral("대사 기록"), this, &MainWindow::showBacklog);
     moreMenu->addAction(QStringLiteral("인식 내용 보기"), this, [this] { detailsWindow_->show(); detailsWindow_->raise(); });
     moreMenu->addAction(QStringLiteral("번역 결과 창"), this, &MainWindow::showResult);
     moreMenu->addAction(QStringLiteral("이미지 파일 번역…"), this, &MainWindow::importImage);
     moreMenu->addSeparator();
+    usageAction_ = moreMenu->addAction(QString());
+    usageAction_->setEnabled(false);
+    usageAction_->setVisible(false);
     moreMenu->addAction(QStringLiteral("트레이로 숨기기"), this, [this] { if (tray_) hide(); else showMinimized(); });
     more->setMenu(moreMenu);
 
@@ -413,6 +459,7 @@ void MainWindow::buildUi() {
         else if (!busy_ && lastSource_ == ST_SCREEN_CAPTURE && !result_->toPlainText().isEmpty())
             showSubtitle(result_->toPlainText());
     });
+    loadFixes();
     buildSettings();
     buildTray();
     resize(460, 0); // as tall as the controls
@@ -687,6 +734,46 @@ void MainWindow::buildSettings() {
         for (int i = 0; i < keyEdits.size(); ++i) keyEdits[i]->setKeySequence(defaultSequence(hotkeySpecs[i]));
     });
 
+    auto* fixes = page(Look::Edit, QStringLiteral("고쳐 쓰기"));
+    fixes->addWidget(new Note(QStringLiteral("이름이 대사마다 다르게 번역되거나 OCR이 늘 같은 글자를 틀리면 여기서 한 가지로 맞춰요. "
+        "원문은 번역하기 전에, 번역문은 화면에 띄우기 전에 바꿔요. 예: 번역문에서 \"유우키\"를 \"유키\"로.")));
+    fixes->addSpacing(8);
+    auto* fixTable = new QTableWidget(0, 3);
+    fixTable->setHorizontalHeaderLabels({QStringLiteral("어디서"), QStringLiteral("찾을 말"), QStringLiteral("바꿀 말")});
+    fixTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    fixTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    fixTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    fixTable->verticalHeader()->setVisible(false);
+    fixTable->setMinimumHeight(240);
+    fixes->addWidget(fixTable);
+    auto addFixRow = [fixTable](bool onTranslation, const QString& find, const QString& replace) {
+        const int row = fixTable->rowCount();
+        fixTable->insertRow(row);
+        auto* where = new QComboBox;
+        where->addItem(QStringLiteral("번역문"), true);
+        where->addItem(QStringLiteral("원문"), false);
+        where->setCurrentIndex(onTranslation ? 0 : 1);
+        fixTable->setCellWidget(row, 0, where);
+        fixTable->setItem(row, 1, new QTableWidgetItem(find));
+        fixTable->setItem(row, 2, new QTableWidgetItem(replace));
+    };
+    auto* fixActions = new QHBoxLayout;
+    auto* addFix = new QPushButton(QStringLiteral("줄 추가"));
+    auto* removeFix = new QPushButton(QStringLiteral("선택한 줄 삭제"));
+    fixActions->addWidget(addFix);
+    fixActions->addWidget(removeFix);
+    fixActions->addStretch(1);
+    fixes->addSpacing(6);
+    fixes->addLayout(fixActions);
+    fixes->addStretch(1);
+    connect(addFix, &QPushButton::clicked, settingsWindow_, [fixTable, addFixRow] {
+        addFixRow(true, QString(), QString());
+        fixTable->editItem(fixTable->item(fixTable->rowCount() - 1, 1));
+    });
+    connect(removeFix, &QPushButton::clicked, settingsWindow_, [fixTable] {
+        if (fixTable->currentRow() >= 0) fixTable->removeRow(fixTable->currentRow());
+    });
+
     auto* about = page(Look::Info, QStringLiteral("정보"));
     auto* version = new QLabel(QStringLiteral("자막 번역 %1").arg(QCoreApplication::applicationVersion()));
     version->setFont(weighted(font(), 14, QFont::DemiBold));
@@ -731,6 +818,8 @@ void MainWindow::buildSettings() {
             : PaddleOcr::available(paddleDir_, ocrLanguages())
             ? QStringLiteral("PaddleOCR 모델이 앱에 들어 있어요. 키가 없어도 OCR은 쓸 수 있어요.")
             : QStringLiteral("PaddleOCR 모델이 없어 Tesseract로 읽어요. 고른 언어의 traineddata가 필요해요."));
+        fixTable->setRowCount(0);
+        for (const TextFix& fix : fixes_) addFixRow(fix.onTranslation, fix.find, fix.replace);
         const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_};
         for (int i = 0; i < keyEdits.size(); ++i) {
             keyEdits[i]->setKeySequence(storedSequence(hotkeySpecs[i]));
@@ -782,12 +871,25 @@ void MainWindow::buildSettings() {
             if (chosen[i] == defaultSequence(hotkeySpecs[i])) saved.remove(name);
             else saved.setValue(name, chosen[i].toString(QKeySequence::PortableText));
         }
+        saved.beginWriteArray("fixes");
+        int written = 0;
+        for (int row = 0; row < fixTable->rowCount(); ++row) {
+            const QString find = fixTable->item(row, 1) ? fixTable->item(row, 1)->text() : QString();
+            if (find.isEmpty()) continue;
+            saved.setArrayIndex(written++);
+            saved.setValue("onTranslation", qobject_cast<QComboBox*>(fixTable->cellWidget(row, 0))->currentData().toBool());
+            saved.setValue("find", find);
+            saved.setValue("replace", fixTable->item(row, 2) ? fixTable->item(row, 2)->text() : QString());
+        }
+        saved.endArray();
         saved.setValue("setupComplete", true);
         saved.sync();
         if (saved.status() != QSettings::NoError) {
             QMessageBox::warning(settingsWindow_, QStringLiteral("설정"), QStringLiteral("Windows 사용자 설정에 저장하지 못했어요."));
             return false;
         }
+        loadFixes();
+        refreshUsage();
         registerHotkeys();
         reloadSettings_();
         const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_};
@@ -827,6 +929,7 @@ void MainWindow::buildTray() {
     menu->addSeparator();
     menu->addAction(QStringLiteral("영역 선택"), this, [this] { chooseRegionUnderCursor(); });
     menu->addAction(QStringLiteral("지금 번역"), this, &MainWindow::startCapture);
+    menu->addAction(QStringLiteral("대사 기록"), this, &MainWindow::showBacklog);
     menu->addSeparator();
     menu->addAction(QStringLiteral("설정"), this, [this] { showFromTray(); settings(); });
     menu->addAction(QStringLiteral("끝내기"), this, &MainWindow::quitApp);
@@ -848,4 +951,29 @@ void MainWindow::showFromTray() {
 void MainWindow::quitApp() {
     quitting_ = true;
     close();
+}
+
+void MainWindow::addToBacklog(const QString& source, const QString& translation) {
+    const QString original = source.trimmed();
+    if (original.isEmpty()) return;
+    // The same still line read again (a retry, a forced read) stays one line.
+    if (!backlog_.isEmpty() && backlog_.last().source == original && backlog_.last().translation == translation) return;
+    const QString time = QTime::currentTime().toString(QStringLiteral("HH:mm:ss"));
+    backlog_.append({time, original, translation});
+    auto* item = new QListWidgetItem(translation.isEmpty() ? original : translation + QLatin1Char('\n') + original);
+    item->setToolTip(time);
+    item->setData(Qt::UserRole, translation.isEmpty() ? original : translation);
+    backlogList_->addItem(item);
+    if (backlog_.size() > BacklogLines) {
+        backlog_.removeFirst();
+        delete backlogList_->takeItem(0);
+    }
+    backlogList_->scrollToBottom();
+}
+
+void MainWindow::showBacklog() {
+    backlogWindow_->show();
+    backlogWindow_->raise();
+    backlogWindow_->activateWindow();
+    backlogList_->scrollToBottom();
 }

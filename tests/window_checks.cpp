@@ -49,6 +49,92 @@ private slots:
         for (const char* unfinished : {"今日は、", "今日はいい天気", "Hello, my", "そして"})
             QVERIFY2(!MainWindow::looksFinished(QString::fromUtf8(unfinished)), unfinished);
     }
+    // P-33 G1/G2: shown lines go to the backlog (memory only); fixes change the original before it is
+    // sent and the translation before it is shown.
+    void backlogAndTextFixes() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        auto line = [](const QString& text) {
+            QImage image(1000, 140, QImage::Format_RGB32); image.fill(Qt::white);
+            QPainter p(&image); QFont f("Yu Gothic"); f.setPixelSize(52); p.setFont(f); p.setPen(Qt::black);
+            p.drawText(image.rect(), Qt::AlignCenter, text); p.end();
+            return image;
+        };
+        {
+            QSettings saved;
+            saved.beginWriteArray("fixes");
+            saved.setArrayIndex(0);
+            saved.setValue("onTranslation", true); saved.setValue("find", QStringLiteral("유우키")); saved.setValue("replace", QStringLiteral("유키"));
+            saved.setArrayIndex(1);
+            saved.setValue("onTranslation", false); saved.setValue("find", QStringLiteral("明日")); saved.setValue("replace", QStringLiteral("あした"));
+            saved.endArray();
+        }
+        auto cleanup = qScopeGuard([] { QSettings().remove("fixes"); });
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"유우키, 오늘은 날씨가 좋아요.\"}]}"}
+                     << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"내일은 비가 와요.\"}]}"};
+        MainWindow window;
+        QCOMPARE(int(window.fixes_.size()), 2);
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true; window.freeApi_ = true;
+        window.translation_.setEndpointForTests(http.url());
+        window.processImage(line(QStringLiteral("今日はいい天気です。")), ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QVERIFY2(window.result_->toPlainText().startsWith(QStringLiteral("유키,")), qPrintable(window.result_->toPlainText()));
+        window.processImage(line(QStringLiteral("明日は雨が降ります。")), ST_IMAGE_FILE);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 25000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QVERIFY2(http.requests[1].contains(QStringLiteral("あした").toUtf8()), http.requests[1].constData()); // fixed before sending
+        QVERIFY(!http.requests[1].contains(QStringLiteral("明日").toUtf8()));
+        QCOMPARE(int(window.backlog_.size()), 2);
+        QCOMPARE(window.backlogList_->count(), 2);
+        QVERIFY(window.backlog_.first().translation.startsWith(QStringLiteral("유키,")));
+        QVERIFY(window.backlog_.last().source.contains(QStringLiteral("あした")));
+        window.addToBacklog(window.backlog_.last().source, window.backlog_.last().translation); // the same line read again
+        QCOMPARE(int(window.backlog_.size()), 2);
+        window.resultWindow_->hide();
+    }
+    // P-33 G3: each game keeps the source language chosen while it was in front.
+    void eachGameKeepsItsLanguage() {
+        MainWindow window;
+        const int japanese = window.ocrLanguageBox_->findData("jpn"), english = window.ocrLanguageBox_->findData("eng"),
+                  korean = window.ocrLanguageBox_->findData("kor");
+        QVERIFY(japanese >= 0 && english >= 0 && korean >= 0);
+        window.game_.key = QStringLiteral("C:/games/novel.exe");
+        window.ocrLanguageBox_->setCurrentIndex(korean);
+        window.ocrLanguageBox_->setCurrentIndex(japanese);
+        window.game_.key = QStringLiteral("C:/games/rpg.exe");
+        window.ocrLanguageBox_->setCurrentIndex(english);
+        window.game_.key = QStringLiteral("C:/games/novel.exe");
+        window.restoreGameLanguage();
+        QCOMPARE(window.ocrLanguages(), QStringLiteral("jpn"));
+        window.game_.key = QStringLiteral("C:/games/rpg.exe");
+        window.restoreGameLanguage();
+        QCOMPARE(window.ocrLanguages(), QStringLiteral("eng"));
+        window.game_ = {};
+    }
+    // P-33 G4/G5: usage is shown and warns near the limit; the empty stage says what to do next.
+    void usageAndNextStepGuidance() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"character_count\":460000,\"character_limit\":500000}"};
+        MainWindow window;
+        window.apiKey_.clear(); window.consent_ = false; window.region_ = {}; window.selectedScreen_ = nullptr; window.game_ = {};
+        window.refreshUi();
+        QVERIFY2(window.stage_->placeholder().contains(QStringLiteral("DeepL 키")), qPrintable(window.stage_->placeholder()));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true;
+        window.refreshUi();
+        QVERIFY2(window.stage_->placeholder().contains(QStringLiteral("영역 선택")), qPrintable(window.stage_->placeholder()));
+        window.setRegion(QGuiApplication::primaryScreen(), QRect(80, 100, 600, 50));
+        window.game_ = {};
+        window.refreshUi();
+        QVERIFY2(window.stage_->placeholder().contains(QStringLiteral("자동 번역")), qPrintable(window.stage_->placeholder()));
+        window.usage_.setEndpointForTests(http.url());
+        window.refreshUsage();
+        QTRY_VERIFY_WITH_TIMEOUT(window.usageLimit_ > 0, 5000);
+        QVERIFY(window.usageAction_->isVisible());
+        QVERIFY2(window.usageAction_->text().contains(QStringLiteral("92%")), qPrintable(window.usageAction_->text()));
+        QVERIFY2(window.status_->text().contains(QStringLiteral("92%")), qPrintable(window.status_->text())); // past 90%: told
+    }
     // P-31 L4: a line translated within the last CacheLines lines is shown from memory, with no request.
     void repeatedLineIsTranslatedFromMemory() {
         if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
@@ -452,7 +538,7 @@ private slots:
     // P-29 U3/U4: the settings window has its pages, and each fits. SUBTITLE_TEST_SCREENSHOTS saves them.
     void settingsPagesAreComplete() {
         MainWindow window;
-        QCOMPARE(window.settingsPages_->count(), 7);
+        QCOMPARE(window.settingsPages_->count(), 8);
         const QString shots = qEnvironmentVariable("SUBTITLE_TEST_SCREENSHOTS");
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));

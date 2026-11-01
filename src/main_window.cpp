@@ -63,6 +63,7 @@ MainWindow::MainWindow() {
     // A new language changes what the current line means: forget the cache and read it again.
     connect(ocrLanguageBox_, &QComboBox::currentIndexChanged, this, [this] {
         QSettings().setValue("ocr/languages", ocrLanguages());
+        if (!game_.key.isEmpty()) QSettings().setValue(gameGroup(game_.key) + QStringLiteral("/ocrLanguages"), ocrLanguages());
         ocr_.warmUp(ocrLanguages());
         st_reset_cache(session_); detector_.reset();
         if (hoverRequest_ && busy_) cancel();
@@ -114,7 +115,10 @@ MainWindow::MainWindow() {
         }
         // Only foreign-script runs are translated; text already in the target language stays.
         const QString target = Languages::targetLabel(targetLanguage());
-        segments_ = subtitle::splitForTranslation(st_source_text(session_),
+        const QString read = QString::fromUtf8(st_source_text(session_));
+        const QString source = applyFixes(read, false);
+        if (source != read) original_->setPlainText(source);
+        segments_ = subtitle::splitForTranslation(source.toStdString(),
             subtitle::preservableScripts(targetLanguage().section('-', 0, 0).toLower().toStdString(),
                 Languages::deeplSource(ocrLanguages()).toLower().toStdString()));
         QStringList pieces;
@@ -134,6 +138,7 @@ MainWindow::MainWindow() {
         }
         if (apiKey_.isEmpty() || !consent_) {
             st_finish_ocr(session_, request_);
+            addToBacklog(source, QString());
             resultStatus_->setText(QStringLiteral("OCR 완료. 번역하려면 설정의 번역 페이지에서 API 키와 전송 동의를 확인해 주세요."));
             finish(QStringLiteral("OCR 완료. API 키나 전송 동의가 없어서 번역 요청은 보내지 않았어요."));
             return;
@@ -148,7 +153,7 @@ MainWindow::MainWindow() {
         // A line that does not look finished is read but waits until the frame stays still for
         // SentenceSettleMs, so a typewriter pause at a comma never sends half a line.
         if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE &&
-            !looksFinished(QString::fromUtf8(st_source_text(session_))) &&
+            !looksFinished(source) &&
             detector_.stableMs(autoClock_.elapsed()) < ChangeDetector::SentenceSettleMs) {
             holding_ = true; heldPieces_ = pieces; heldScripts_ = scripts;
             setBusy(false);
@@ -192,6 +197,14 @@ MainWindow::MainWindow() {
         }
         finish(error);
     });
+    connect(&usage_, &TranslationService::usageChecked, this, [this](qint64 used, qint64 limit) {
+        usageUsed_ = used; usageLimit_ = limit; sentSinceUsage_ = 0;
+        refreshUi();
+        if (limit > 0 && used * 10 >= limit * 9)
+            setStatus(QStringLiteral("이번 달 DeepL 한도의 %1%를 썼어요. 남은 글자는 %2자예요.")
+                .arg(used * 100 / limit).arg(QLocale().toString(qMax<qint64>(0, limit - used))));
+    });
+    QTimer::singleShot(2000, this, &MainWindow::refreshUsage);
     QSettings saved;
     executable_ = saved.value("ocr/executable").toString();
     tessdata_ = saved.value("ocr/tessdata").toString();
@@ -262,6 +275,8 @@ MainWindow::~MainWindow() {
     delete captureFlash_;
     delete subtitleOverlay_;
     delete resultWindow_;
+    delete detailsWindow_;
+    delete backlogWindow_;
     st_destroy(session_);
 }
 void MainWindow::refreshScreens() {
@@ -797,6 +812,7 @@ void MainWindow::rememberGame(const GameRegion& game) {
     saved.beginGroup(gameGroup(game.key));
     saved.setValue("key", game.key); saved.setValue("name", game.name);
     saved.setValue("region", game.relative); saved.setValue("client", game.client);
+    saved.setValue("ocrLanguages", ocrLanguages());
     saved.endGroup();
     saved.setValue("capture/game", game.key);
 }
@@ -810,6 +826,7 @@ bool MainWindow::followGame(bool switchToForeground) {
             game_.handle = front.handle;
             QSettings().setValue("capture/game", game_.key);
             detector_.reset();
+            restoreGameLanguage();
         }
     }
     if (game_.key.isEmpty()) return true;
@@ -894,6 +911,7 @@ void MainWindow::requestTranslation(const QStringList& pieces, unsigned scripts)
         return;
     }
     pendingCacheKey_ = key;
+    if (++sentSinceUsage_ >= UsageEveryRequests) refreshUsage();
     setStatus(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(Languages::targetLabel(targetLanguage())));
     resultStatus_->setText(QStringLiteral("번역 중…"));
     translation_.translate(pieces, apiKey_, freeApi_, targetLanguage(), source);
@@ -908,13 +926,15 @@ void MainWindow::applyTranslation(const QStringList& pieces, const QString& dete
         finish(QStringLiteral("번역 응답 개수가 요청과 달라 결과를 표시하지 않았어요."));
         return;
     }
-    if (!st_complete(session_, request_, joined.c_str())) return;
+    const QString shown = applyFixes(QString::fromStdString(joined), true);
+    if (!st_complete(session_, request_, shown.toUtf8().constData())) return;
     if (!remembered && !pendingCacheKey_.isEmpty() && !translationCache_.contains(pendingCacheKey_)) {
         if (translationCache_.size() >= CacheLines) translationCache_.remove(cacheOrder_.takeFirst());
         translationCache_.insert(pendingCacheKey_, {pieces, detected});
         cacheOrder_.append(pendingCacheKey_);
     }
-    result_->setPlainText(QString::fromStdString(joined));
+    result_->setPlainText(shown);
+    addToBacklog(original_->toPlainText(), shown);
     const QString target = Languages::targetLabel(targetLanguage());
     const bool partial = std::any_of(segments_.begin(), segments_.end(), [](const auto& s) { return !s.translate; });
     resultStatus_->setText(Languages::sameLanguage(detected, targetLanguage())
@@ -933,6 +953,7 @@ void MainWindow::dropHeld() {
     st_fail(session_, request_);
 }
 void MainWindow::warmTranslation() {
+    if (qApp->property("testMode").toBool() && !translation_.hasTestEndpoint()) return; // tests never reach DeepL
     if (!apiKey_.isEmpty() && consent_) translation_.warmUp(freeApi_);
 }
 bool MainWindow::looksFinished(const QString& text) {
@@ -940,4 +961,31 @@ bool MainWindow::looksFinished(const QString& text) {
     if (trimmed.isEmpty()) return true;
     static const QString endings = QStringLiteral("。．.！!？?…‥」』）)】〉》\"”’'～~♪");
     return endings.contains(trimmed.back());
+}
+void MainWindow::restoreGameLanguage() {
+    if (game_.key.isEmpty()) return;
+    const QString saved = QSettings().value(gameGroup(game_.key) + QStringLiteral("/ocrLanguages")).toString();
+    const int index = ocrLanguageBox_->findData(saved);
+    if (index >= 0 && index != ocrLanguageBox_->currentIndex()) ocrLanguageBox_->setCurrentIndex(index);
+}
+void MainWindow::loadFixes() {
+    fixes_.clear();
+    QSettings saved;
+    const int count = saved.beginReadArray("fixes");
+    for (int i = 0; i < count; ++i) {
+        saved.setArrayIndex(i);
+        const TextFix fix{saved.value("onTranslation", true).toBool(), saved.value("find").toString(), saved.value("replace").toString()};
+        if (!fix.find.isEmpty()) fixes_ << fix;
+    }
+    saved.endArray();
+}
+QString MainWindow::applyFixes(QString text, bool onTranslation) const {
+    for (const TextFix& fix : fixes_)
+        if (fix.onTranslation == onTranslation) text.replace(fix.find, fix.replace);
+    return text;
+}
+void MainWindow::refreshUsage() {
+    if (apiKey_.isEmpty() || !consent_ || usage_.isBusy()) return;
+    if (qApp->property("testMode").toBool() && !usage_.hasTestEndpoint()) return; // tests never reach DeepL
+    usage_.checkUsage(apiKey_, freeApi_);
 }

@@ -22,6 +22,7 @@ class QDialog;
 class QIcon;
 class QKeySequence;
 class QListWidget;
+class QTableWidget;
 class QSystemTrayIcon;
 class QTimer;
 class QLabel;
@@ -120,6 +121,13 @@ private:
     void warmTranslation(); // opens the DeepL connection ahead of a likely request
     // Ends like a finished sentence (。！？.!?」』… and the like); other lines wait SentenceSettleMs.
     static bool looksFinished(const QString& text);
+    // P-33 (docs/plan/2026-11-02-mvp-gaps.ko.md): what a player missed in the first version.
+    void addToBacklog(const QString& source, const QString& translation);
+    void showBacklog();
+    void loadFixes();
+    QString applyFixes(QString text, bool onTranslation) const;
+    void restoreGameLanguage(); // the source language saved with the game now in front
+    void refreshUsage();        // DeepL /v2/usage: consumes no characters
     bool ocrReady() const;
     QString targetLanguage() const;
     QComboBox* screens_;
@@ -177,6 +185,20 @@ private:
     QStringList cacheOrder_; // oldest first
     QString pendingCacheKey_;
     static constexpr int CacheLines = 200;
+    // Lines shown on screen, oldest first; memory only, gone when the app closes (no saved history).
+    struct BacklogLine { QString time, source, translation; };
+    QList<BacklogLine> backlog_;
+    static constexpr int BacklogLines = 200;
+    QWidget* backlogWindow_ = nullptr;
+    QListWidget* backlogList_ = nullptr;
+    // The user's fixes: on the original before translation, or on the translation before showing it.
+    struct TextFix { bool onTranslation = true; QString find, replace; };
+    QList<TextFix> fixes_;
+    TranslationService usage_; // a connection of its own, so a check never waits for a translation
+    qint64 usageUsed_ = -1, usageLimit_ = -1;
+    int sentSinceUsage_ = 0;
+    static constexpr int UsageEveryRequests = 50;
+    QAction* usageAction_ = nullptr;
     QImage lastImage_;
     int lastSource_ = ST_IMAGE_FILE;
     int activeSource_ = ST_IMAGE_FILE;
