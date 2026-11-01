@@ -20,6 +20,7 @@
 | [BACKLOG.md](plan/BACKLOG.md) | 다음에 무엇을 할지 정할 때. 남은 일은 여기에만 적는다 |
 | [DECISIONS.md](plan/DECISIONS.md) | "왜 이렇게 했지?"가 궁금할 때, 기존 결정을 바꾸기 전 |
 | [TEMPLATE.md](plan/TEMPLATE.md) | 새 기능 계획서를 만들 때 |
+| [2026-11-02-multi-region](plan/2026-11-02-multi-region.ko.md) | 완료: 여러 영역 동시 번역, 자막이 다른 영역을 덮지 않는 배치 (P-37) |
 | [2026-11-02-priorities](plan/2026-11-02-priorities.ko.md) | 완료: 필요한 것 22개와 우선순위 점수, 점수 순 개발 결과, 막힌 항목의 조건 |
 | [2026-11-02-mvp-gaps](plan/2026-11-02-mvp-gaps.ko.md) | 완료: MVP 사용자 기준 보강 (대사 기록, 고쳐 쓰기, 게임별 언어, 사용량) (P-33) |
 | [2026-11-02-translation-latency](plan/2026-11-02-translation-latency.ko.md) | 완료: 번역 표시 지연 (감지·대기 단축, DeepL 미리 연결, 번역 기억) (P-31) |

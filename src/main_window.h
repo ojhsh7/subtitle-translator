@@ -11,6 +11,7 @@
 #include <QPointer>
 #include <QHash>
 #include <functional>
+#include <memory>
 #include <vector>
 #include <QRect>
 class QAbstractButton;
@@ -130,6 +131,16 @@ private:
     void refreshUsage();        // DeepL /v2/usage: consumes no characters
     // P-36 (docs/plan/2026-11-02-priorities.ko.md)
     void setCaptionsHidden(bool hidden);
+    // P-37: extra regions read with the main one (a choice menu, a name box, a second text window).
+    void addExtraArea();                                  // asks for a rectangle on the main region's monitor
+    void addExtraAreaAt(QScreen* screen, const QRect& rect);
+    void clearExtraAreas();
+    void saveExtraAreas() const;
+    void restoreExtraAreas();
+    void showAllAreas();                                  // outlines every region for a moment
+    QList<QRect> areaRects(int except) const;             // global rects of the regions in use, but `except`
+    SubtitleOverlay* activeOverlay() const;
+    int activeExtraCount() const;
     QString diagnostics() const; // states and times for a problem report; never the text read or translated
     bool ocrReady() const;
     QString targetLanguage() const;
@@ -179,6 +190,25 @@ private:
     qint64 translationPausedUntil_ = -1;
     static constexpr int MinRateLimitPauseSeconds = 10;
     ChangeDetector detector_;
+    struct ExtraArea {
+        ~ExtraArea();
+        QString gameKey;                 // the game it belongs to; empty when it is a plain screen region
+        QPointer<QScreen> screen;
+        QRect screenGeometry;
+        qreal dpr = 1;
+        QRect rect;                      // where it is now: logical pixels, relative to the screen
+        QRect relative;                  // physical pixels relative to the game's client area
+        QSize client;
+        ChangeDetector detector;
+        SubtitleOverlay* overlay = nullptr;
+    };
+    std::vector<std::unique_ptr<ExtraArea>> extras_;
+    static constexpr int MaxExtraAreas = 2;
+    int activeArea_ = 0;                 // the read in progress: 0 the main region, n extras_[n - 1]
+    bool extraInUse(const ExtraArea& extra) const; // belongs to the game in front (or no game) and has a place
+    QLabel* extrasLabel_ = nullptr;
+    QAction* moreCaptions_ = nullptr;
+    QAction* clearExtras_ = nullptr;
     bool holding_ = false; // an unfinished-looking line, already read, waits for the frame to stay still
     QStringList heldPieces_;
     unsigned heldScripts_ = 0;

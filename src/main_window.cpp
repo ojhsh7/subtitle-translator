@@ -94,8 +94,8 @@ MainWindow::MainWindow() {
             st_fail(session_, request_);
             if (decision == ST_EMPTY && autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE) {
                 // An empty dialogue box is normal while playing: hide the old caption quietly.
-                subtitleOverlay_->hide(); setBusy(false);
-                const bool retry = detector_.retryAfterFailure(autoClock_.elapsed());
+                activeOverlay()->hide(); setBusy(false);
+                const bool retry = activeArea_ == 0 && detector_.retryAfterFailure(autoClock_.elapsed());
                 setStatus(retry
                     ? QStringLiteral("글자가 보이지 않아요. 3초 뒤에 다시 확인할게요.")
                     : QStringLiteral("글자를 찾지 못했어요. 다음 대사를 기다리는 동안 영역이 맞는지 확인해 주세요."));
@@ -129,7 +129,7 @@ MainWindow::MainWindow() {
             st_finish_ocr(session_, request_);
             resultStatus_->setText(QStringLiteral("원문이 이미 %1라서 번역하지 않았어요.").arg(target));
             if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE) {
-                subtitleOverlay_->hide(); setBusy(false);
+                activeOverlay()->hide(); setBusy(false);
                 setStatus(QStringLiteral("원문이 이미 %1라서 번역하지 않았어요.").arg(target));
                 return;
             }
@@ -152,7 +152,7 @@ MainWindow::MainWindow() {
         }
         // A line that does not look finished is read but waits until the frame stays still for
         // SentenceSettleMs, so a typewriter pause at a comma never sends half a line.
-        if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE &&
+        if (autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE && activeArea_ == 0 &&
             !looksFinished(source) &&
             detector_.stableMs(autoClock_.elapsed()) < ChangeDetector::SentenceSettleMs) {
             holding_ = true; heldPieces_ = pieces; heldScripts_ = scripts;
@@ -166,7 +166,7 @@ MainWindow::MainWindow() {
         if (!busy_) return;
         st_fail(session_, request_);
         resultStatus_->setText(QStringLiteral("글자를 읽지 못해서 번역하지 않았어요."));
-        const bool retry = autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE &&
+        const bool retry = autoTranslating() && activeSource_ == ST_SCREEN_CAPTURE && activeArea_ == 0 &&
                            detector_.retryAfterFailure(autoClock_.elapsed());
         finish(retry ? error + QStringLiteral("\n자동 번역: 3초 뒤 다시 확인해요 (같은 화면에서 최대 2회).") : error);
     });
@@ -245,6 +245,7 @@ MainWindow::MainWindow() {
     ignoreProcess_ = GameWindow::currentProcess();
     foregroundWindow_ = [this] { return GameWindow::foreground(ignoreProcess_); };
     restoreRegion();
+    restoreExtraAreas();
     registerHotkeys();
     QString ready = QStringLiteral("게임 언어를 고르고 자막 영역을 선택한 다음 자동 번역을 켜 주세요.");
     QStringList taken;
@@ -284,6 +285,7 @@ MainWindow::~MainWindow() {
     delete subtitleOverlay_;
     delete resultWindow_;
     delete detailsWindow_;
+    extras_.clear();
     delete backlogWindow_;
     st_destroy(session_);
 }
@@ -470,6 +472,7 @@ void MainWindow::beginScreenCapture(const CaptureArea& area, const QString& stat
         return;
     }
     warmTranslation();
+    activeArea_ = 0;
     // Checked before resetOutput() hides the old caption: a window hidden just now is still on screen.
     const QRect global = area.rect.translated(area.screenGeometry.topLeft());
     const bool covered = coversRegion(global) || (captureFlash_->isVisible() && captureFlash_->geometry().intersects(global));
@@ -578,19 +581,21 @@ void MainWindow::showResult() {
         stopAutoForResultOverlap();
 }
 bool MainWindow::showSubtitle(const QString& text, bool selectionPreview) {
+    SubtitleOverlay* overlay = selectionPreview ? subtitleOverlay_ : activeOverlay();
     // Hidden by the user: nothing on screen, and no result window popping up in its place either.
-    if (captionsHidden_ && !selectionPreview) { subtitleOverlay_->hide(); return true; }
+    if (captionsHidden_ && !selectionPreview) { overlay->hide(); return true; }
     const auto area = selectionPreview || captionArea_.rect.isEmpty() ? selectedArea() : captionArea_;
     if (!inlineCaptions_->isChecked() || !area.screen || area.rect.isEmpty() ||
         area.screen->geometry() != area.screenGeometry || area.screen->devicePixelRatio() != area.dpr) {
-        subtitleOverlay_->hide(); return false;
+        overlay->hide(); return false;
     }
-    return subtitleOverlay_->showText(text, area.rect.translated(area.screenGeometry.topLeft()),
-                                      area.screen->availableGeometry());
+    return overlay->showText(text, area.rect.translated(area.screenGeometry.topLeft()),
+                             area.screen->availableGeometry(), areaRects(selectionPreview ? 0 : activeArea_));
 }
 void MainWindow::presentTranslation() {
     stage_->setContent(original_->toPlainText(), result_->toPlainText());
-    if (activeSource_ == ST_SCREEN_CAPTURE && showSubtitle(result_->toPlainText())) return;
+    // An extra region without room for its caption keeps it in the stage and the backlog only.
+    if (activeSource_ == ST_SCREEN_CAPTURE && (showSubtitle(result_->toPlainText()) || activeArea_ > 0)) return;
     showResult();
 }
 void MainWindow::previewSubtitle() {
@@ -651,7 +656,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 void MainWindow::resetOutput() {
     resultPlacementWarning_.clear();
     original_->clear(); result_->clear(); preview_->clear();
-    subtitleOverlay_->hide(); restoreOverlay_ = false;
+    activeOverlay()->hide(); restoreOverlay_ = false;
     resultStatus_->setText(QStringLiteral("이미지를 읽는 중이에요."));
 }
 void MainWindow::processImage(const QImage& image, int source) {
@@ -676,6 +681,7 @@ void MainWindow::importImage() {
         QStringLiteral("Images (*.png *.jpg *.jpeg *.bmp *.webp)"));
     modal_ = false;
     if (path.isEmpty()) return;
+    activeArea_ = 0;
     resetOutput(); setBusy(true); activeSource_ = ST_IMAGE_FILE;
     setStatus(QStringLiteral("이미지 읽는 중…"));
     const quint64 ticket = ++generation_;
@@ -714,6 +720,7 @@ void MainWindow::setAutoTranslate(bool enabled) {
         if (!autoTimer_->isActive()) return;
         autoTimer_->stop();
         subtitleOverlay_->hide();
+        for (const auto& extra : extras_) extra->overlay->hide();
         setStatus(QStringLiteral("자동 번역을 껐어요. Ctrl + Alt + P로 다시 켜거나 Ctrl + Alt + T로 한 번씩 번역하세요."));
         return;
     }
@@ -787,13 +794,32 @@ void MainWindow::autoTick() {
         }
         dropHeld(); // the line changed; the newer one is read when it settles
     }
-    if (decision != ChangeDetector::Decision::Process) return;
-    // Keep the previous caption on screen until the new line has a result.
-    original_->clear(); result_->clear();
-    captionArea_ = selectedArea();
-    processImage(image, ST_SCREEN_CAPTURE);
+    if (decision == ChangeDetector::Decision::Process) {
+        // Keep the previous caption on screen until the new line has a result.
+        original_->clear(); result_->clear();
+        activeArea_ = 0;
+        captionArea_ = selectedArea();
+        processImage(image, ST_SCREEN_CAPTURE);
+        return;
+    }
+    // Extra regions: each has its own change check; at most one read per tick, after the main one.
+    for (size_t i = 0; i < extras_.size(); ++i) {
+        ExtraArea& extra = *extras_[i];
+        if (!extraInUse(extra) || extra.screen->geometry() != extra.screenGeometry) continue;
+        if (coversRegion(extra.rect.translated(extra.screenGeometry.topLeft()))) continue;
+        QString ignored;
+        const QImage frame = Capture::region(extra.screen, extra.rect, ignored);
+        if (frame.isNull() || extra.detector.feed(frame, now) != ChangeDetector::Decision::Process) continue;
+        original_->clear(); result_->clear();
+        activeArea_ = int(i) + 1;
+        captionArea_ = {extra.screen, extra.screenGeometry, extra.rect, extra.dpr};
+        processImage(frame, ST_SCREEN_CAPTURE);
+        return;
+    }
 }
 bool MainWindow::coversRegion(const QRect& global) const {
+    for (const auto& extra : extras_)
+        if (extra->overlay->isVisible() && extra->overlay->geometry().intersects(global)) return true;
     return (isVisible() && !isMinimized() && frameGeometry().intersects(global)) ||
            (resultWindow_->isVisible() && !resultWindow_->isMinimized() && resultWindow_->frameGeometry().intersects(global)) ||
            (subtitleOverlay_->isVisible() && subtitleOverlay_->geometry().intersects(global));
@@ -852,6 +878,13 @@ bool MainWindow::followGame(bool switchToForeground) {
         selectedScreen_ = area.screen; region_ = area.rect;
         selectedGeometry_ = area.screen->geometry(); selectedDpr_ = area.screen->devicePixelRatio();
         regionLabel_->setText(describeRegion(area.screen, region_) + QStringLiteral(" (게임 창 %1을(를) 따라감)").arg(game_.name));
+    }
+    for (const auto& extra : extras_) {
+        if (extra->gameKey != game_.key || extra->relative.isEmpty()) continue;
+        const GameWindow::Area at = GameWindow::toScreen(GameWindow::place(extra->relative, extra->client, info.client));
+        if (!at.screen) continue;
+        extra->screen = at.screen; extra->screenGeometry = at.screen->geometry();
+        extra->dpr = at.screen->devicePixelRatio(); extra->rect = at.rect;
     }
     return true;
 }
@@ -1008,6 +1041,7 @@ void MainWindow::setCaptionsHidden(bool hidden) {
     captionsHidden_ = hidden;
     if (hidden) {
         subtitleOverlay_->hide();
+        for (const auto& extra : extras_) extra->overlay->hide();
         setStatus(QStringLiteral("자막을 숨겼어요. 읽기와 번역은 계속해요. Ctrl+Alt+V로 다시 보여요."));
     } else {
         if (lastSource_ == ST_SCREEN_CAPTURE && !result_->toPlainText().isEmpty()) showSubtitle(result_->toPlainText());
@@ -1050,4 +1084,123 @@ QString MainWindow::diagnostics() const {
                       registered_ ? captureShortcut_ : QStringLiteral("등록 안 됨"), cursorRegistered_ ? cursorShortcut_ : QStringLiteral("등록 안 됨"),
                       hoverRegistered_ ? hoverShortcut_ : QStringLiteral("등록 안 됨"), captionsRegistered_ ? captionsShortcut_ : QStringLiteral("등록 안 됨"));
     return lines.join(QLatin1Char('\n'));
+}
+MainWindow::ExtraArea::~ExtraArea() { delete overlay; }
+bool MainWindow::extraInUse(const ExtraArea& extra) const {
+    return extra.gameKey == game_.key && extra.screen && !extra.rect.isEmpty();
+}
+SubtitleOverlay* MainWindow::activeOverlay() const {
+    return activeArea_ > 0 && activeArea_ <= int(extras_.size()) ? extras_[size_t(activeArea_ - 1)]->overlay : subtitleOverlay_;
+}
+int MainWindow::activeExtraCount() const {
+    return int(std::count_if(extras_.begin(), extras_.end(), [this](const auto& e) { return extraInUse(*e); }));
+}
+QList<QRect> MainWindow::areaRects(int except) const {
+    QList<QRect> rects;
+    if (except != 0 && selectedScreen_ && !region_.isEmpty()) rects << region_.translated(selectedGeometry_.topLeft());
+    for (size_t i = 0; i < extras_.size(); ++i)
+        if (int(i) + 1 != except && extraInUse(*extras_[i])) rects << extras_[i]->rect.translated(extras_[i]->screenGeometry.topLeft());
+    return rects;
+}
+void MainWindow::addExtraAreaAt(QScreen* screen, const QRect& rect) {
+    if (!screen || rect.width() < 8 || rect.height() < 8 || int(extras_.size()) >= MaxExtraAreas) return;
+    auto extra = std::make_unique<ExtraArea>();
+    extra->screen = screen; extra->screenGeometry = screen->geometry(); extra->dpr = screen->devicePixelRatio(); extra->rect = rect;
+    // On the main region's game window: follow that window like the main region does.
+    if (!game_.key.isEmpty()) {
+        const QRect global = rect.translated(extra->screenGeometry.topLeft());
+        const GameWindow::Info info = GameWindow::at(global.center(), ignoreProcess_);
+        const QRect inside = info.isValid() && info.key == game_.key ? GameWindow::toPhysical(global).intersected(info.client) : QRect();
+        if (inside.width() >= 8 && inside.height() >= 8) {
+            extra->gameKey = game_.key; extra->relative = GameWindow::relativeTo(inside, info.client); extra->client = info.client.size();
+        }
+    }
+    // A plain screen region kept while the main one is a game's still belongs to that game, so it is
+    // read only with that game in front.
+    if (extra->gameKey.isEmpty()) extra->gameKey = game_.key;
+    extra->overlay = new SubtitleOverlay;
+    extra->overlay->setStyle(QSettings().value("display/captionScale", 100).toInt() / 100.0, QSettings().value("display/captionBox", false).toBool());
+    extras_.push_back(std::move(extra));
+    saveExtraAreas();
+    refreshUi();
+}
+void MainWindow::clearExtraAreas() {
+    extras_.clear();
+    activeArea_ = 0;
+    saveExtraAreas();
+    refreshUi();
+    setStatus(QStringLiteral("추가 영역을 지웠어요. 대사창 영역만 읽어요."));
+}
+void MainWindow::saveExtraAreas() const {
+    QSettings saved;
+    saved.beginWriteArray("capture/extraAreas");
+    for (int i = 0; i < int(extras_.size()); ++i) {
+        const ExtraArea& extra = *extras_[size_t(i)];
+        saved.setArrayIndex(i);
+        saved.setValue("game", extra.gameKey);
+        saved.setValue("screen", extra.screen ? extra.screen->name() : QString());
+        saved.setValue("screenGeometry", extra.screenGeometry);
+        saved.setValue("devicePixelRatio", extra.dpr);
+        saved.setValue("region", extra.rect);
+        saved.setValue("relative", extra.relative);
+        saved.setValue("client", extra.client);
+    }
+    saved.endArray();
+}
+void MainWindow::restoreExtraAreas() {
+    QSettings saved;
+    const int count = qMin(saved.beginReadArray("capture/extraAreas"), int(MaxExtraAreas));
+    for (int i = 0; i < count; ++i) {
+        saved.setArrayIndex(i);
+        auto extra = std::make_unique<ExtraArea>();
+        extra->gameKey = saved.value("game").toString();
+        extra->screenGeometry = saved.value("screenGeometry").toRect();
+        extra->dpr = saved.value("devicePixelRatio", 1.0).toReal();
+        extra->rect = saved.value("region").toRect();
+        extra->relative = saved.value("relative").toRect();
+        extra->client = saved.value("client").toSize();
+        for (QScreen* screen : QGuiApplication::screens())
+            if (screen->name() == saved.value("screen").toString() && screen->geometry() == extra->screenGeometry) extra->screen = screen;
+        extra->overlay = new SubtitleOverlay;
+        extra->overlay->setStyle(QSettings().value("display/captionScale", 100).toInt() / 100.0, QSettings().value("display/captionBox", false).toBool());
+        extras_.push_back(std::move(extra));
+    }
+    saved.endArray();
+    followGame(false); // a game's extra regions take their place from its window
+}
+void MainWindow::addExtraArea() {
+    if (busy_ || modal_) return;
+    if (!hasRegion()) { setStatus(QStringLiteral("먼저 영역 선택으로 대사창을 고른 다음 영역을 추가하세요.")); return; }
+    if (int(extras_.size()) >= MaxExtraAreas) {
+        setStatus(QStringLiteral("추가 영역은 %1개까지예요. 더 보기에서 추가 영역을 지운 뒤 다시 고르세요.").arg(MaxExtraAreas)); return;
+    }
+    followGame(false);
+    QPointer<QScreen> screen = selectedScreen_ ? selectedScreen_.data() : QGuiApplication::screenAt(QCursor::pos());
+    if (!screen) return;
+    modal_ = true;
+    restoreMain_ = isVisible() && !isMinimized(); restoreResult_ = resultWindow_->isVisible();
+    if (!isMinimized()) hide();
+    resultWindow_->hide();
+    QTimer::singleShot(180, this, [this, screen] {
+        if (!modal_ || !screen) { modal_ = false; restoreWindows(); return; }
+        const QPixmap snapshot = screen->grabWindow(0);
+        RegionSelector selector(snapshot, screen->geometry(), QRect());
+        const bool selected = !snapshot.isNull() && selector.exec() == QDialog::Accepted && screen;
+        modal_ = false;
+        restoreWindows();
+        if (!selected) return;
+        addExtraAreaAt(screen, selector.selectedRegion());
+        setStatus(QStringLiteral("영역을 추가했어요. 자동 번역이 대사창과 함께 이 영역도 읽어요."));
+        showAllAreas();
+    });
+}
+void MainWindow::showAllAreas() {
+    followGame(false);
+    QList<QRect> rects = areaRects(-1);
+    if (rects.isEmpty()) { setStatus(QStringLiteral("아직 고른 영역이 없어요.")); return; }
+    for (const QRect& rect : rects) {
+        auto* flash = new CaptureFlash;
+        flash->flash(rect, 1500);
+        QTimer::singleShot(1700, flash, &QObject::deleteLater);
+    }
 }

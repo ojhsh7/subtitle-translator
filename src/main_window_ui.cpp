@@ -179,6 +179,16 @@ void MainWindow::refreshUi() {
         : QStringLiteral("누르고 3초 안에 글자 위로 마우스를 옮기면 그 주변을 번역해요."));
     static_cast<ToggleSwitch*>(hoverMode_)->setHint(hoverRegistered_ ? hoverShortcut_ : QString());
     cancel_->setVisible(busy_);
+    const int extras = activeExtraCount();
+    if (extrasLabel_) {
+        extrasLabel_->setVisible(extras > 0);
+        extrasLabel_->setText(QStringLiteral("추가 영역 %1개도 함께 읽어요.").arg(extras));
+    }
+    if (clearExtras_) clearExtras_->setEnabled(!extras_.empty());
+    if (moreCaptions_) {
+        const QSignalBlocker blocker(moreCaptions_);
+        moreCaptions_->setChecked(captionsHidden_);
+    }
     // Before anything was read, the stage says what to do next.
     if (stage_) stage_->setPlaceholder(apiKey_.isEmpty() || !consent_
         ? QStringLiteral("번역하려면 설정의 번역 페이지에서 DeepL 키를 넣고 전송에 동의해 주세요. 키가 없어도 글자 읽기는 돼요.")
@@ -310,6 +320,9 @@ void MainWindow::buildUi() {
     layout->addWidget(hoverMode_);
     regionLabel_ = new Note(QStringLiteral("아직 고른 영역이 없어요."));
     layout->addWidget(regionLabel_);
+    extrasLabel_ = new Note;
+    extrasLabel_->setVisible(false);
+    layout->addWidget(extrasLabel_);
     status_ = new QLabel(QStringLiteral("준비 중"));
     status_->setWordWrap(true);
     status_->setFont(weighted(font(), 13));
@@ -421,6 +434,14 @@ void MainWindow::buildUi() {
 
     auto* moreMenu = new QMenu(more);
     moreMenu->addAction(QStringLiteral("대사 기록"), this, &MainWindow::showBacklog);
+    moreCaptions_ = moreMenu->addAction(QStringLiteral("자막 숨기기"));
+    moreCaptions_->setCheckable(true);
+    connect(moreCaptions_, &QAction::triggered, this, [this](bool hidden) { setCaptionsHidden(hidden); });
+    moreMenu->addSeparator();
+    moreMenu->addAction(QStringLiteral("영역 추가 (선택지, 이름표)"), this, &MainWindow::addExtraArea);
+    moreMenu->addAction(QStringLiteral("영역 모두 보기"), this, &MainWindow::showAllAreas);
+    clearExtras_ = moreMenu->addAction(QStringLiteral("추가 영역 지우기"), this, &MainWindow::clearExtraAreas);
+    moreMenu->addSeparator();
     moreMenu->addAction(QStringLiteral("인식 내용 보기"), this, [this] { detailsWindow_->show(); detailsWindow_->raise(); });
     moreMenu->addAction(QStringLiteral("번역 결과 창"), this, &MainWindow::showResult);
     moreMenu->addAction(QStringLiteral("이미지 파일 번역…"), this, &MainWindow::importImage);
@@ -706,6 +727,7 @@ void MainWindow::buildSettings() {
         QSettings().setValue("display/captionScale", scale);
         QSettings().setValue("display/captionBox", box);
         subtitleOverlay_->setStyle(scale / 100.0, box);
+        for (const auto& extra : extras_) extra->overlay->setStyle(scale / 100.0, box);
         stage_->setStyle(scale / 100.0, box);
         sample->setStyle(scale / 100.0, box);
         if (subtitleOverlay_->isVisible() && !result_->toPlainText().isEmpty()) showSubtitle(result_->toPlainText());
@@ -725,6 +747,12 @@ void MainWindow::buildSettings() {
     connect(dwell, &QComboBox::currentIndexChanged, this, [this, dwell] {
         hoverDwellMs_ = dwell->currentData().toInt();
         QSettings().setValue("cursor/dwellMs", hoverDwellMs_);
+    });
+    auto* clearAreas = new QPushButton(QStringLiteral("모두 지우기"));
+    SettingRow* extrasRow = row(capture, QStringLiteral("추가 영역"), QString(), clearAreas);
+    connect(clearAreas, &QPushButton::clicked, settingsWindow_, [this, extrasRow] {
+        clearExtraAreas();
+        extrasRow->setDescription(QStringLiteral("추가 영역이 없어요. 더 보기(⋯) > 영역 추가로 선택지나 이름표 영역을 더할 수 있어요."));
     });
     auto* fullscreen = new Note(QStringLiteral("전체 화면 독점 모드는 캡처되지 않을 수 있어요. 게임을 창 모드나 테두리 없는 창 모드로 실행해 주세요."));
     fullscreen->setContentsMargins(6, 10, 0, 0);
@@ -851,6 +879,9 @@ void MainWindow::buildSettings() {
             : PaddleOcr::available(paddleDir_, ocrLanguages())
             ? QStringLiteral("PaddleOCR 모델이 앱에 들어 있어요. 키가 없어도 OCR은 쓸 수 있어요.")
             : QStringLiteral("PaddleOCR 모델이 없어 Tesseract로 읽어요. 고른 언어의 traineddata가 필요해요."));
+        extrasRow->setDescription(extras_.empty()
+            ? QStringLiteral("추가 영역이 없어요. 더 보기(⋯) > 영역 추가로 선택지나 이름표 영역을 더할 수 있어요.")
+            : QStringLiteral("추가 영역 %1개를 대사창과 함께 읽어요. 자막은 다른 영역을 가리지 않는 자리에 떠요.").arg(extras_.size()));
         fixTable->setRowCount(0);
         for (const TextFix& fix : fixes_) addFixRow(fix.onTranslation, fix.find, fix.replace);
         const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_, captionsRegistered_};
@@ -964,6 +995,7 @@ void MainWindow::buildTray() {
     connect(trayCaptions_, &QAction::triggered, this, [this](bool hidden) { setCaptionsHidden(hidden); });
     menu->addSeparator();
     menu->addAction(QStringLiteral("영역 선택"), this, [this] { chooseRegionUnderCursor(); });
+    menu->addAction(QStringLiteral("영역 추가"), this, [this] { showFromTray(); addExtraArea(); });
     menu->addAction(QStringLiteral("지금 번역"), this, &MainWindow::startCapture);
     menu->addAction(QStringLiteral("대사 기록"), this, &MainWindow::showBacklog);
     menu->addSeparator();

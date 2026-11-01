@@ -1,0 +1,27 @@
+********* Start testing of ProtocolChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : ProtocolChecks::initTestCase()
+PASS   : ProtocolChecks::localHttpSuccessUsesHeaderAuthAndOneRequest()
+PASS   : ProtocolChecks::localHttpErrorStatusesAreReported(401)
+PASS   : ProtocolChecks::localHttpErrorStatusesAreReported(429 retry-after)
+PASS   : ProtocolChecks::localHttpErrorStatusesAreReported(429 bare)
+PASS   : ProtocolChecks::localHttpErrorStatusesAreReported(456)
+PASS   : ProtocolChecks::localHttpErrorStatusesAreReported(500)
+PASS   : ProtocolChecks::localHttpErrorStatusesAreReported(302)
+PASS   : ProtocolChecks::localHttpBrokenBodiesNeverBecomeTranslations()
+PASS   : ProtocolChecks::localHttpTimeoutAndCancel()
+PASS   : ProtocolChecks::localHttpUsageCheck()
+PASS   : ProtocolChecks::artificialResponseFixture()
+PASS   : ProtocolChecks::rejectedPayloads()
+PASS   : ProtocolChecks::errorResponseNeverExposed()
+PASS   : ProtocolChecks::responseLimit()
+PASS   : ProtocolChecks::usageFixture()
+PASS   : ProtocolChecks::rejectedUsage()
+PASS   : ProtocolChecks::requestBodyTargetAndOptionalSource()
+PASS   : ProtocolChecks::severalPiecesInOneRequest()
+PASS   : ProtocolChecks::detectedLanguageFixture()
+PASS   : ProtocolChecks::languageTables()
+PASS   : ProtocolChecks::freeKeySuffix()
+PASS   : ProtocolChecks::cleanupTestCase()
+Totals: 23 passed, 0 failed, 0 skipped, 0 blacklisted, 2751ms
+********* Finished testing of ProtocolChecks *********

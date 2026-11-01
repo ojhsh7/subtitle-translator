@@ -1,0 +1,57 @@
+********* Start testing of LocalChecks *********
+Config: Using QtTest library 6.8.3, Qt 6.8.3 (x86_64-little_endian-llp64 shared (dynamic) release build; by MSVC 2022), windows 11
+PASS   : LocalChecks::initTestCase()
+PASS   : LocalChecks::uniformCheckPreservesFaintPixelsAndTinyText()
+PASS   : LocalChecks::cancelledBlankCheckNeverEmitsStaleResult()
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-white-small)
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-black-small)
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-gray)
+PASS   : LocalChecks::blankImageNeverProducesText(tesseract-white-large)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-white-small)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-black-small)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-gray)
+PASS   : LocalChecks::blankImageNeverProducesText(paddle-white-large)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-frame)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-border)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-noise)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-noise-small)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-symbols)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-hello)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-iie)
+PASS   : LocalChecks::falseTextIsNotRead(paddle-ne)
+PASS   : LocalChecks::falseTextIsNotRead(tesseract-noise)
+PASS   : LocalChecks::falseTextIsNotRead(tesseract-eung)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-yes-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-no-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(tesseract-ok-en)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-yes-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-no-ja)
+PASS   : LocalChecks::shortRealTextIsPreserved(paddle-ok-en)
+PASS   : LocalChecks::cursorRegionUsesLogicalCoordinatesAndStaysOnOneScreen()
+PASS   : LocalChecks::combinedOutputKeepsSpacingAndConfidence()
+PASS   : LocalChecks::lightTextMaskIsolatesWhiteText()
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined english 18px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined korean 18px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined japanese 22px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow english 14px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow korean 14px)
+PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow japanese 18px)
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-en-18px.png: 2 attempts, one by one 362 ms, side by side 366 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-ko-18px.png: 3 attempts, one by one 570 ms, side by side 408 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-ja-22px.png: 3 attempts, one by one 570 ms, side by side 387 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-en-14px.png: 4 attempts, one by one 738 ms, side by side 387 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-ko-14px.png: 3 attempts, one by one 538 ms, side by side 376 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-ja-18px.png: 4 attempts, one by one 707 ms, side by side 387 ms
+PASS   : LocalChecks::parallelAttemptsKeepTheSequentialReading()
+PASS   : LocalChecks::cleanTextFixesStandaloneI()
+PASS   : LocalChecks::automaticLayoutReadsStripsAsOneLine()
+PASS   : LocalChecks::autoDetectReadsEachLanguage(english)
+PASS   : LocalChecks::autoDetectReadsEachLanguage(korean)
+PASS   : LocalChecks::autoDetectReadsEachLanguage(japanese)
+PASS   : LocalChecks::unsupportedLanguageIsRejected()
+PASS   : LocalChecks::rejectInvalidCapture()
+PASS   : LocalChecks::nonexistentOcrExecutable()
+PASS   : LocalChecks::japaneseOcrActualEngine()
+PASS   : LocalChecks::cleanupTestCase()
+Totals: 47 passed, 0 failed, 0 skipped, 0 blacklisted, 14625ms
+********* Finished testing of LocalChecks *********

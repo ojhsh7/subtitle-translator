@@ -45,6 +45,74 @@ class WindowChecks : public QObject {
     Q_OBJECT
 private slots:
 
+    // P-37: a caption never covers another region being read (it would be read back as text).
+    void captionPlacementAvoidsOtherRegions() {
+        const QRect monitor(0, 0, 1920, 1080), source(100, 300, 800, 60), size(0, 0, 600, 70);
+        const QRect below = SubtitleOverlay::placement(source, monitor, size.size());
+        QVERIFY(below.top() > source.bottom());
+        const QRect choices(100, 380, 600, 200); // a choice menu right under the dialogue
+        const QRect moved = SubtitleOverlay::placement(source, monitor, size.size(), {choices});
+        QVERIFY(!moved.isEmpty());
+        QVERIFY(moved.bottom() < source.top());  // above the line instead
+        QVERIFY(!moved.intersects(choices));
+        const QRect boxedIn = SubtitleOverlay::placement(source, monitor, size.size(), {choices, QRect(100, 200, 600, 95)});
+        QVERIFY(boxedIn.isEmpty());              // no free place: no caption rather than a read-back one
+    }
+    // P-37: an extra region (a choice) is read and captioned alongside the main dialogue region.
+    void extraRegionIsReadWithTheMainOne() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        auto label = [](const QString& text, const QPoint& at, const QSize& size) {
+            auto* fixture = new QLabel(text);
+            fixture->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+            fixture->setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:40px;");
+            fixture->setAlignment(Qt::AlignCenter); fixture->resize(size); fixture->move(at); fixture->show();
+            return fixture;
+        };
+        std::unique_ptr<QLabel> dialogue(label(QStringLiteral("今日はいい天気です。"), QPoint(30, 30), QSize(900, 120)));
+        std::unique_ptr<QLabel> choice(label(QStringLiteral("はい、行きます。"), QPoint(30, 420), QSize(500, 100)));
+        QVERIFY(QTest::qWaitForWindowExposed(dialogue.get()) && QTest::qWaitForWindowExposed(choice.get()));
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"첫 번째 번역\"}]}"}
+                     << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"두 번째 번역\"}]}"};
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true; window.freeApi_ = true;
+        window.translation_.setEndpointForTests(http.url());
+        window.followGame_->setChecked(false);
+        QScreen* screen = dialogue->screen();
+        auto local = [screen](const QWidget* w) { return QRect(w->mapToGlobal(QPoint()) - screen->geometry().topLeft(), w->size()); };
+        window.setRegion(screen, local(dialogue.get()));
+        window.addExtraAreaAt(screen, local(choice.get()));
+        QCOMPARE(int(window.extras_.size()), 1);
+        QCOMPARE(window.activeExtraCount(), 1);
+        auto cleanup = qScopeGuard([&window] { window.clearExtraAreas(); });
+        window.setAutoTranslate(true);
+        QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 2, 15000);
+        QTRY_VERIFY_WITH_TIMEOUT(window.extras_[0]->overlay->isVisible() && window.subtitleOverlay_->isVisible(), 10000);
+        QVERIFY(!window.extras_[0]->overlay->geometry().intersects(local(dialogue.get()).translated(screen->geometry().topLeft())));
+        QVERIFY(!window.subtitleOverlay_->geometry().intersects(local(choice.get()).translated(screen->geometry().topLeft())));
+        QCOMPARE(int(window.backlog_.size()), 2);
+        QTest::qWait(1000);
+        QCOMPARE(int(http.requests.size()), 2); // both still: nothing read twice
+        window.setAutoTranslate(false);
+        QVERIFY(!window.extras_[0]->overlay->isVisible());
+    }
+    // P-37: extra regions come back after a restart.
+    void extraRegionsAreSavedAndRestored() {
+        {
+            MainWindow window;
+            window.followGame_->setChecked(false);
+            window.setRegion(QGuiApplication::primaryScreen(), QRect(100, 600, 800, 120));
+            window.game_ = {};
+            window.clearExtraAreas();
+            window.addExtraAreaAt(QGuiApplication::primaryScreen(), QRect(100, 300, 400, 80));
+        }
+        MainWindow restored;
+        QCOMPARE(int(restored.extras_.size()), 1);
+        QCOMPARE(restored.extras_[0]->rect, QRect(100, 300, 400, 80));
+        restored.clearExtraAreas();
+    }
     // P-31 L2: which reads count as finished sentences (others wait for SentenceSettleMs of stillness).
     void sentenceEndsAreRecognized() {
         for (const char* finished : {"今日はいい天気です。", "「行こう！」", "Really?", "えっと…", "Wait.", "やった♪"})

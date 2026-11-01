@@ -29,21 +29,22 @@ SubtitleOverlay::SubtitleOverlay()
     setFont(captionFont);
 }
 
-QRect SubtitleOverlay::placement(const QRect& source, const QRect& workArea, const QSize& size) {
+QRect SubtitleOverlay::placement(const QRect& source, const QRect& workArea, const QSize& size, const QList<QRect>& avoid) {
     const QRect available = workArea.adjusted(4, 4, -4, -4);
     if (source.isEmpty() || !available.isValid() || size.isEmpty() ||
         size.width() > available.width() || size.height() > available.height()) return {};
-    // Start where the original line starts, like a second line of the same dialogue.
+    // Start where the original line starts, like a second line of the same dialogue: below it, else above.
     const int left = std::clamp(source.left(), available.left(), available.right() - size.width() + 1);
-    int top = source.bottom() + 1 + Gap;
-    if (top + size.height() - 1 > available.bottom())
-        top = source.top() - Gap - size.height();
-    const QRect result(QPoint(left, top), size);
-    if (!available.contains(result) || result.intersects(source)) return {};
-    return result;
+    for (const int top : {source.bottom() + 1 + Gap, source.top() - Gap - size.height()}) {
+        const QRect result(QPoint(left, top), size);
+        if (!available.contains(result) || result.intersects(source)) continue;
+        if (std::any_of(avoid.begin(), avoid.end(), [&](const QRect& other) { return result.intersects(other); })) continue;
+        return result;
+    }
+    return {};
 }
 
-bool SubtitleOverlay::showText(const QString& text, const QRect& source, const QRect& workArea) {
+bool SubtitleOverlay::showText(const QString& text, const QRect& source, const QRect& workArea, const QList<QRect>& avoid) {
     if (text.trimmed().isEmpty()) { hide(); return false; }
     // Match the size of the selected original text line.
     QFont captionFont = font();
@@ -76,7 +77,7 @@ bool SubtitleOverlay::showText(const QString& text, const QRect& source, const Q
     }
     layout.endLayout();
     const QSize desired(width, int(lines_.size()) * metrics.lineSpacing() + Padding * 2);
-    const QRect target = placement(source, workArea, desired);
+    const QRect target = placement(source, workArea, desired, avoid);
     if (target.isEmpty()) { hide(); return false; }
     setGeometry(target);
     update();
