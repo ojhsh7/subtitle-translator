@@ -207,9 +207,10 @@ void CaptionStage::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::TextAntialiasing);
-    p.setPen(Qt::NoPen);
+    // A hairline edge: in dark mode the scene colour is close to the window's.
+    p.setPen(QPen(Look::hairline(palette()), 1));
     p.setBrush(QColor::fromRgba(Look::Scene));
-    p.drawRoundedRect(rect(), 8, 8);
+    p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
     const QRect inner = rect().adjusted(16, 12, -16, -12);
     if (translation_.isEmpty() && source_.isEmpty()) {
         p.setFont(sized(font(), 13));

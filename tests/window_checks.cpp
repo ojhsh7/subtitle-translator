@@ -25,6 +25,9 @@
 #include <QTimer>
 #include <QAction>
 #include <QElapsedTimer>
+#include <QFontInfo>
+#include <QFontMetrics>
+#include <QStyleHints>
 #include <QDialog>
 #include <QKeySequence>
 #include <QListWidget>
@@ -86,6 +89,10 @@ private slots:
         QCOMPARE(int(http.requests.size()), 2);
         QVERIFY2(http.requests[1].contains(QStringLiteral("あした").toUtf8()), http.requests[1].constData()); // fixed before sending
         QVERIFY(!http.requests[1].contains(QStringLiteral("明日").toUtf8()));
+        // P-35: the second request carries the first line as context; the first had none.
+        QVERIFY(!http.requests[0].contains("\"context\""));
+        QVERIFY2(http.requests[1].contains("\"context\"") && http.requests[1].contains(QStringLiteral("今日").toUtf8()),
+                 http.requests[1].constData());
         QCOMPARE(int(window.backlog_.size()), 2);
         QCOMPARE(window.backlogList_->count(), 2);
         QVERIFY(window.backlog_.first().translation.startsWith(QStringLiteral("유키,")));
@@ -93,6 +100,116 @@ private slots:
         window.addToBacklog(window.backlog_.last().source, window.backlog_.last().translation); // the same line read again
         QCOMPARE(int(window.backlog_.size()), 2);
         window.resultWindow_->hide();
+    }
+    // P-24: a sentence typed for longer than MaxWaitMs is read once while still typing. That read does not
+    // end a sentence, so it waits, and it is dropped as the text keeps changing: only the finished
+    // sentence is sent.
+    void longTypewriterSentenceIsSentOnce() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        const QString full = QStringLiteral("今日はいい天気ですね明日も晴れるといいですね本当にそう思います。");
+        QLabel fixture(full.left(1));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:36px;");
+        fixture.setAlignment(Qt::AlignLeft | Qt::AlignVCenter); fixture.resize(1300, 110); fixture.move(30, 30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        int shown = 1;
+        QTimer typing; typing.setInterval(120); // 32 characters: about 3.8 s, longer than MaxWaitMs
+        connect(&typing, &QTimer::timeout, &fixture, [&] { if (shown < full.size()) fixture.setText(full.left(++shown)); });
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"오늘은 날씨가 좋네요.\"}]}"};
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true; window.freeApi_ = true;
+        window.translation_.setEndpointForTests(http.url());
+        window.followGame_->setChecked(false);
+        window.setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+        window.setAutoTranslate(true);
+        typing.start();
+        QTRY_VERIFY_WITH_TIMEOUT(shown == full.size(), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 1, 10000);
+        QTest::qWait(1500);
+        QCOMPARE(int(http.requests.size()), 1); // the partial read while typing was never sent
+        QVERIFY2(http.requests[0].contains(QStringLiteral("思います").toUtf8()), http.requests[0].constData());
+        window.setAutoTranslate(false);
+    }
+    // P-36: a wrong key is told right after the start or a save, before a line is lost.
+    void wrongKeyIsToldAtOnce() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{403, "{\"message\":\"Wrong key\"}"};
+        MainWindow window;
+        window.apiKey_ = QStringLiteral("wrong-key:fx"); window.consent_ = true;
+        window.usage_.setEndpointForTests(http.url());
+        window.refreshUsage();
+        QTRY_VERIFY_WITH_TIMEOUT(window.status_->text().contains(QStringLiteral("키")), 5000);
+        QVERIFY2(window.status_->text().contains(QStringLiteral("요금제")), qPrintable(window.status_->text()));
+    }
+    // P-36: captions can be held back while reading and translating go on; the tray item follows.
+    void captionsCanBeHidden() {
+        MainWindow window;
+        window.setRegion(QGuiApplication::primaryScreen(), QRect(200, 300, 600, 50));
+        window.game_ = {};
+        window.inlineCaptions_->setChecked(true);
+        window.activeSource_ = ST_SCREEN_CAPTURE; window.lastSource_ = ST_SCREEN_CAPTURE;
+        window.captionArea_ = window.selectedArea();
+        window.result_->setPlainText(QStringLiteral("숨김 확인용 자막"));
+        QVERIFY(window.showSubtitle(window.result_->toPlainText()));
+        QVERIFY(window.subtitleOverlay_->isVisible());
+        window.setCaptionsHidden(true);
+        QVERIFY(!window.subtitleOverlay_->isVisible());
+        QVERIFY(window.showSubtitle(QStringLiteral("다음 자막"))); // handled: no result window instead
+        QVERIFY(!window.subtitleOverlay_->isVisible());
+        QVERIFY(!window.resultWindow_->isVisible());
+        if (window.trayCaptions_) QVERIFY(window.trayCaptions_->isChecked());
+        window.setCaptionsHidden(false);
+        QVERIFY(window.subtitleOverlay_->isVisible());
+        window.subtitleOverlay_->hide();
+    }
+    // P-36: every icon the app draws exists in the icon font in use (Windows 11 or the Windows 10 one).
+    void iconsExistInTheIconFont() {
+        const QFontMetrics metrics(Look::iconFont(16));
+        for (const char16_t glyph : {Look::Settings, Look::SelectArea, Look::Translate, Look::Mouse, Look::More, Look::Captions,
+                                     Look::Keyboard, Look::Globe, Look::Scan, Look::Camera, Look::Info, Look::System,
+                                     Look::Forward, Look::Document, Look::Edit})
+            QVERIFY2(metrics.inFontUcs4(glyph), qPrintable(QString::number(int(glyph), 16)));
+        QFont mdl2(QStringLiteral("Segoe MDL2 Assets")); mdl2.setPixelSize(16);
+        if (QFontInfo(mdl2).family() == QStringLiteral("Segoe MDL2 Assets")) // the Windows 10 fallback, when installed
+            for (const char16_t glyph : {Look::SelectArea, Look::Translate, Look::Mouse, Look::Captions, Look::Scan, Look::Edit})
+                QVERIFY(QFontMetrics(mdl2).inFontUcs4(glyph));
+    }
+    // P-36: dark mode follows Windows; text stays readable. SUBTITLE_TEST_SCREENSHOTS saves the screens.
+    void darkModeFollowsWindows() {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+        auto restore = qScopeGuard([] { QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Unknown); });
+        QTest::qWait(100);
+        MainWindow window;
+        QVERIFY(window.palette().color(QPalette::Window).lightnessF() < 0.5);
+        QVERIFY(window.status_->palette().color(QPalette::WindowText).lightnessF() > 0.5);
+        QVERIFY(window.regionLabel_->palette().color(QPalette::WindowText).lightnessF() > 0.4); // secondary text, still light
+        const QString shots = qEnvironmentVariable("SUBTITLE_TEST_SCREENSHOTS");
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        if (!shots.isEmpty()) {
+            window.grab().save(QDir(shots).filePath("dark-main.png"));
+            window.reloadSettings_();
+            window.settingsPages_->setCurrentRow(1);
+            window.settingsWindow_->show();
+            QVERIFY(QTest::qWaitForWindowExposed(window.settingsWindow_));
+            QTest::qWait(50);
+            window.settingsWindow_->grab().save(QDir(shots).filePath("dark-settings-1.png"));
+            window.settingsWindow_->hide();
+        }
+        window.hide();
+    }
+    // P-16: the problem report has states and times, never the text read or translated.
+    void problemReportHoldsNoText() {
+        MainWindow window;
+        window.original_->setPlainText(QStringLiteral("비밀 원문 문장"));
+        window.result_->setPlainText(QStringLiteral("비밀 번역 문장"));
+        const QString report = window.diagnostics();
+        QVERIFY2(report.contains(QStringLiteral("OCR 스레드")), qPrintable(report));
+        QVERIFY(report.contains(QStringLiteral("모니터")));
+        QVERIFY(!report.contains(QStringLiteral("비밀")));
     }
     // P-33 G3: each game keeps the source language chosen while it was in front.
     void eachGameKeepsItsLanguage() {

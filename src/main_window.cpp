@@ -204,7 +204,14 @@ MainWindow::MainWindow() {
             setStatus(QStringLiteral("이번 달 DeepL 한도의 %1%를 썼어요. 남은 글자는 %2자예요.")
                 .arg(used * 100 / limit).arg(QLocale().toString(qMax<qint64>(0, limit - used))));
     });
+    connect(&usage_, &TranslationService::failed, this, [this](const QString&) {
+        // The check after start or saving is the first request with a new key: say so before a line is lost.
+        if (usage_.lastHttpStatus() == 403)
+            setStatus(QStringLiteral("DeepL이 키를 받지 않았어요. 설정의 번역 페이지에서 키와 요금제(Free, Pro)를 확인해 주세요."));
+    });
     QTimer::singleShot(2000, this, &MainWindow::refreshUsage);
+    contextOn_ = QSettings().value("translation/context", true).toBool();
+    hoverDwellMs_ = qBound(300, QSettings().value("cursor/dwellMs", 1000).toInt(), 3000);
     QSettings saved;
     executable_ = saved.value("ocr/executable").toString();
     tessdata_ = saved.value("ocr/tessdata").toString();
@@ -272,6 +279,7 @@ MainWindow::~MainWindow() {
     if (cursorRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 3);
     if (hoverRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 4);
     if (regionRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 5);
+    if (captionsRegistered_) UnregisterHotKey(reinterpret_cast<HWND>(winId()), 6);
     delete captureFlash_;
     delete subtitleOverlay_;
     delete resultWindow_;
@@ -430,7 +438,6 @@ void MainWindow::updateHover(const QPoint& point, qint64 nowMs, bool mousePresse
         return;
     }
     constexpr int MovementTolerance = 12; // logical pixels; small hand tremors do not restart the wait.
-    constexpr qint64 DwellMs = 1000;
     if (hoverSince_ < 0 || (point - hoverAnchor_).manhattanLength() > MovementTolerance) {
         if (hoverRequest_ && busy_) cancel();
         if (hoverRequest_) subtitleOverlay_->hide();
@@ -439,7 +446,7 @@ void MainWindow::updateHover(const QPoint& point, qint64 nowMs, bool mousePresse
         warmTranslation(); // the dwell before the read covers opening the DeepL connection
         return;
     }
-    if (hoverConsumed_ || busy_ || nowMs - hoverSince_ < DwellMs) return;
+    if (hoverConsumed_ || busy_ || nowMs - hoverSince_ < hoverDwellMs_) return;
     hoverConsumed_ = true;
     if (!ocrReady()) {
         setHoverTranslate(false);
@@ -571,6 +578,8 @@ void MainWindow::showResult() {
         stopAutoForResultOverlap();
 }
 bool MainWindow::showSubtitle(const QString& text, bool selectionPreview) {
+    // Hidden by the user: nothing on screen, and no result window popping up in its place either.
+    if (captionsHidden_ && !selectionPreview) { subtitleOverlay_->hide(); return true; }
     const auto area = selectionPreview || captionArea_.rect.isEmpty() ? selectedArea() : captionArea_;
     if (!inlineCaptions_->isChecked() || !area.screen || area.rect.isEmpty() ||
         area.screen->geometry() != area.screenGeometry || area.screen->devicePixelRatio() != area.dpr) {
@@ -608,6 +617,9 @@ bool MainWindow::nativeEvent(const QByteArray&, void* message, qintptr* result) 
     }
     if (msg->message == WM_HOTKEY && msg->wParam == 4) {
         setHoverTranslate(!hoverMode_->isChecked()); *result = 0; return true;
+    }
+    if (msg->message == WM_HOTKEY && msg->wParam == 6) {
+        setCaptionsHidden(!captionsHidden_); *result = 0; return true;
     }
     if (msg->message == WM_HOTKEY && msg->wParam == 5) {
         // Queued: the selector runs its own event loop, which must not start inside this native event.
@@ -914,7 +926,10 @@ void MainWindow::requestTranslation(const QStringList& pieces, unsigned scripts)
     if (++sentSinceUsage_ >= UsageEveryRequests) refreshUsage();
     setStatus(QStringLiteral("DeepL에서 %1(으)로 번역 중…").arg(Languages::targetLabel(targetLanguage())));
     resultStatus_->setText(QStringLiteral("번역 중…"));
-    translation_.translate(pieces, apiKey_, freeApi_, targetLanguage(), source);
+    const QString current = original_->toPlainText();
+    translation_.translate(pieces, apiKey_, freeApi_, targetLanguage(), source,
+                           contextOn_ && contextLine_ != current ? contextLine_ : QString());
+    contextLine_ = current;
 }
 void MainWindow::applyTranslation(const QStringList& pieces, const QString& detected, bool remembered) {
     std::vector<std::string> translations;
@@ -988,4 +1003,51 @@ void MainWindow::refreshUsage() {
     if (apiKey_.isEmpty() || !consent_ || usage_.isBusy()) return;
     if (qApp->property("testMode").toBool() && !usage_.hasTestEndpoint()) return; // tests never reach DeepL
     usage_.checkUsage(apiKey_, freeApi_);
+}
+void MainWindow::setCaptionsHidden(bool hidden) {
+    captionsHidden_ = hidden;
+    if (hidden) {
+        subtitleOverlay_->hide();
+        setStatus(QStringLiteral("자막을 숨겼어요. 읽기와 번역은 계속해요. Ctrl+Alt+V로 다시 보여요."));
+    } else {
+        if (lastSource_ == ST_SCREEN_CAPTURE && !result_->toPlainText().isEmpty()) showSubtitle(result_->toPlainText());
+        setStatus(QStringLiteral("자막을 다시 보여요."));
+    }
+}
+QString MainWindow::diagnostics() const {
+    // States and timings only: what was read or translated never goes into a report.
+    const PaddleOcr::Result& paddle = ocr_.paddleDetails();
+    QStringList lines;
+    lines << QStringLiteral("자막 번역 %1, Qt %2").arg(QCoreApplication::applicationVersion(), QString::fromLatin1(qVersion()))
+          << QStringLiteral("OCR 엔진 %1, 게임 언어 %2, 번역 언어 %3, OCR 스레드 %4")
+                 .arg(paddleEngine_ ? QStringLiteral("PaddleOCR") : QStringLiteral("Tesseract"), ocrLanguages(), targetLanguage())
+                 .arg(PaddleOcr::threads())
+          << QStringLiteral("PaddleOCR 모델 %1, Tesseract %2")
+                 .arg(PaddleOcr::available(paddleDir_, ocrLanguages()) ? QStringLiteral("있음") : QStringLiteral("없음"),
+                      QFileInfo::exists(executable_) ? QStringLiteral("있음") : QStringLiteral("없음"))
+          << QStringLiteral("마지막 읽기: 엔진 %1, %2ms (검출 %3ms, 인식 %4ms), 줄 %5")
+                 .arg(ocr_.engineUsed().isEmpty() ? QStringLiteral("없음") : ocr_.engineUsed()).arg(ocr_.elapsedMs())
+                 .arg(qRound(paddle.detectMs)).arg(qRound(paddle.recognizeMs)).arg(paddle.lines.size())
+          << QStringLiteral("번역: 키 %1, 전송 동의 %2, 요금제 %3, 마지막 HTTP %4, 사용량 %5")
+                 .arg(apiKey_.isEmpty() ? QStringLiteral("없음") : QStringLiteral("있음"), consent_ ? QStringLiteral("예") : QStringLiteral("아니요"),
+                      freeApi_ ? QStringLiteral("Free") : QStringLiteral("Pro")).arg(translation_.lastHttpStatus())
+                 .arg(usageLimit_ > 0 ? QStringLiteral("%1%").arg(usageUsed_ * 100 / usageLimit_) : QStringLiteral("모름"))
+          << QStringLiteral("자동 번역 %1, 감지 %2ms, 대기 %3ms, 문장 대기 %4ms, 올려두기 %5, 자막 숨김 %6")
+                 .arg(autoTranslating() ? QStringLiteral("켬") : QStringLiteral("끔")).arg(ChangeDetector::PollMs)
+                 .arg(ChangeDetector::SettleMs).arg(ChangeDetector::SentenceSettleMs)
+                 .arg(hoverMode_->isChecked() ? QStringLiteral("켬") : QStringLiteral("끔"))
+                 .arg(captionsHidden_ ? QStringLiteral("예") : QStringLiteral("아니요"))
+          << QStringLiteral("영역 %1, 게임 창 따라가기 %2%3")
+                 .arg(hasRegion() ? QStringLiteral("있음") : QStringLiteral("없음"),
+                      followGame_->isChecked() ? QStringLiteral("켬") : QStringLiteral("끔"),
+                      game_.name.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(game_.name));
+    QStringList screens;
+    for (const QScreen* screen : QGuiApplication::screens())
+        screens << QStringLiteral("%1×%2 배율 %3").arg(screen->size().width()).arg(screen->size().height()).arg(screen->devicePixelRatio());
+    lines << QStringLiteral("모니터 %1").arg(screens.join(QStringLiteral(", ")))
+          << QStringLiteral("단축키: 영역 %1, 자동 %2, 지금 %3, 마우스 %4, 올려두기 %5, 자막 %6")
+                 .arg(regionRegistered_ ? regionShortcut_ : QStringLiteral("등록 안 됨"), autoRegistered_ ? autoShortcut_ : QStringLiteral("등록 안 됨"),
+                      registered_ ? captureShortcut_ : QStringLiteral("등록 안 됨"), cursorRegistered_ ? cursorShortcut_ : QStringLiteral("등록 안 됨"),
+                      hoverRegistered_ ? hoverShortcut_ : QStringLiteral("등록 안 됨"), captionsRegistered_ ? captionsShortcut_ : QStringLiteral("등록 안 됨"));
+    return lines.join(QLatin1Char('\n'));
 }

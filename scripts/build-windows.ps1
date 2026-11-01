@@ -8,7 +8,20 @@ $projectRoot=(Get-Item -LiteralPath "$PSScriptRoot\..").FullName
 $sourceStage=Join-Path $ToolchainRoot 'windows-source'
 $buildRoot=Join-Path $ToolchainRoot 'windows-build'
 New-Item -ItemType Directory -Force -Path $sourceStage | Out-Null
-foreach($entry in @('src','core','tests','CMakeLists.txt')) { Copy-Item -LiteralPath (Join-Path $projectRoot $entry) -Destination $sourceStage -Recurse -Force }
+# Copy only files whose content changed, and give them the current time. Copy-Item keeps the source
+# file's time, so a header older than the objects built from its previous version was not
+# recompiled and a build silently mixed old and new code (P-32).
+foreach($entry in @('src','core','tests','CMakeLists.txt')) {
+    $from = Join-Path $projectRoot $entry
+    $files = if (Test-Path -LiteralPath $from -PathType Leaf) { @(Get-Item -LiteralPath $from) } else { @(Get-ChildItem -LiteralPath $from -Recurse -File) }
+    foreach($file in $files) {
+        $target = Join-Path $sourceStage $file.FullName.Substring($projectRoot.Length).TrimStart('\')
+        if ((Test-Path -LiteralPath $target) -and (Get-FileHash -LiteralPath $target).Hash -eq (Get-FileHash -LiteralPath $file.FullName).Hash) { continue }
+        New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+        Copy-Item -LiteralPath $file.FullName -Destination $target -Force
+        (Get-Item -LiteralPath $target).LastWriteTime = Get-Date
+    }
+}
 $onnxRoot=Join-Path $ToolchainRoot 'onnxruntime'
 if (!(Test-Path -LiteralPath "$onnxRoot\include\onnxruntime_cxx_api.h")) { throw "Extract onnxruntime-win-x64 into $onnxRoot." }
 & $CMakeExe -S $sourceStage -B $buildRoot -G 'Visual Studio 17 2022' -A x64 "-DCMAKE_PREFIX_PATH=$QtRoot" "-DONNXRUNTIME_ROOT=$onnxRoot"

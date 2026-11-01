@@ -42,7 +42,8 @@ public:
     // The app icon, drawn in code (no image files): taskbar, tray and windows.
     static QIcon appIcon();
     // Global shortcut ids for RegisterHotKey; defaults are Ctrl+Alt+ the letter in hotkeySpecs.
-    enum Hotkey { CaptureKey = 1, AutoKey, CursorKey, HoverKey, RegionKey };
+    enum Hotkey { CaptureKey = 1, AutoKey, CursorKey, HoverKey, RegionKey, CaptionKey };
+    void showFromTray();  // also what a second launch asks the running app to do
     // A shortcut RegisterHotKey can take: one key with modifiers. Letters and digits need Ctrl or Alt
     // so typing in a game never triggers them; F1-F24 may stand alone.
     static bool nativeKey(const QKeySequence& sequence, unsigned& modifiers, unsigned& virtualKey);
@@ -59,7 +60,6 @@ private:
     void refreshUi();            // state badge, button texts, tray menu after any state change
     void setStatus(const QString& text);
     QString withShortcuts(QString text) const; // default key names in a message -> the keys in use
-    void showFromTray();
     void refreshIcons();         // icons are drawn in the text colour: again after a light/dark switch
     void quitApp();
     void settings(int page = -1); // -1: the last page shown
@@ -128,6 +128,9 @@ private:
     QString applyFixes(QString text, bool onTranslation) const;
     void restoreGameLanguage(); // the source language saved with the game now in front
     void refreshUsage();        // DeepL /v2/usage: consumes no characters
+    // P-36 (docs/plan/2026-11-02-priorities.ko.md)
+    void setCaptionsHidden(bool hidden);
+    QString diagnostics() const; // states and times for a problem report; never the text read or translated
     bool ocrReady() const;
     QString targetLanguage() const;
     QComboBox* screens_;
@@ -235,6 +238,13 @@ private:
     bool cursorRegistered_ = false;
     bool hoverRegistered_ = false;
     bool regionRegistered_ = false;
+    bool captionsRegistered_ = false;
+    QString captionsShortcut_ = QStringLiteral("Ctrl+Alt+V");
+    bool captionsHidden_ = false;   // translation goes on; only the on-screen caption is held back
+    QAction* trayCaptions_ = nullptr;
+    bool contextOn_ = true;         // send the line before as DeepL context (not billed)
+    QString contextLine_;           // the original of the last line sent
+    int hoverDwellMs_ = 1000;
     QString captureShortcut_ = QStringLiteral("Ctrl+Alt+T");
     QString autoShortcut_ = QStringLiteral("Ctrl+Alt+P");
     QString regionShortcut_ = QStringLiteral("Ctrl+Alt+R");

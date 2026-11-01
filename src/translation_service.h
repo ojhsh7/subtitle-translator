@@ -14,8 +14,12 @@ public:
     // Sends every piece in one request; results come back in the same order.
     // targetLang: DeepL code such as "KO" or "EN-US". An empty sourceLang lets DeepL detect it.
     void translate(const QStringList& texts, const QString& apiKey, bool freeApi,
-                   const QString& targetLang = QStringLiteral("KO"), const QString& sourceLang = {});
-    static QByteArray requestBody(const QStringList& texts, const QString& targetLang, const QString& sourceLang);
+                   const QString& targetLang = QStringLiteral("KO"), const QString& sourceLang = {},
+                   const QString& context = {});
+    // context: text that helps the translation (the line before) but is not translated; DeepL does not
+    // bill its characters.
+    static QByteArray requestBody(const QStringList& texts, const QString& targetLang, const QString& sourceLang,
+                                  const QString& context = {});
     static constexpr qsizetype MaxTexts = 50; // DeepL's limit per request
     // GET /v2/usage: sends only the key, consumes no characters.
     void checkUsage(const QString& apiKey, bool freeApi);

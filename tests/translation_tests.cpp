@@ -158,6 +158,10 @@ private slots:
         const auto detect = QJsonDocument::fromJson(TranslationService::requestBody({"fixture"}, "KO", {})).object();
         QCOMPARE(detect.value("target_lang").toString(),QString("KO"));
         QVERIFY(!detect.contains("source_lang")); // DeepL detects the language.
+        QVERIFY(!detect.contains("context"));
+        // P-35: the line before travels as context (not translated, not billed).
+        const auto withContext = QJsonDocument::fromJson(TranslationService::requestBody({"fixture"}, "KO", {}, "before")).object();
+        QCOMPARE(withContext.value("context").toString(), QString("before"));
         const auto fixed = QJsonDocument::fromJson(TranslationService::requestBody({"fixture"}, "EN-US", "JA")).object();
         QCOMPARE(fixed.value("source_lang").toString(),QString("JA"));
         QCOMPARE(fixed.value("target_lang").toString(),QString("EN-US"));

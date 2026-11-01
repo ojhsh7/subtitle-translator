@@ -9,15 +9,18 @@ if($running) { throw 'Close the running Subtitle Translator first, then run this
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 Get-ChildItem -LiteralPath $package | Copy-Item -Destination $InstallRoot -Recurse -Force
 # Per-user shortcut on the real Desktop (works when OneDrive redirects it).
-$desktop=[Environment]::GetFolderPath('Desktop')
-$shortcutPath=Join-Path $desktop 'Subtitle Translator.lnk'
+# Per-user shortcuts on the real Desktop (works when OneDrive redirects it) and in the Start menu,
+# so searching "Subtitle" finds the app.
 $shell=New-Object -ComObject WScript.Shell
-$shortcut=$shell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath=Join-Path $InstallRoot 'SubtitleTranslator.exe'
-$shortcut.Arguments='--auto' # Start auto translation right away when a region is saved.
-$shortcut.WorkingDirectory=$InstallRoot
-$shortcut.IconLocation="$(Join-Path $InstallRoot 'SubtitleTranslator.exe'),0"
-$shortcut.Description='Game subtitle translator, 14 OCR languages (auto mode)'
-$shortcut.Save()
+$startMenu=Join-Path ([Environment]::GetFolderPath('Programs')) 'Subtitle Translator.lnk'
+foreach($shortcutPath in @((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Subtitle Translator.lnk'), $startMenu)) {
+    $shortcut=$shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath=Join-Path $InstallRoot 'SubtitleTranslator.exe'
+    $shortcut.Arguments='--auto' # Start auto translation right away when a region is saved.
+    $shortcut.WorkingDirectory=$InstallRoot
+    $shortcut.IconLocation="$(Join-Path $InstallRoot 'SubtitleTranslator.exe'),0"
+    $shortcut.Description='Game subtitle translator (auto mode)'
+    $shortcut.Save()
+    Write-Output "Shortcut: $shortcutPath"
+}
 Write-Output "Installed: $InstallRoot"
-Write-Output "Desktop shortcut: $shortcutPath"

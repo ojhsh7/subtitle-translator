@@ -51,6 +51,7 @@ constexpr HotkeySpec hotkeySpecs[] = {
     {MainWindow::CaptureKey, "capture", "지금 번역", Qt::Key_T, 0},
     {MainWindow::CursorKey, "cursor", "마우스 주변 번역", Qt::Key_M, VK_F8},
     {MainWindow::HoverKey, "hover", "마우스 올려두기 켜고 끄기", Qt::Key_H, VK_F9},
+    {MainWindow::CaptionKey, "captions", "자막 숨기고 보이기", Qt::Key_V, 0},
 };
 QKeySequence ctrlAlt(Qt::Key key) { return QKeySequence(QKeyCombination(Qt::ControlModifier | Qt::AltModifier, key)); }
 QKeySequence defaultSequence(const HotkeySpec& spec) { return ctrlAlt(spec.key); }
@@ -134,6 +135,7 @@ void MainWindow::registerHotkeys() {
         case CursorKey: cursorRegistered_ = ok; cursorShortcut_ = text; break;
         case HoverKey: hoverRegistered_ = ok; hoverShortcut_ = text; break;
         case RegionKey: regionRegistered_ = ok; regionShortcut_ = text; break;
+        case CaptionKey: captionsRegistered_ = ok; captionsShortcut_ = text; break;
         }
     }
     refreshUi();
@@ -143,14 +145,14 @@ QString MainWindow::withShortcuts(QString text) const {
     // Messages name the default keys; show the keys in use instead. Placeholders first, so swapped
     // keys (T for P and P for T) are not replaced twice.
     const std::pair<char, QString> keys[] = {{'T', captureShortcut_}, {'P', autoShortcut_}, {'R', regionShortcut_},
-                                             {'M', cursorShortcut_}, {'H', hoverShortcut_}};
-    for (int i = 0; i < 5; ++i) {
+                                             {'M', cursorShortcut_}, {'H', hoverShortcut_}, {'V', captionsShortcut_}};
+    for (int i = 0; i < 6; ++i) {
         const QChar letter = QLatin1Char(keys[i].first);
         const QString mark = QStringLiteral("\x01%1\x01").arg(i);
         text.replace(QStringLiteral("Ctrl+Alt+%1").arg(letter), mark);
         text.replace(QStringLiteral("Ctrl + Alt + %1").arg(letter), mark);
     }
-    for (int i = 0; i < 5; ++i) text.replace(QStringLiteral("\x01%1\x01").arg(i), keys[i].second);
+    for (int i = 0; i < 6; ++i) text.replace(QStringLiteral("\x01%1\x01").arg(i), keys[i].second);
     return text;
 }
 
@@ -197,6 +199,11 @@ void MainWindow::refreshUi() {
         // A tab puts the shortcut in the menu's own shortcut column.
         trayAuto_->setText(QStringLiteral("자동 번역") + (autoRegistered_ ? QStringLiteral("\t") + autoShortcut_ : QString()));
         trayHover_->setText(QStringLiteral("마우스 올려두기") + (hoverRegistered_ ? QStringLiteral("\t") + hoverShortcut_ : QString()));
+        {
+            const QSignalBlocker captionsBlocker(trayCaptions_);
+            trayCaptions_->setChecked(captionsHidden_);
+        }
+        trayCaptions_->setText(QStringLiteral("자막 숨기기") + (captionsRegistered_ ? QStringLiteral("\t") + captionsShortcut_ : QString()));
         tray_->setToolTip(QStringLiteral("자막 번역: %1").arg(state));
     }
 }
@@ -564,6 +571,9 @@ void MainWindow::buildSettings() {
     row(deepl, QStringLiteral("키 기억하기"), QStringLiteral("Windows 자격 증명 관리자에 저장해요. 끄면 앱을 닫을 때 지워져요."), remember);
     auto* consent = new ToggleSwitch;
     row(deepl, QStringLiteral("DeepL로 글자 보내기"), QStringLiteral("번역할 때 인식한 글자가 DeepL로 가요. 요금제에 따라 비용이 생길 수 있어요."), consent);
+    auto* context = new ToggleSwitch;
+    row(deepl, QStringLiteral("앞 대사를 문맥으로 보내기"), QStringLiteral("이름과 말투가 대사마다 흔들리지 않게 바로 앞 대사를 함께 보내요. 문맥 글자는 사용량에 들어가지 않아요."), context);
+    connect(context, &QCheckBox::toggled, this, [this](bool on) { contextOn_ = on; QSettings().setValue("translation/context", on); });
     // A link, not a button: it only shows more text.
     auto* privacyToggle = new Note(QStringLiteral("<a href='more'>무엇이 전송되나요?</a>"));
     privacyToggle->setContentsMargins(6, 0, 0, 0);
@@ -707,6 +717,15 @@ void MainWindow::buildSettings() {
     row(capture, QStringLiteral("게임 창 따라가기"), QStringLiteral("창을 옮기거나 크기를 바꿔도 같은 자리를 읽고, 게임마다 영역을 따로 기억해요"), followGame_);
     row(capture, QStringLiteral("영역 선택 버튼이 쓸 모니터"), QString(), screens_);
     row(capture, QStringLiteral("마우스 주변 범위"), QStringLiteral("마우스 주변 번역과 마우스 올려두기가 읽는 크기예요"), cursorSizeBox_);
+    auto* dwell = new QComboBox;
+    dwell->addItem(QStringLiteral("0.5초"), 500);
+    dwell->addItem(QStringLiteral("1초 (기본)"), 1000);
+    dwell->addItem(QStringLiteral("1.5초"), 1500);
+    row(capture, QStringLiteral("마우스 올려두기 대기"), QStringLiteral("글자 위에서 이만큼 멈추면 번역해요. 짧을수록 빠르지만 지나가다 멈춘 곳도 번역될 수 있어요."), dwell);
+    connect(dwell, &QComboBox::currentIndexChanged, this, [this, dwell] {
+        hoverDwellMs_ = dwell->currentData().toInt();
+        QSettings().setValue("cursor/dwellMs", hoverDwellMs_);
+    });
     auto* fullscreen = new Note(QStringLiteral("전체 화면 독점 모드는 캡처되지 않을 수 있어요. 게임을 창 모드나 테두리 없는 창 모드로 실행해 주세요."));
     fullscreen->setContentsMargins(6, 10, 0, 0);
     capture->addWidget(fullscreen);
@@ -784,6 +803,15 @@ void MainWindow::buildSettings() {
         "처음이라면 게임 언어를 고르고, 영역 선택으로 대사창을 드래그한 다음 자동 번역을 켜 보세요."));
     aboutText->setContentsMargins(0, 6, 0, 0);
     about->addWidget(aboutText);
+    about->addSpacing(14);
+    auto* copyReport = new QPushButton(QStringLiteral("문제 보고용 정보 복사"));
+    about->addWidget(copyReport, 0, Qt::AlignLeft);
+    auto* reportNote = new Note(QStringLiteral("버전, 설정, 마지막 읽기 시간 같은 상태만 복사해요. 읽은 글자와 번역은 들어가지 않아요."));
+    about->addWidget(reportNote);
+    connect(copyReport, &QPushButton::clicked, settingsWindow_, [this, reportNote] {
+        QApplication::clipboard()->setText(diagnostics());
+        reportNote->setText(QStringLiteral("복사했어요. 문제를 알릴 때 붙여 넣어 주세요. 읽은 글자와 번역은 들어가지 않아요."));
+    });
     about->addStretch(1);
 
     auto* bottom = new QHBoxLayout;
@@ -809,6 +837,11 @@ void MainWindow::buildSettings() {
         keyRow->setDescription(keyHint);
         remember->setChecked(remember_);
         consent->setChecked(consent_);
+        {
+            const QSignalBlocker contextBlocker(context), dwellBlocker(dwell);
+            context->setChecked(contextOn_);
+            dwell->setCurrentIndex(qMax(0, dwell->findData(hoverDwellMs_)));
+        }
         engine->setCurrentIndex(paddleEngine_ ? 0 : 1);
         mode->setCurrentIndex(qMax(0, mode->findData(psm_)));
         exe->setText(executable_);
@@ -820,7 +853,7 @@ void MainWindow::buildSettings() {
             : QStringLiteral("PaddleOCR 모델이 없어 Tesseract로 읽어요. 고른 언어의 traineddata가 필요해요."));
         fixTable->setRowCount(0);
         for (const TextFix& fix : fixes_) addFixRow(fix.onTranslation, fix.find, fix.replace);
-        const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_};
+        const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_, captionsRegistered_};
         for (int i = 0; i < keyEdits.size(); ++i) {
             keyEdits[i]->setKeySequence(storedSequence(hotkeySpecs[i]));
             keyRows[i]->setDescription(states[i] ? QString() : QStringLiteral("다른 앱이 이 키를 쓰고 있어요. 다른 키를 골라 주세요."));
@@ -892,7 +925,7 @@ void MainWindow::buildSettings() {
         refreshUsage();
         registerHotkeys();
         reloadSettings_();
-        const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_};
+        const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_, captionsRegistered_};
         if (std::find(std::begin(states), std::end(states), false) != std::end(states)) {
             settingsPages_->setCurrentRow(5);
             QMessageBox::information(settingsWindow_, QStringLiteral("단축키"),
@@ -926,6 +959,9 @@ void MainWindow::buildTray() {
     trayAuto_->setCheckable(true);
     trayHover_ = menu->addAction(QStringLiteral("마우스 올려두기"));
     trayHover_->setCheckable(true);
+    trayCaptions_ = menu->addAction(QStringLiteral("자막 숨기기"));
+    trayCaptions_->setCheckable(true);
+    connect(trayCaptions_, &QAction::triggered, this, [this](bool hidden) { setCaptionsHidden(hidden); });
     menu->addSeparator();
     menu->addAction(QStringLiteral("영역 선택"), this, [this] { chooseRegionUnderCursor(); });
     menu->addAction(QStringLiteral("지금 번역"), this, &MainWindow::startCapture);

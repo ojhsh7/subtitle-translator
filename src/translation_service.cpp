@@ -61,13 +61,15 @@ bool TranslationService::readAvailable() {
     }
     return true;
 }
-QByteArray TranslationService::requestBody(const QStringList& texts, const QString& targetLang, const QString& sourceLang) {
+QByteArray TranslationService::requestBody(const QStringList& texts, const QString& targetLang, const QString& sourceLang,
+                                           const QString& context) {
     QJsonObject object{{"text",QJsonArray::fromStringList(texts)},{"target_lang",targetLang}};
     if (!sourceLang.isEmpty()) object.insert("source_lang", sourceLang);
+    if (!context.isEmpty()) object.insert("context", context);
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 void TranslationService::translate(const QStringList& texts, const QString& apiKey, bool freeApi,
-                                   const QString& targetLang, const QString& sourceLang) {
+                                   const QString& targetLang, const QString& sourceLang, const QString& context) {
     if (isBusy()) return;
     const QString key = apiKey.trimmed();
     if (!validKey(key)) {
@@ -84,7 +86,7 @@ void TranslationService::translate(const QStringList& texts, const QString& apiK
     if (!validLanguage(targetLang) || (!sourceLang.isEmpty() && !validLanguage(sourceLang))) {
         emit failed(QStringLiteral("지원하지 않는 번역 언어 설정이에요.")); return;
     }
-    const QByteArray body = requestBody(texts, targetLang, sourceLang);
+    const QByteArray body = requestBody(texts, targetLang, sourceLang, context.left(4000));
     if (body.size() >= 128*1024) { emit failed(QStringLiteral("번역 요청 크기가 너무 커요.")); return; }
     QNetworkRequest post = request(freeApi, "/v2/translate", key);
     post.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
