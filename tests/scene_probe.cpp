@@ -26,6 +26,8 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#define NOMINMAX
+#include <windows.h>
 
 namespace {
 // Answers every translate request with one "KO<source>" per text, like a server that always works.
@@ -221,12 +223,17 @@ public:
         window.followGame_->setChecked(false);
         window.ocr_.waitForWarmUp();
         int reads = 0;
+        double readMs = 0, findMs = 0, recognizeMs = 0;
         const bool verbose = !qEnvironmentVariableIsEmpty("SCENE_PROBE_VERBOSE");
         QElapsedTimer sceneClock;
         sceneClock.start();
         connect(&window.ocr_, &OcrService::recognized, this, [&, verbose](const QString& text) {
             ++reads;
-            if (verbose) std::printf("  %6lld read  [%s]\n", sceneClock.elapsed(), qPrintable(QString(text).replace(QLatin1Char('\n'), QLatin1Char('|'))));
+            const PaddleOcr::Result& details = window.ocr_.paddleDetails();
+            readMs += double(window.ocr_.elapsedMs()); findMs += details.detectMs; recognizeMs += details.recognizeMs;
+            if (verbose) std::printf("  %6lld read  [%s] %lld ms (find %.0f, read %.0f)\n", sceneClock.elapsed(),
+                                     qPrintable(QString(text).replace(QLatin1Char('\n'), QLatin1Char('|'))),
+                                     window.ocr_.elapsedMs(), details.detectMs, details.recognizeMs);
         });
         connect(&window.ocr_, &OcrService::failed, this, [&, verbose](const QString& error) {
             ++reads;
@@ -234,7 +241,11 @@ public:
         });
         window.setRegion(game.screen(), QRect(game.mapToGlobal(QPoint()) - game.screen()->geometry().topLeft(), game.size()));
         window.setAutoTranslate(true);
+        if (const int poll = qEnvironmentVariableIntValue("SCENE_PROBE_POLL")) window.autoTimer_->setInterval(poll);
         wait(600);
+        const qint64 cpuBefore = processCpuMs();
+        QElapsedTimer wall;
+        wall.start();
 
         QJsonArray latencies;
         int captioned = 0;
@@ -263,6 +274,7 @@ public:
             latencies << latency;
             if (latency >= 0) { ++captioned; latencySum += latency; latencyMax = std::max(latencyMax, latency); }
         }
+        const double cpuPercent = 100.0 * double(processCpuMs() - cpuBefore) / double(std::max<qint64>(1, wall.elapsed()));
         window.setAutoTranslate(false);
         window.resultWindow_->hide();
         QStringList distinct = http.texts;
@@ -271,12 +283,20 @@ public:
             {"scene", scene.name}, {"lines", scene.lines}, {"lineCharacters", lineCharacters},
             {"captioned", captioned}, {"latencyMs", latencies},
             {"latencyAvgMs", captioned ? latencySum / captioned : -1}, {"latencyMaxMs", latencyMax},
-            {"ocrReads", reads}, {"requests", http.requests}, {"textsSent", http.texts.size()},
+            {"ocrReads", reads}, {"readAvgMs", reads ? readMs / reads : 0}, {"findAvgMs", reads ? findMs / reads : 0},
+            {"recognizeAvgMs", reads ? recognizeMs / reads : 0}, {"requests", http.requests}, {"textsSent", http.texts.size()},
             {"distinctTexts", distinct.size()}, {"charactersSent", http.characters()},
-            {"sent", QJsonArray::fromStringList(http.texts)}};
+            {"cpuPercentOfOneCore", cpuPercent}, {"sent", QJsonArray::fromStringList(http.texts)}};
     }
 
 private:
+    // Kernel and user time of this process, fake game and probe loop included.
+    static qint64 processCpuMs() {
+        FILETIME created, exited, kernel, user;
+        if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) return 0;
+        const auto ticks = [](const FILETIME& t) { return (quint64(t.dwHighDateTime) << 32) | t.dwLowDateTime; };
+        return qint64((ticks(kernel) + ticks(user)) / 10000);
+    }
     static void wait(int ms) {
         QEventLoop loop;
         QTimer::singleShot(ms, &loop, &QEventLoop::quit);
@@ -305,6 +325,7 @@ int main(int argc, char** argv) {
         {"typed", FakeGame::NoArrow, false, false, 60, true, 4, 4000},
         {"typed-blink", FakeGame::Blink, false, false, 60, true, 4, 4000},
         {"typed-moving", FakeGame::Bounce, true, false, 60, true, 4, 4000},
+        {"idle-still", FakeGame::NoArrow, false, false, 0, true, 1, 20000},
         {"idle-blink", FakeGame::Blink, false, false, 0, true, 1, 20000},
         {"idle-moving", FakeGame::Bounce, true, false, 0, true, 1, 20000},
         {"idle-sparkle", FakeGame::Blink, true, true, 0, true, 1, 30000},
@@ -313,14 +334,15 @@ int main(int argc, char** argv) {
     for (int i = 2; i < argc; ++i) wanted << QString::fromLocal8Bit(argv[i]);
     WindowChecks probe;
     QJsonArray results;
-    std::printf("%-14s %5s %8s %8s %8s %6s %8s %6s %6s\n", "scene", "lines", "caption", "avg ms", "max ms", "reads", "requests", "texts", "chars");
+    std::printf("%-14s %5s %8s %8s %8s %6s %8s %6s %6s %6s\n", "scene", "lines", "caption", "avg ms", "max ms", "reads", "requests", "texts", "chars", "cpu%");
     for (const Scene& scene : scenes) {
         if (!wanted.isEmpty() && !wanted.contains(QLatin1String(scene.name))) continue;
         const QJsonObject r = probe.run(scene);
         results << r;
-        std::printf("%-14s %5d %8d %8d %8d %6d %8d %6d %6d (line chars %d)\n", scene.name, r["lines"].toInt(),
+        std::printf("%-14s %5d %8d %8d %8d %6d %8d %6d %6d %6.1f (line chars %d)\n", scene.name, r["lines"].toInt(),
                     r["captioned"].toInt(), r["latencyAvgMs"].toInt(), r["latencyMaxMs"].toInt(), r["ocrReads"].toInt(),
-                    r["requests"].toInt(), r["textsSent"].toInt(), r["charactersSent"].toInt(), r["lineCharacters"].toInt());
+                    r["requests"].toInt(), r["textsSent"].toInt(), r["charactersSent"].toInt(), r["cpuPercentOfOneCore"].toDouble(),
+                    r["lineCharacters"].toInt());
         std::fflush(stdout);
     }
     QSettings().clear();

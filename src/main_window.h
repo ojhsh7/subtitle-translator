@@ -240,8 +240,10 @@ private:
     QString pendingCacheKey_;
     static constexpr int CacheLines = 200;
     void showRemembered(const Remembered& line);
-    // A new read that continues the line on screen sends only the rest (P-38).
+    // A new read that holds the whole line on screen, with more text after or before it, sends only
+    // the new part (P-38). prefixSource_ and prefixShown_ are the part kept and its translation.
     QString prefixSource_, prefixShown_;
+    bool keptComesLast_ = false; // the new text stands before the kept line
     // Guard against a loop that would spend the quota: no more than FuseRequests automatic requests
     // in FuseWindowMs; beyond that nothing is sent for FusePauseMs.
     QList<qint64> sendTimes_;

@@ -925,6 +925,20 @@ private slots:
         QCOMPARE(window.result_->toPlainText(), QStringLiteral("오늘은 날씨가 좋아요. 산책하러 가요."));
         window.resultWindow_->hide();
     }
+    // P-38 E6: the line on screen with other text in front of it sends only that text.
+    void lineWithTextInFrontSendsOnlyTheNewPart() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("내일은 학교에 가요.")} << LocalHttp::Reply{200, reply("선생님")};
+        MainWindow window; prepare(window, http);
+        feed(window, QStringLiteral("明日は学校に行きます。"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        feed(window, QStringLiteral("先生\n明日は学校に行きます。"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QCOMPARE(body(http.requests[1]).value("text").toArray().at(0).toString(), QStringLiteral("先生"));
+        QCOMPARE(window.result_->toPlainText(), QStringLiteral("선생님 내일은 학교에 가요."));
+        window.resultWindow_->hide();
+    }
     // P-38 E7: whatever keeps producing new text, automatic requests stop at FuseRequests per window.
     void requestStormIsStopped() {
         LocalHttp http; QVERIFY(http.listening());

@@ -386,7 +386,7 @@ void MainWindow::buildUi() {
     hoverTimer_ = new QTimer(this);
     hoverTimer_->setInterval(150);
     autoTimer_ = new QTimer(this);
-    autoTimer_->setInterval(ChangeDetector::PollMs);
+    autoTimer_->setInterval(ChangeDetector::IdlePollMs); // autoTick switches to PollMs while a line changes
     autoClock_.start();
     subtitleOverlay_ = new SubtitleOverlay;
     subtitleOverlay_->winId(); // the native window is made now, not when the first caption is due

@@ -3,7 +3,7 @@
 #include <QtTest>
 using Decision = ChangeDetector::Decision;
 namespace {
-// The app polls every PollMs; a still frame is read on the second quiet poll.
+// The app polls every PollMs while something changes; a still frame is read on the third quiet poll.
 constexpr qint64 P = ChangeDetector::PollMs;
 // Synthetic dialogue line; only the change decisions are checked, never OCR.
 QImage line(const QString& text, int boxX = -1) {
@@ -21,8 +21,9 @@ QImage line(const QString& text, int boxX = -1) {
 class ChangeChecks : public QObject {
     Q_OBJECT
 private slots:
-    void settleIsTwoPolls() {
-        QCOMPARE(ChangeDetector::SettleMs, 2 * P);
+    void settleIsThreePolls() {
+        QCOMPARE(ChangeDetector::SettleMs, 3 * P);
+        QVERIFY(ChangeDetector::IdlePollMs >= P);
         QVERIFY(ChangeDetector::SentenceSettleMs > ChangeDetector::SettleMs);
     }
     void staticLineIsProcessedOnce() {
@@ -31,9 +32,10 @@ private slots:
         QCOMPARE(detector.feed(frame, 0), Decision::Wait);
         QCOMPARE(detector.stableMs(0), qint64(0));
         QCOMPARE(detector.feed(frame, P), Decision::Wait);
-        QCOMPARE(detector.feed(frame, 2 * P), Decision::Process);
-        QCOMPARE(detector.stableMs(2 * P), 2 * P);
-        for (int i = 3; i < 20; ++i) QCOMPARE(detector.feed(frame, i * P), Decision::Unchanged);
+        QCOMPARE(detector.feed(frame, 2 * P), Decision::Wait);
+        QCOMPARE(detector.feed(frame, 3 * P), Decision::Process);
+        QCOMPARE(detector.stableMs(3 * P), 3 * P);
+        for (int i = 4; i < 20; ++i) QCOMPARE(detector.feed(frame, i * P), Decision::Unchanged);
     }
     void typewriterTextWaitsUntilComplete() {
         ChangeDetector detector;
@@ -89,12 +91,13 @@ private slots:
         ChangeDetector detector;
         const QImage first = line(QStringLiteral("今日はいい天気です。"));
         const QImage second = line(QStringLiteral("明日は雨が降ります。"));
-        detector.feed(first, 0); detector.feed(first, P);
-        QCOMPARE(detector.feed(first, 2 * P), Decision::Process);
-        QCOMPARE(detector.feed(second, 3 * P), Decision::Wait);
-        QCOMPARE(detector.stableMs(3 * P), qint64(0)); // the moment a new line appears (connection warm-up)
+        detector.feed(first, 0); detector.feed(first, P); detector.feed(first, 2 * P);
+        QCOMPARE(detector.feed(first, 3 * P), Decision::Process);
         QCOMPARE(detector.feed(second, 4 * P), Decision::Wait);
-        QCOMPARE(detector.feed(second, 5 * P), Decision::Process);
+        QCOMPARE(detector.stableMs(4 * P), qint64(0)); // the moment a new line appears
+        QCOMPARE(detector.feed(second, 5 * P), Decision::Wait);
+        QCOMPARE(detector.feed(second, 6 * P), Decision::Wait);
+        QCOMPARE(detector.feed(second, 7 * P), Decision::Process);
     }
     void oneNewCharacterIsAChange() {
         QVERIFY(ChangeDetector::differs(ChangeDetector::signature(line(QStringLiteral("今日はいい天気"))),
@@ -117,8 +120,8 @@ private slots:
             detector.noteRead(processed.isEmpty()); // only the first read finds new text
             processed.append(now);
         }
-        QVERIFY2(processed.first() <= 6 * P, qPrintable(QString::number(processed.first()))); // was MaxWaitMs
-        QVERIFY2(processed.size() <= 7, qPrintable(QString::number(processed.size()))); // 12 s; one per 0.45 s would be 26
+        QVERIFY2(processed.first() <= 900, qPrintable(QString::number(processed.first()))); // was MaxWaitMs
+        QVERIFY2(processed.size() <= 7, qPrintable(QString::number(processed.size()))); // 6 s; one per settle would be 26
         QVERIFY(processed.last() - processed[processed.size() - 2] >= 2 * (processed[1] - processed[0]));
     }
     // P-38: an arrow that blinks at the end of the line shows two pictures in turn. Each is read once
@@ -135,17 +138,17 @@ private slots:
         auto show = [&](const QString& text, int polls) {
             QList<qint64> at;
             for (int i = 0; i < polls; ++i, now += P) {
-                if (detector.feed(frame(text, (i / 3) % 2 == 0), now) != Decision::Process) continue;
+                if (detector.feed(frame(text, (i / 6) % 2 == 0), now) != Decision::Process) continue; // 450 ms lit, 450 ms dark
                 detector.noteRead(at.isEmpty());
                 at.append(i * P); ++reads;
             }
             return at;
         };
-        const QList<qint64> first = show(QStringLiteral("今日はいい天気です。"), 60);
+        const QList<qint64> first = show(QStringLiteral("今日はいい天気です。"), 120);
         QCOMPARE(first.size(), 2);            // arrow lit, arrow dark; nothing in the 8 s after
-        QCOMPARE(first[0], 2 * P);
-        const QList<qint64> second = show(QStringLiteral("明日は雨が降ります。"), 60);
-        QCOMPARE(second, QList<qint64>{2 * P}); // the new line once, as fast as on a still screen
+        QCOMPARE(first[0], 3 * P);
+        const QList<qint64> second = show(QStringLiteral("明日は雨が降ります。"), 120);
+        QCOMPARE(second, QList<qint64>{3 * P}); // the new line once, as fast as on a still screen
         QVERIFY(detector.allowance() > 0);
     }
     // P-38: an arrow that bobs never repeats a picture exactly. It must not delay the next line.
@@ -163,14 +166,14 @@ private slots:
             if (detector.feed(frame(QStringLiteral("今日はいい天気です。"), i), i * P) == Decision::Process) {
                 detector.noteRead(first.isEmpty()); first.append(i * P);
             }
-        QVERIFY2(first.first() <= 5 * P, qPrintable(QString::number(first.first())));
+        QVERIFY2(first.first() <= 8 * P, qPrintable(QString::number(first.first())));
         QVERIFY2(first.size() <= 3, qPrintable(QString::number(first.size())));
         const qint64 shownAt = i * P;
         for (; i < 80; ++i)
             if (detector.feed(frame(QStringLiteral("明日は雨が降ります。"), i), i * P) == Decision::Process) {
                 detector.noteRead(second.isEmpty()); second.append(i * P - shownAt);
             }
-        QVERIFY2(second.first() <= 3 * P, qPrintable(QString::number(second.first())));
+        QVERIFY2(second.first() <= 4 * P, qPrintable(QString::number(second.first())));
         QVERIFY2(second.size() <= 2, qPrintable(QString::number(second.size())));
     }
     // P-38: text typed while something else moves is still growing, so it is not read half-way.
@@ -229,11 +232,12 @@ private slots:
         QFont f("Yu Gothic"); f.setPixelSize(18); p.setFont(f); p.setPen(QColor(220,220,220));
         p.drawText(QPoint(1820,260),text); p.end();
         ChangeDetector detector;
-        detector.feed(before,0); detector.feed(before,P);
-        QCOMPARE(detector.feed(before,2*P),Decision::Process);
-        QCOMPARE(detector.feed(after,3*P),Decision::Wait);
+        detector.feed(before,0); detector.feed(before,P); detector.feed(before,2*P);
+        QCOMPARE(detector.feed(before,3*P),Decision::Process);
         QCOMPARE(detector.feed(after,4*P),Decision::Wait);
-        QCOMPARE(detector.feed(after,5*P),Decision::Process);
+        QCOMPARE(detector.feed(after,5*P),Decision::Wait);
+        QCOMPARE(detector.feed(after,6*P),Decision::Wait);
+        QCOMPARE(detector.feed(after,7*P),Decision::Process);
     }
     void intermittentlyAnimatedBackgroundCannotWaitForever() {
         ChangeDetector detector;
@@ -245,7 +249,7 @@ private slots:
             processed.append(i*P);
         }
         QVERIFY(!processed.isEmpty());
-        QVERIFY2(processed.first() <= 6 * P, qPrintable(QString::number(processed.first()))); // was MaxWaitMs
+        QVERIFY2(processed.first() <= 900, qPrintable(QString::number(processed.first()))); // was MaxWaitMs
         QVERIFY2(processed.size() <= 7, qPrintable(QString::number(processed.size())));
         QStringList times; for (const qint64 at : processed) times << QString::number(at);
         qInfo("reads at %s", qPrintable(times.join(QLatin1Char(' '))));
@@ -253,13 +257,13 @@ private slots:
         const qint64 longest = ChangeDetector::MaxWaitMs + 4 * ChangeDetector::SettleMs;
         for (int i = 1; i < processed.size(); ++i)
             QVERIFY2(processed[i] - processed[i - 1] <= longest, qPrintable(QString::number(processed[i] - processed[i - 1])));
-        QVERIFY2(12000 - processed.last() <= longest, qPrintable(QString::number(12000 - processed.last())));
+        QVERIFY2(80 * P - processed.last() <= longest, qPrintable(QString::number(80 * P - processed.last())));
     }
     void failedOcrRetriesAreDelayedAndBounded() {
         ChangeDetector detector;
         const QImage frame=line(QStringLiteral("今日はいい天気です。"));
-        detector.feed(frame,0); detector.feed(frame,P);
-        QCOMPARE(detector.feed(frame,2*P),Decision::Process);
+        detector.feed(frame,0); detector.feed(frame,P); detector.feed(frame,2*P);
+        QCOMPARE(detector.feed(frame,3*P),Decision::Process);
         QVERIFY(detector.retryAfterFailure(400));
         QVERIFY(!detector.retryAfterFailure(450)); // Duplicate failure cannot consume another retry.
         QCOMPARE(detector.feed(frame,3399),Decision::Unchanged);
@@ -270,8 +274,8 @@ private slots:
         QVERIFY(!detector.retryAfterFailure(6600));
         QCOMPARE(detector.feed(frame,20000),Decision::Unchanged);
         const QImage next=line(QStringLiteral("明日は雨が降ります。"));
-        detector.feed(next,20000+P); detector.feed(next,20000+2*P);
-        QCOMPARE(detector.feed(next,20000+3*P),Decision::Process);
+        detector.feed(next,20000+P); detector.feed(next,20000+2*P); detector.feed(next,20000+3*P);
+        QCOMPARE(detector.feed(next,20000+4*P),Decision::Process);
         QVERIFY(detector.retryAfterFailure(20500)); // New dialogue gets its own retry allowance.
         detector.reset();
         QVERIFY(!detector.retryAfterFailure(20600));
@@ -281,24 +285,25 @@ private slots:
         QImage last;
         const QString kana = QStringLiteral("あいうえおかきくけこさしすせそたちつてとなにぬねのは");
         const int forcedAt = int(ChangeDetector::MaxWaitMs / P);
-        // One more character every poll: growing all the way to the forced read.
+        // One more character every other poll: growing all the way to the forced read.
         for(int i=0;i<=forcedAt;++i) {
-            last=line(kana.left(i+1));
+            last=line(kana.left(i/2+1));
             QCOMPARE(detector.feed(last,i*P), i == forcedAt ? Decision::Process : Decision::Wait);
         }
         const qint64 forced = forcedAt * P;
         QCOMPARE(detector.feed(last,forced+P),Decision::Wait);
-        QCOMPARE(detector.feed(last,forced+2*P),Decision::Process);
-        QCOMPARE(detector.feed(last,forced+3*P),Decision::Unchanged);
+        QCOMPARE(detector.feed(last,forced+2*P),Decision::Wait);
+        QCOMPARE(detector.feed(last,forced+3*P),Decision::Process);
+        QCOMPARE(detector.feed(last,forced+4*P),Decision::Unchanged);
     }
     void resetForgetsTheProcessedLine() {
         ChangeDetector detector;
         const QImage frame = line(QStringLiteral("今日はいい天気です。"));
-        detector.feed(frame, 0); detector.feed(frame, P);
-        QCOMPARE(detector.feed(frame, 2 * P), Decision::Process);
+        detector.feed(frame, 0); detector.feed(frame, P); detector.feed(frame, 2 * P);
+        QCOMPARE(detector.feed(frame, 3 * P), Decision::Process);
         detector.reset();
-        detector.feed(frame, 3 * P); detector.feed(frame, 4 * P);
-        QCOMPARE(detector.feed(frame, 5 * P), Decision::Process);
+        detector.feed(frame, 4 * P); detector.feed(frame, 5 * P); detector.feed(frame, 6 * P);
+        QCOMPARE(detector.feed(frame, 7 * P), Decision::Process);
     }
 };
 QTEST_MAIN(ChangeChecks)

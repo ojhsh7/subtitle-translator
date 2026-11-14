@@ -15,10 +15,16 @@
 class ChangeDetector {
 public:
     enum class Decision { Wait, Process, Unchanged };
-    // Polled every PollMs; a frame is read once it stayed the same for SettleMs, two polls
-    // (P-31: 400 ms polls and 800 ms before; docs/plan/2026-11-02-translation-latency.ko.md).
-    static constexpr int PollMs = 150;
-    static constexpr qint64 SettleMs = 300;
+    // Polled every PollMs; a frame is read once it stayed the same for SettleMs, three polls
+    // (P-31: 150 ms polls and 300 ms; P-38 halves the poll, so a change is seen 37 ms sooner on
+    // average and the wait can be 75 ms shorter while still spanning three looks. A typewriter
+    // slower than 225 ms per character would be read between characters).
+    static constexpr int PollMs = 75;
+    // Between lines the picture is looked at half as often: a change is then noticed 37 ms later
+    // on average, and watching costs what it did before (2.6% of one core less than at PollMs).
+    static constexpr int IdlePollMs = 150;
+    static constexpr qint64 FastPollForMs = 1000; // how long after a change PollMs is kept
+    static constexpr qint64 SettleMs = 225;
     // A read that looks like an unfinished sentence is translated only after this much stillness,
     // the earlier wait, so a typewriter pause at a comma does not send half a line.
     static constexpr qint64 SentenceSettleMs = 800;

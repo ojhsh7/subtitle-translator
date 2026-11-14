@@ -151,7 +151,7 @@ MainWindow::MainWindow() {
         const QString source = applyFixes(read, false);
         if (source != read) original_->setPlainText(source);
         currentKey_ = lineKey(source);
-        prefixSource_.clear(); prefixShown_.clear();
+        prefixSource_.clear(); prefixShown_.clear(); keptComesLast_ = false;
         // Translated before (within the last CacheLines lines): show it at once and spare the request.
         if (const auto found = lineCache_.constFind(memoryKey(currentKey_)); found != lineCache_.constEnd()) {
             const Remembered line = *found;
@@ -191,6 +191,16 @@ MainWindow::MainWindow() {
                 if (!source[position++].isSpace()) ++counted;
             split(source.mid(position).trimmed());
             if (!pieces.isEmpty()) { prefixSource_ = source.left(position); prefixShown_ = state->shown; }
+        } else if (state && state->shownKey.size() >= 4 && !state->shown.isEmpty() &&
+                   currentKey_.size() > state->shownKey.size() && currentKey_.endsWith(state->shownKey)) {
+            // The same line with text in front of it (something else came into the region).
+            qsizetype position = source.size(), counted = 0;
+            qsizetype skip = -currentKey_.size(); // characters lineKey dropped: an arrow after the text
+            for (const QChar ch : source) skip += !ch.isSpace();
+            while (position > 0 && counted < state->shownKey.size() + skip)
+                if (!source[--position].isSpace()) ++counted;
+            split(source.left(position).trimmed());
+            if (!pieces.isEmpty()) { prefixSource_ = source.mid(position); prefixShown_ = state->shown; keptComesLast_ = true; }
         }
         if (prefixShown_.isEmpty()) split(source);
         if (pieces.isEmpty()) {
@@ -863,6 +873,11 @@ void MainWindow::autoTick() {
     // Keep the DeepL connection open while a game is being watched: the server closes an idle one,
     // and the next line would wait for a new one (opening it sends no text and costs no quota).
     warmTranslation();
+    // Look often only while something is happening.
+    bool lively = detector_.stableMs(now) < ChangeDetector::FastPollForMs;
+    for (const auto& extra : extras_) lively = lively || extra->detector.stableMs(now) < ChangeDetector::FastPollForMs;
+    const int interval = lively || holding_ ? ChangeDetector::PollMs : ChangeDetector::IdlePollMs;
+    if (autoTimer_->interval() != interval && autoTimer_->interval() <= ChangeDetector::IdlePollMs) autoTimer_->setInterval(interval);
     if (holding_ && decision != ChangeDetector::Decision::Process) {
         // An arrow or the background may keep moving; only text that is still arriving postpones
         // the send. A new read (below) replaces the held line.
@@ -1083,7 +1098,8 @@ void MainWindow::applyTranslation(const QStringList& pieces, const QString& dete
     if (!prefixShown_.isEmpty()) {
         // Only the rest of the line was sent: put it after the part translated before.
         const QString target = targetLanguage().section('-', 0, 0);
-        shown = prefixShown_ + (target == QLatin1String("JA") || target == QLatin1String("ZH") ? QString() : QStringLiteral(" ")) + shown;
+        const QString between = target == QLatin1String("JA") || target == QLatin1String("ZH") ? QString() : QStringLiteral(" ");
+        shown = keptComesLast_ ? shown + between + prefixShown_ : prefixShown_ + between + shown;
     }
     if (!st_complete(session_, request_, shown.toUtf8().constData())) return;
     if (!remembered && !pendingCacheKey_.isEmpty() && !lineCache_.contains(pendingCacheKey_)) {
