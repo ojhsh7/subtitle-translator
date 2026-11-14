@@ -29,6 +29,9 @@
 #include <QFontMetrics>
 #include <QStyleHints>
 #include <QDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeySequence>
 #include <QListWidget>
 #include <QSystemTrayIcon>
@@ -823,6 +826,159 @@ private slots:
         QVERIFY(!window.subtitleOverlay_->isVisible());
         QVERIFY(window.autoTranslating());
         QVERIFY(window.status_->text().contains(QStringLiteral("글자")));
+        window.setAutoTranslate(false);
+    }
+    // P-38: a reading handed to the window as the OCR engine would, so the text can be chosen exactly.
+    static void feed(MainWindow& window, const QString& text, bool automatic) {
+        window.activeArea_ = 0; window.activeSource_ = ST_SCREEN_CAPTURE;
+        window.request_ = st_begin(window.session_, ST_SCREEN_CAPTURE, 400, 60);
+        window.setBusy(true);
+        window.autoRead_ = automatic;
+        emit window.ocr_.recognized(text);
+    }
+    static QByteArray reply(const char* korean) {
+        return QByteArray("{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"") + korean + "\"}]}";
+    }
+    static QJsonObject body(const QByteArray& request) {
+        return QJsonDocument::fromJson(request.mid(request.indexOf("\r\n\r\n") + 4)).object();
+    }
+    void prepare(MainWindow& window, LocalHttp& http) {
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true; window.freeApi_ = true;
+        window.translation_.setEndpointForTests(http.url());
+    }
+    void lineKeyIgnoresSpacingAndTheAdvanceArrow() {
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("今日は いい天気です。\n▼")), QStringLiteral("今日はいい天気です。"));
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("Wait…  ▶")), QStringLiteral("Wait…"));
+        QVERIFY(MainWindow::lineKey(QStringLiteral("右に行く")) != MainWindow::lineKey(QStringLiteral("左に行く")));
+    }
+    // P-38 E5: the same line read with other spacing or with the arrow after it is not sent again.
+    void respacedLineUsesMemory() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("오늘은 날씨가 좋아요.")} << LocalHttp::Reply{200, reply("내일은 비가 와요.")};
+        MainWindow window; prepare(window, http);
+        feed(window, QStringLiteral("今日は いい天気です。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        feed(window, QStringLiteral("明日は雨が降ります。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        feed(window, QStringLiteral("今日はいい天気です。▼"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QVERIFY2(window.result_->toPlainText().contains(QStringLiteral("오늘은")), qPrintable(window.result_->toPlainText()));
+        QVERIFY2(window.resultStatus_->text().contains(QStringLiteral("기억해 둔")), qPrintable(window.resultStatus_->text()));
+        QVERIFY(window.sparedCharacters_ > 0);
+        QCOMPARE(window.sentRequests_, qint64(2));
+        window.resultWindow_->hide();
+    }
+    // P-38 E5: a reading almost equal to the line on screen (a misread) is sent only when the next
+    // read agrees. One stray reading costs nothing; a real small change is translated one read later.
+    void nearlySameReadingWaitsForASecondRead() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("오늘은 정말 날씨가 좋네요.")} << LocalHttp::Reply{200, reply("오늘은 정말 날씨가 나쁘네요.")};
+        MainWindow window; prepare(window, http);
+        const QString line = QStringLiteral("今日はとてもいい天気ですね。"), misread = QStringLiteral("今日はとてもいい天気ですね。。"),
+                      changed = QStringLiteral("今日はとてもいい天気ですよ。");
+        feed(window, line, true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 1);
+        feed(window, misread, true);
+        QVERIFY(!window.busy_);                                   // dismissed at once, nothing sent
+        QCOMPARE(int(http.requests.size()), 0 + 1);
+        QVERIFY2(window.status_->text().contains(QStringLiteral("한 번 더")), qPrintable(window.status_->text()));
+        QVERIFY(window.result_->toPlainText().contains(QStringLiteral("좋네요")));
+        feed(window, line, true);                                 // the second read: the line as before
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 1);
+        feed(window, changed, true);                              // one character really changed
+        QVERIFY(!window.busy_);
+        QCOMPARE(int(http.requests.size()), 1);
+        feed(window, changed, true);                              // the second read agrees: translate it
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QVERIFY(window.result_->toPlainText().contains(QStringLiteral("나쁘네요")));
+        window.resultWindow_->hide();
+    }
+    // P-38 E6: a line sent early that goes on (typewriter text) sends only the rest, with the part
+    // already translated as context.
+    void continuedLineSendsOnlyTheRest() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("오늘은 날씨가 좋아요.")} << LocalHttp::Reply{200, reply("산책하러 가요.")};
+        MainWindow window; prepare(window, http);
+        feed(window, QStringLiteral("今日はいい天気です。"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        feed(window, QStringLiteral("今日はいい天気です。 散歩に行きましょう。"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        const QJsonObject second = body(http.requests[1]);
+        QCOMPARE(second.value("text").toArray().size(), 1);
+        QCOMPARE(second.value("text").toArray().at(0).toString(), QStringLiteral("散歩に行きましょう。"));
+        QVERIFY2(second.value("context").toString().contains(QStringLiteral("今日はいい天気です。")), qPrintable(second.value("context").toString()));
+        QCOMPARE(window.result_->toPlainText(), QStringLiteral("오늘은 날씨가 좋아요. 산책하러 가요."));
+        // The whole line is remembered: reading it again sends nothing.
+        feed(window, QStringLiteral("明日は雨が降ります。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        const int sent = int(http.requests.size());
+        feed(window, QStringLiteral("今日はいい天気です。散歩に行きましょう。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), sent);
+        QCOMPARE(window.result_->toPlainText(), QStringLiteral("오늘은 날씨가 좋아요. 산책하러 가요."));
+        window.resultWindow_->hide();
+    }
+    // P-38 E7: whatever keeps producing new text, automatic requests stop at FuseRequests per window.
+    void requestStormIsStopped() {
+        LocalHttp http; QVERIFY(http.listening());
+        for (int i = 0; i < MainWindow::FuseRequests + 5; ++i) http.replies << LocalHttp::Reply{200, reply("번역")};
+        MainWindow window; prepare(window, http);
+        const QStringList words = {QStringLiteral("山"), QStringLiteral("川"), QStringLiteral("海"), QStringLiteral("空"), QStringLiteral("森")};
+        for (int i = 0; i < MainWindow::FuseRequests + 3; ++i) {
+            // Lines far apart from each other, so none is taken for a misread of the one before.
+            feed(window, words[i % 5].repeated(3 + i) + QStringLiteral("を見に行きました。"), true);
+            QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        }
+        QCOMPARE(int(http.requests.size()), int(MainWindow::FuseRequests));
+        QVERIFY2(window.status_->text().contains(QStringLiteral("원문만")), qPrintable(window.status_->text()));
+        QVERIFY(window.translationPausedUntil_ > window.autoClock_.elapsed());
+        window.resultWindow_->hide();
+    }
+    // P-38 E1-E4: a dialogue box as games draw it, with an arrow that blinks after the text. A line
+    // without a sentence ending used to be dropped every time the arrow changed and was never sent.
+    void unfinishedLineOverBlinkingArrowIsSentOnce() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:44px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(900, 160); fixture.move(30, 30);
+        QLabel arrow(&fixture);
+        arrow.setStyleSheet("background:black;"); arrow.setGeometry(840, 110, 26, 26);
+        fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        QTimer blink; blink.setInterval(450);
+        connect(&blink, &QTimer::timeout, &arrow, [&arrow] { arrow.setVisible(!arrow.isVisible()); });
+        blink.start();
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("오늘은 좋은 날씨")} << LocalHttp::Reply{200, reply("내일은 학교에 가요")};
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        prepare(window, http);
+        window.followGame_->setChecked(false);
+        window.setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+        int reads = 0;
+        connect(&window.ocr_, &OcrService::recognized, this, [&reads] { ++reads; });
+        window.setAutoTranslate(true);
+        QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 1, 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(window.result_->toPlainText().contains(QStringLiteral("오늘은")), 5000);
+        // The next line appears at once: no sentence ending, and still no wait for one.
+        QElapsedTimer clock; clock.start();
+        fixture.setText(QStringLiteral("明日は学校に行きます"));
+        QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 2, 10000);
+        const qint64 sent = clock.elapsed();
+        qInfo("line without an ending, shown at once over a blinking arrow: sent after %lld ms", sent);
+        QVERIFY2(sent < ChangeDetector::SettleMs + ChangeDetector::SentenceSettleMs, qPrintable(QString::number(sent)));
+        const int readsSoFar = reads;
+        QTest::qWait(4000);
+        QCOMPARE(int(http.requests.size()), 2);                   // the blinking arrow sends nothing more
+        QVERIFY2(reads - readsSoFar <= 1, qPrintable(QString::number(reads - readsSoFar))); // and is not read again and again
         window.setAutoTranslate(false);
     }
     void initTestCase() {

@@ -190,6 +190,15 @@ private:
     qint64 translationPausedUntil_ = -1;
     static constexpr int MinRateLimitPauseSeconds = 10;
     ChangeDetector detector_;
+    // What automatic reads of one region found (lineKey form), to tell a new line from the same one.
+    struct ReadState {
+        QString lastRead;  // the last read, whatever came of it
+        QString shownKey;  // the line whose translation is on screen
+        QString shown;     // that translation
+        QString variant;   // a reading almost equal to shownKey, waiting for a second read to agree
+    };
+    ReadState mainRead_;
+    ReadState* readState(); // of the region being read automatically; null for any other read
     struct ExtraArea {
         ~ExtraArea();
         QString gameKey;                 // the game it belongs to; empty when it is a plain screen region
@@ -200,6 +209,7 @@ private:
         QRect relative;                  // physical pixels relative to the game's client area
         QSize client;
         ChangeDetector detector;
+        ReadState read;
         SubtitleOverlay* overlay = nullptr;
     };
     std::vector<std::unique_ptr<ExtraArea>> extras_;
@@ -212,12 +222,34 @@ private:
     bool holding_ = false; // an unfinished-looking line, already read, waits for the frame to stay still
     QStringList heldPieces_;
     unsigned heldScripts_ = 0;
-    // Recent translations by target, source language and pieces; memory only, gone when the app closes.
-    struct Remembered { QStringList translations; QString detected; };
-    QHash<QString, Remembered> translationCache_;
+    // P-38: the wait of an unfinished-looking line is about its text, not the pixels: the same text
+    // for SentenceSettleMs is sent even while an arrow or the background keeps moving.
+    QString pendingText_;       // lineKey of the unfinished-looking line read last
+    qint64 pendingSince_ = -1;  // autoClock_ time since when the picture showed it
+    bool autoRead_ = false;     // the read in progress was asked for by autoTick's change detector
+    bool typewriterSeen_ = false; // a read continued the one before: this game types its lines out
+    // A line as compared between reads: no spaces, no advance arrow after the text.
+    static QString lineKey(const QString& text);
+    // Recent translations by target language, game language and line (lineKey: spacing and an arrow
+    // after the text do not make a new line); memory only, gone when the app closes.
+    struct Remembered { QString shown, detected; };
+    QHash<QString, Remembered> lineCache_;
     QStringList cacheOrder_; // oldest first
+    QString memoryKey(const QString& lineKey) const;
+    QString currentKey_;     // lineKey of the line being handled
     QString pendingCacheKey_;
     static constexpr int CacheLines = 200;
+    void showRemembered(const Remembered& line);
+    // A new read that continues the line on screen sends only the rest (P-38).
+    QString prefixSource_, prefixShown_;
+    // Guard against a loop that would spend the quota: no more than FuseRequests automatic requests
+    // in FuseWindowMs; beyond that nothing is sent for FusePauseMs.
+    QList<qint64> sendTimes_;
+    static constexpr int FuseRequests = 20;
+    static constexpr qint64 FuseWindowMs = 30000, FusePauseMs = 20000;
+    // This run only, counts and no text: what was sent and what memory spared.
+    qint64 sentRequests_ = 0, sentCharacters_ = 0, sparedCharacters_ = 0;
+    QAction* sessionAction_ = nullptr;
     // Lines shown on screen, oldest first; memory only, gone when the app closes (no saved history).
     struct BacklogLine { QString time, source, translation; };
     QList<BacklogLine> backlog_;

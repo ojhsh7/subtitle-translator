@@ -200,6 +200,11 @@ void MainWindow::refreshUi() {
             usageAction_->setText(QStringLiteral("DeepL 이번 달 %1% 사용, %2자 남음").arg(usageUsed_ * 100 / usageLimit_)
                 .arg(QLocale().toString(qMax<qint64>(0, usageLimit_ - usageUsed_))));
     }
+    if (sessionAction_) {
+        sessionAction_->setVisible(sentRequests_ > 0 || sparedCharacters_ > 0);
+        sessionAction_->setText(QStringLiteral("이번 실행: %1자 보냄, %2자 아낌")
+            .arg(QLocale().toString(sentCharacters_), QLocale().toString(sparedCharacters_)));
+    }
     if (tray_) {
         {
             const QSignalBlocker autoBlocker(trayAuto_), hoverBlocker(trayHover_);
@@ -449,6 +454,9 @@ void MainWindow::buildUi() {
     usageAction_ = moreMenu->addAction(QString());
     usageAction_->setEnabled(false);
     usageAction_->setVisible(false);
+    sessionAction_ = moreMenu->addAction(QString());
+    sessionAction_->setEnabled(false);
+    sessionAction_->setVisible(false);
     moreMenu->addAction(QStringLiteral("트레이로 숨기기"), this, [this] { if (tray_) hide(); else showMinimized(); });
     more->setMenu(moreMenu);
 

@@ -105,15 +105,116 @@ private slots:
         QImage b = a; b.setPixel(500, 5, qRgb(0, 0, 0));
         QVERIFY(!ChangeDetector::differs(ChangeDetector::signature(a), ChangeDetector::signature(b)));
     }
-    void animatedBackgroundIsProcessedAtMostEveryMaxWait() {
+    // P-38: a block that slides across the line never lets the picture rest. The line is read soon
+    // anyway (the outline stopped growing), and reads that find the same text are spaced out up to
+    // the MaxWaitMs rhythm instead of waiting MaxWaitMs for the first one.
+    void movingElementIsReadSoonThenLessAndLess() {
         ChangeDetector detector;
         QList<qint64> processed;
-        for (int i = 0; i <= 45; ++i) {
+        for (int i = 0; i <= 80; ++i) {
             const qint64 now = i * P;
-            if (detector.feed(line(QStringLiteral("今日はいい天気です。"), (i * 50) % 900), now) == Decision::Process)
-                processed.append(now);
+            if (detector.feed(line(QStringLiteral("今日はいい天気です。"), (i * 50) % 900), now) != Decision::Process) continue;
+            detector.noteRead(processed.isEmpty()); // only the first read finds new text
+            processed.append(now);
         }
-        QCOMPARE(processed, (QList<qint64>{ChangeDetector::MaxWaitMs, 2 * ChangeDetector::MaxWaitMs}));
+        QVERIFY2(processed.first() <= 6 * P, qPrintable(QString::number(processed.first()))); // was MaxWaitMs
+        QVERIFY2(processed.size() <= 7, qPrintable(QString::number(processed.size()))); // 12 s; one per 0.45 s would be 26
+        QVERIFY(processed.last() - processed[processed.size() - 2] >= 2 * (processed[1] - processed[0]));
+    }
+    // P-38: an arrow that blinks at the end of the line shows two pictures in turn. Each is read once
+    // for the first line; after that the dark-arrow picture is known animation and is not read.
+    void blinkingArrowIsNotReadAgainAndAgain() {
+        auto frame = [](const QString& text, bool arrow) {
+            QImage image = line(text);
+            if (arrow) { QPainter p(&image); p.fillRect(940, 20, 24, 24, Qt::black); }
+            return image;
+        };
+        ChangeDetector detector;
+        int reads = 0;
+        qint64 now = 0;
+        auto show = [&](const QString& text, int polls) {
+            QList<qint64> at;
+            for (int i = 0; i < polls; ++i, now += P) {
+                if (detector.feed(frame(text, (i / 3) % 2 == 0), now) != Decision::Process) continue;
+                detector.noteRead(at.isEmpty());
+                at.append(i * P); ++reads;
+            }
+            return at;
+        };
+        const QList<qint64> first = show(QStringLiteral("今日はいい天気です。"), 60);
+        QCOMPARE(first.size(), 2);            // arrow lit, arrow dark; nothing in the 8 s after
+        QCOMPARE(first[0], 2 * P);
+        const QList<qint64> second = show(QStringLiteral("明日は雨が降ります。"), 60);
+        QCOMPARE(second, QList<qint64>{2 * P}); // the new line once, as fast as on a still screen
+        QVERIFY(detector.allowance() > 0);
+    }
+    // P-38: an arrow that bobs never repeats a picture exactly. It must not delay the next line.
+    void bobbingArrowDoesNotDelayTheNextLine() {
+        auto frame = [](const QString& text, int i) {
+            QImage image = line(text);
+            QPainter p(&image);
+            p.fillRect(940, 14 + (i * 5) % 17, 24, 24, Qt::black);
+            return image;
+        };
+        ChangeDetector detector;
+        QList<qint64> first, second;
+        int i = 0;
+        for (; i < 40; ++i)
+            if (detector.feed(frame(QStringLiteral("今日はいい天気です。"), i), i * P) == Decision::Process) {
+                detector.noteRead(first.isEmpty()); first.append(i * P);
+            }
+        QVERIFY2(first.first() <= 5 * P, qPrintable(QString::number(first.first())));
+        QVERIFY2(first.size() <= 3, qPrintable(QString::number(first.size())));
+        const qint64 shownAt = i * P;
+        for (; i < 80; ++i)
+            if (detector.feed(frame(QStringLiteral("明日は雨が降ります。"), i), i * P) == Decision::Process) {
+                detector.noteRead(second.isEmpty()); second.append(i * P - shownAt);
+            }
+        QVERIFY2(second.first() <= 3 * P, qPrintable(QString::number(second.first())));
+        QVERIFY2(second.size() <= 2, qPrintable(QString::number(second.size())));
+    }
+    // P-38: text typed while something else moves is still growing, so it is not read half-way.
+    void typedLineOverMovementIsReadWhenComplete() {
+        const QString full = QStringLiteral("今日はいい天気ですね明日も晴れるかな。");
+        auto frame = [&](int shown, int i) {
+            QImage image = line(full.left(shown));
+            QPainter p(&image);
+            p.fillRect(940, 14 + (i * 5) % 17, 24, 24, Qt::black);
+            return image;
+        };
+        ChangeDetector detector;
+        // An empty box with the bobbing arrow first, read twice: the arrow is then known animation.
+        int i = 0;
+        for (; i < 20; ++i)
+            if (detector.feed(frame(0, i), i * P) == Decision::Process) detector.noteRead(false);
+        QList<int> readAt; // characters on screen at each read
+        const int start = i;
+        for (; i < start + 60; ++i) {
+            const int shown = int(std::min<qsizetype>(full.size(), (i - start) + 1)); // one character per poll
+            if (detector.feed(frame(shown, i), i * P) != Decision::Process) continue;
+            detector.noteRead(readAt.isEmpty() || readAt.last() != shown);
+            readAt.append(shown);
+        }
+        QVERIFY(!readAt.isEmpty());
+        QCOMPARE(readAt.first(), int(full.size())); // 19 characters in 2.85 s: no read before the end
+        QVERIFY2(readAt.size() <= 2, qPrintable(QString::number(readAt.size())));
+    }
+    // P-38: a fade or a slow pan changes brightness everywhere but moves no outline: one read.
+    void brightnessDriftIsNotAChange() {
+        auto frame = [](int level) {
+            QImage image(1000, 60, QImage::Format_RGB32);
+            image.fill(QColor(level, level, level));
+            QPainter painter(&image);
+            QFont font("Yu Gothic"); font.setPixelSize(36); painter.setFont(font);
+            painter.setPen(Qt::black);
+            painter.drawText(image.rect().adjusted(20, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("今日はいい天気です。"));
+            return image;
+        };
+        ChangeDetector detector;
+        int reads = 0;
+        for (int i = 0; i < 60; ++i) // 240 down to 180 and back, 4 levels per poll
+            reads += detector.feed(frame(240 - std::abs((i % 30) - 15) * 4), i * P) == Decision::Process;
+        QCOMPARE(reads, 1);
     }
     void smallSentenceEndingInsideLargeRegionIsDetected_data() {
         QTest::addColumn<QString>("text");
@@ -138,11 +239,21 @@ private slots:
         ChangeDetector detector;
         QList<qint64> processed;
         // Each scene frame lasts two polls: never enough stable polls, but not changing every poll.
-        for (int i=0;i<=45;++i) {
-            if (detector.feed(line(QStringLiteral("今日はいい天気です。"),((i/2)*50)%900),i*P)==Decision::Process)
-                processed.append(i*P);
+        for (int i=0;i<=80;++i) {
+            if (detector.feed(line(QStringLiteral("今日はいい天気です。"),((i/2)*50)%900),i*P)!=Decision::Process) continue;
+            detector.noteRead(processed.isEmpty());
+            processed.append(i*P);
         }
-        QCOMPARE(processed,(QList<qint64>{ChangeDetector::MaxWaitMs, 2 * ChangeDetector::MaxWaitMs}));
+        QVERIFY(!processed.isEmpty());
+        QVERIFY2(processed.first() <= 6 * P, qPrintable(QString::number(processed.first()))); // was MaxWaitMs
+        QVERIFY2(processed.size() <= 7, qPrintable(QString::number(processed.size())));
+        QStringList times; for (const qint64 at : processed) times << QString::number(at);
+        qInfo("reads at %s", qPrintable(times.join(QLatin1Char(' '))));
+        // The text never changes, yet a look still happens about every MaxWaitMs (plus settling).
+        const qint64 longest = ChangeDetector::MaxWaitMs + 4 * ChangeDetector::SettleMs;
+        for (int i = 1; i < processed.size(); ++i)
+            QVERIFY2(processed[i] - processed[i - 1] <= longest, qPrintable(QString::number(processed[i] - processed[i - 1])));
+        QVERIFY2(12000 - processed.last() <= longest, qPrintable(QString::number(12000 - processed.last())));
     }
     void failedOcrRetriesAreDelayedAndBounded() {
         ChangeDetector detector;
@@ -168,10 +279,12 @@ private slots:
     void forcedPartialReadIsConfirmedOnceWhenSettled() {
         ChangeDetector detector;
         QImage last;
+        const QString kana = QStringLiteral("あいうえおかきくけこさしすせそたちつてとなにぬねのは");
         const int forcedAt = int(ChangeDetector::MaxWaitMs / P);
+        // One more character every poll: growing all the way to the forced read.
         for(int i=0;i<=forcedAt;++i) {
-            last=line(QStringLiteral("今日はいい天気です。"),i*50);
-            detector.feed(last,i*P);
+            last=line(kana.left(i+1));
+            QCOMPARE(detector.feed(last,i*P), i == forcedAt ? Decision::Process : Decision::Wait);
         }
         const qint64 forced = forcedAt * P;
         QCOMPARE(detector.feed(last,forced+P),Decision::Wait);
