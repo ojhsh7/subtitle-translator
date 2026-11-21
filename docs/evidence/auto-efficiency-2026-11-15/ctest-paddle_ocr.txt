@@ -40,17 +40,19 @@ PASS   : PaddleChecks::autoDetectPrefersTheFullerReading()
 PASS   : PaddleChecks::multiLanguageAutoDetectIsStaged()
 PASS   : PaddleChecks::decoratedDialogBoxIsReadLineByLine(scene-ja-notebook-22.png)
 PASS   : PaddleChecks::decoratedDialogBoxIsReadLineByLine(scene-ko-dark-window-16.png)
+QINFO  : PaddleChecks::knownLinesAreReadWithoutDetection() full read: find 4 ms, read 129 ms; check: find 0 ms, read 18 ms
+PASS   : PaddleChecks::knownLinesAreReadWithoutDetection()
 PASS   : PaddleChecks::withoutDetectionModelTheLineFinderReads()
 QINFO  : PaddleChecks::warmReadIsFast() warm read, auto-detect (2 models): median 20 ms
 PASS   : PaddleChecks::warmReadIsFast()
 QINFO  : PaddleChecks::defaultThreadsLeaveTheGameMostOfTheCpu() 24 logical processors -> 4 OCR threads
 PASS   : PaddleChecks::defaultThreadsLeaveTheGameMostOfTheCpu()
-QINFO  : PaddleChecks::warmUpLoadsTheModelsBeforeTheFirstRead() first read without warm-up 169 ms, after warm-up 21 ms
+QINFO  : PaddleChecks::warmUpLoadsTheModelsBeforeTheFirstRead() first read without warm-up 164 ms, after warm-up 21 ms
 PASS   : PaddleChecks::warmUpLoadsTheModelsBeforeTheFirstRead()
-QINFO  : PaddleChecks::cancelledReadReleasesTheEngine() small read alone 55 ms; 8-line read 569 ms; small read right after cancelling it 55 ms (waited 0 ms)
+QINFO  : PaddleChecks::cancelledReadReleasesTheEngine() small read alone 54 ms; 8-line read 560 ms; small read right after cancelling it 55 ms (waited 1 ms)
 PASS   : PaddleChecks::cancelledReadReleasesTheEngine()
 PASS   : PaddleChecks::cancelledTokenStopsTheRead()
 PASS   : PaddleChecks::serviceUsesPaddleThenFallsBack()
 PASS   : PaddleChecks::cleanupTestCase()
-Totals: 48 passed, 0 failed, 0 skipped, 0 blacklisted, 6885ms
+Totals: 49 passed, 0 failed, 0 skipped, 0 blacklisted, 6985ms
 ********* Finished testing of PaddleChecks *********

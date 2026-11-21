@@ -29,5 +29,5 @@ PASS   : ChangeChecks::failedOcrRetriesAreDelayedAndBounded()
 PASS   : ChangeChecks::forcedPartialReadIsConfirmedOnceWhenSettled()
 PASS   : ChangeChecks::resetForgetsTheProcessedLine()
 PASS   : ChangeChecks::cleanupTestCase()
-Totals: 24 passed, 0 failed, 0 skipped, 0 blacklisted, 761ms
+Totals: 24 passed, 0 failed, 0 skipped, 0 blacklisted, 748ms
 ********* Finished testing of ChangeChecks *********

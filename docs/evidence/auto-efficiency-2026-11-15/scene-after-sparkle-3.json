@@ -1,0 +1,62 @@
+[
+    {
+        "captioned": 4,
+        "charactersSent": 46,
+        "cpuPercentOfOneCore": 12.810054935908108,
+        "distinctTexts": 4,
+        "findAvgMs": 51.39054285714285,
+        "latencyAvgMs": 568,
+        "latencyMaxMs": 970,
+        "latencyMs": [
+            970,
+            432,
+            433,
+            440
+        ],
+        "lineCharacters": 46,
+        "lines": 4,
+        "ocrReads": 14,
+        "polls": 226,
+        "readAvgMs": 61.07142857142857,
+        "recognizeAvgMs": 8.807942857142859,
+        "requests": 4,
+        "scene": "sparkle",
+        "sent": [
+            "今日はいい天気ですね。",
+            "明日は学校に行きます。",
+            "この本はとても面白い。",
+            "駅まで一緒に歩きましょう。"
+        ],
+        "textsSent": 4
+    },
+    {
+        "captioned": 4,
+        "charactersSent": 42,
+        "cpuPercentOfOneCore": 7.998335414065751,
+        "distinctTexts": 4,
+        "findAvgMs": 43.6342,
+        "latencyAvgMs": 602,
+        "latencyMaxMs": 1123,
+        "latencyMs": [
+            1123,
+            415,
+            437,
+            434
+        ],
+        "lineCharacters": 42,
+        "lines": 4,
+        "ocrReads": 12,
+        "polls": 185,
+        "readAvgMs": 53.75,
+        "recognizeAvgMs": 9.302708333333332,
+        "requests": 4,
+        "scene": "sparkle-nomark",
+        "sent": [
+            "今日はいい天気ですね",
+            "明日は学校に行きます",
+            "この本はとても面白い",
+            "駅まで一緒に歩きましょう"
+        ],
+        "textsSent": 4
+    }
+]

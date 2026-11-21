@@ -36,12 +36,12 @@ PASS   : LocalChecks::whiteGameTextOnBusyBackground(outlined japanese 22px)
 PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow english 14px)
 PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow korean 14px)
 PASS   : LocalChecks::whiteGameTextOnBusyBackground(shadow japanese 18px)
-QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-en-18px.png: 2 attempts, one by one 351 ms, side by side 366 ms
-QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-ko-18px.png: 3 attempts, one by one 561 ms, side by side 399 ms
-QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-ja-22px.png: 3 attempts, one by one 559 ms, side by side 386 ms
-QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-en-14px.png: 4 attempts, one by one 737 ms, side by side 387 ms
-QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-ko-14px.png: 3 attempts, one by one 540 ms, side by side 375 ms
-QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-ja-18px.png: 4 attempts, one by one 700 ms, side by side 377 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-en-18px.png: 2 attempts, one by one 362 ms, side by side 365 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-ko-18px.png: 3 attempts, one by one 563 ms, side by side 398 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() outlined-ja-22px.png: 3 attempts, one by one 561 ms, side by side 373 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-en-14px.png: 4 attempts, one by one 726 ms, side by side 388 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-ko-14px.png: 3 attempts, one by one 537 ms, side by side 376 ms
+QINFO  : LocalChecks::parallelAttemptsKeepTheSequentialReading() shadow-ja-18px.png: 4 attempts, one by one 706 ms, side by side 377 ms
 PASS   : LocalChecks::parallelAttemptsKeepTheSequentialReading()
 PASS   : LocalChecks::cleanTextFixesStandaloneI()
 PASS   : LocalChecks::automaticLayoutReadsStripsAsOneLine()
@@ -53,5 +53,5 @@ PASS   : LocalChecks::rejectInvalidCapture()
 PASS   : LocalChecks::nonexistentOcrExecutable()
 PASS   : LocalChecks::japaneseOcrActualEngine()
 PASS   : LocalChecks::cleanupTestCase()
-Totals: 47 passed, 0 failed, 0 skipped, 0 blacklisted, 14155ms
+Totals: 47 passed, 0 failed, 0 skipped, 0 blacklisted, 14136ms
 ********* Finished testing of LocalChecks *********

@@ -14,9 +14,9 @@ PASS   : WindowChecks::darkModeFollowsWindows()
 PASS   : WindowChecks::problemReportHoldsNoText()
 PASS   : WindowChecks::eachGameKeepsItsLanguage()
 PASS   : WindowChecks::usageAndNextStepGuidance()
-QINFO  : WindowChecks::repeatedLineIsTranslatedFromMemory() repeated line shown 103 ms after the read began (OCR included, no request)
+QINFO  : WindowChecks::repeatedLineIsTranslatedFromMemory() repeated line shown 104 ms after the read began (OCR included, no request)
 PASS   : WindowChecks::repeatedLineIsTranslatedFromMemory()
-QINFO  : WindowChecks::unfinishedLineWaitsThenIsSentOnce() unfinished line sent 1083 ms after auto translation started
+QINFO  : WindowChecks::unfinishedLineWaitsThenIsSentOnce() unfinished line sent 1084 ms after auto translation started
 PASS   : WindowChecks::unfinishedLineWaitsThenIsSentOnce()
 PASS   : WindowChecks::autoTranslationHandlesRateLimitAndQuota()
 PASS   : WindowChecks::gameRegionFollowsMoveResizeAndMinimize()
@@ -41,7 +41,9 @@ PASS   : WindowChecks::nearlySameReadingWaitsForASecondRead()
 PASS   : WindowChecks::continuedLineSendsOnlyTheRest()
 PASS   : WindowChecks::lineWithTextInFrontSendsOnlyTheNewPart()
 PASS   : WindowChecks::requestStormIsStopped()
-QINFO  : WindowChecks::unfinishedLineOverBlinkingArrowIsSentOnce() line without an ending, shown at once over a blinking arrow: sent after 359 ms
+QINFO  : WindowChecks::looksCheckKnownLinesAndStillFindNewLines() 10 s of a bobbing arrow: 2 checks, 2 whole reads
+PASS   : WindowChecks::looksCheckKnownLinesAndStillFindNewLines()
+QINFO  : WindowChecks::unfinishedLineOverBlinkingArrowIsSentOnce() line without an ending, shown at once over a blinking arrow: sent after 358 ms
 PASS   : WindowChecks::unfinishedLineOverBlinkingArrowIsSentOnce()
 PASS   : WindowChecks::actualImagePipelineAndRetry()
 PASS   : WindowChecks::actualScreenCaptureThroughHotkeyMessage()
@@ -64,5 +66,5 @@ PASS   : WindowChecks::foreignLatinIsNotSkippedForEnglish()
 PASS   : WindowChecks::autoWithoutRegionWaitsForSelection()
 PASS   : WindowChecks::cancelInvalidatesPendingResult()
 PASS   : WindowChecks::cleanupTestCase()
-Totals: 61 passed, 0 failed, 0 skipped, 0 blacklisted, 55652ms
+Totals: 62 passed, 0 failed, 0 skipped, 0 blacklisted, 66529ms
 ********* Finished testing of WindowChecks *********
