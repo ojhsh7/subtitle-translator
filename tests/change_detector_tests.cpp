@@ -99,6 +99,16 @@ private slots:
         QCOMPARE(detector.feed(second, 6 * P), Decision::Wait);
         QCOMPARE(detector.feed(second, 7 * P), Decision::Process);
     }
+    void onePassOutlineMatchesTheParts() {
+        const QImage a = ChangeDetector::signature(line(QStringLiteral("今日はいい天気です。"), 100));
+        const QImage b = ChangeDetector::signature(line(QStringLiteral("今日はいい天気でした。"), 400));
+        QImage map; double change = 0, ink = 0;
+        ChangeDetector::measureOutline(b, ChangeDetector::edges(a), map, change, ink);
+        QCOMPARE(map, ChangeDetector::edges(b));
+        QCOMPARE(change, ChangeDetector::changedFraction(ChangeDetector::edges(b), ChangeDetector::edges(a)));
+        QCOMPARE(ink, ChangeDetector::outlineAmount(ChangeDetector::edges(b)));
+        QVERIFY(change > 0 && ink > 0);
+    }
     void oneNewCharacterIsAChange() {
         QVERIFY(ChangeDetector::differs(ChangeDetector::signature(line(QStringLiteral("今日はいい天気"))),
                                         ChangeDetector::signature(line(QStringLiteral("今日はいい天気で")))));

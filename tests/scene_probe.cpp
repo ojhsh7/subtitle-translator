@@ -243,6 +243,8 @@ public:
         window.setAutoTranslate(true);
         if (const int poll = qEnvironmentVariableIntValue("SCENE_PROBE_POLL")) window.autoTimer_->setInterval(poll);
         wait(600);
+        int polls = 0;
+        connect(window.autoTimer_, &QTimer::timeout, this, [&polls] { ++polls; });
         const qint64 cpuBefore = processCpuMs();
         QElapsedTimer wall;
         wall.start();
@@ -286,7 +288,7 @@ public:
             {"ocrReads", reads}, {"readAvgMs", reads ? readMs / reads : 0}, {"findAvgMs", reads ? findMs / reads : 0},
             {"recognizeAvgMs", reads ? recognizeMs / reads : 0}, {"requests", http.requests}, {"textsSent", http.texts.size()},
             {"distinctTexts", distinct.size()}, {"charactersSent", http.characters()},
-            {"cpuPercentOfOneCore", cpuPercent}, {"sent", QJsonArray::fromStringList(http.texts)}};
+            {"cpuPercentOfOneCore", cpuPercent}, {"polls", polls}, {"sent", QJsonArray::fromStringList(http.texts)}};
     }
 
 private:
@@ -334,15 +336,15 @@ int main(int argc, char** argv) {
     for (int i = 2; i < argc; ++i) wanted << QString::fromLocal8Bit(argv[i]);
     WindowChecks probe;
     QJsonArray results;
-    std::printf("%-14s %5s %8s %8s %8s %6s %8s %6s %6s %6s\n", "scene", "lines", "caption", "avg ms", "max ms", "reads", "requests", "texts", "chars", "cpu%");
+    std::printf("%-14s %5s %8s %8s %8s %6s %8s %6s %6s %6s %6s\n", "scene", "lines", "caption", "avg ms", "max ms", "reads", "requests", "texts", "chars", "cpu%", "polls");
     for (const Scene& scene : scenes) {
         if (!wanted.isEmpty() && !wanted.contains(QLatin1String(scene.name))) continue;
         const QJsonObject r = probe.run(scene);
         results << r;
-        std::printf("%-14s %5d %8d %8d %8d %6d %8d %6d %6d %6.1f (line chars %d)\n", scene.name, r["lines"].toInt(),
+        std::printf("%-14s %5d %8d %8d %8d %6d %8d %6d %6d %6.1f %6d (line chars %d)\n", scene.name, r["lines"].toInt(),
                     r["captioned"].toInt(), r["latencyAvgMs"].toInt(), r["latencyMaxMs"].toInt(), r["ocrReads"].toInt(),
                     r["requests"].toInt(), r["textsSent"].toInt(), r["charactersSent"].toInt(), r["cpuPercentOfOneCore"].toDouble(),
-                    r["lineCharacters"].toInt());
+                    r["polls"].toInt(), r["lineCharacters"].toInt());
         std::fflush(stdout);
     }
     QSettings().clear();

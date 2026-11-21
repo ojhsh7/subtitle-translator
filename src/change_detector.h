@@ -61,6 +61,9 @@ public:
     static QImage edges(const QImage& signature);
     static double changedFraction(const QImage& edgesA, const QImage& edgesB);
     static double outlineAmount(const QImage& edges);
+    // All three in one pass (what feed() uses): the map of signature, its change against reference
+    // (1 without one) and its outline amount.
+    static void measureOutline(const QImage& signature, const QImage& reference, QImage& map, double& change, double& ink);
 private:
     bool wasRead(const QImage& signature) const;
     QImage previous_;

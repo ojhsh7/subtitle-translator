@@ -1,6 +1,7 @@
 #include "change_detector.h"
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 namespace {
 // An outline that appeared or vanished: clearly present in one map and clearly absent in the
 // other. A pixel near the level on both sides (anti-aliasing while the background fades) is not.
@@ -16,10 +17,14 @@ QImage ChangeDetector::signature(const QImage& frame) {
 bool ChangeDetector::differs(const QImage& a, const QImage& b) {
     if (a.size() != b.size()) return true;
     int changed = 0;
+    const int w = a.width();
     for (int y = 0; y < a.height(); ++y) {
         const uchar* pa = a.constScanLine(y);
         const uchar* pb = b.constScanLine(y);
-        for (int x = 0; x < a.width(); ++x)
+        // Screen captures are lossless: a row that did not change is byte for byte the same, and
+        // memcmp skips it many times faster than the loop below (P-38: most of each poll's work).
+        if (std::memcmp(pa, pb, size_t(w)) == 0) continue;
+        for (int x = 0; x < w; ++x)
             if (std::abs(int(pa[x]) - int(pb[x])) > 24 && ++changed >= 3) return true;
     }
     return false;
@@ -58,6 +63,31 @@ double ChangeDetector::outlineAmount(const QImage& edges) {
     }
     return double(count) / (double(edges.width()) * edges.height());
 }
+void ChangeDetector::measureOutline(const QImage& signature, const QImage& reference, QImage& map, double& change, double& ink) {
+    // edges(), changedFraction() and outlineAmount() in one pass: this runs on every moving frame.
+    map = QImage(signature.size(), QImage::Format_Grayscale8);
+    map.fill(0);
+    const int w = signature.width(), h = signature.height();
+    const bool compare = !reference.isNull() && reference.size() == signature.size();
+    qint64 changed = 0, count = 0;
+    for (int y = 1; y + 1 < h; ++y) {
+        const uchar* above = signature.constScanLine(y - 1);
+        const uchar* row = signature.constScanLine(y);
+        const uchar* below = signature.constScanLine(y + 1);
+        const uchar* old = compare ? reference.constScanLine(y) : nullptr;
+        uchar* out = map.scanLine(y);
+        for (int x = 1; x + 1 < w; ++x) {
+            const int value = std::max(std::abs(int(row[x + 1]) - int(row[x - 1])), std::abs(int(below[x]) - int(above[x])));
+            out[x] = uchar(value);
+            count += value >= EdgeLevel;
+            if (old) changed += (value >= EdgeLevel && old[x] < EdgeAbsent) || (old[x] >= EdgeLevel && value < EdgeAbsent);
+        }
+    }
+    // Border pixels of the reference (always 0 in a map) cannot have changed.
+    const double area = double(w) * h;
+    change = compare ? double(changed) / area : 1;
+    ink = double(count) / area;
+}
 bool ChangeDetector::wasRead(const QImage& signature) const {
     return std::any_of(read_.begin(), read_.end(), [&](const QImage& seen) { return !differs(signature, seen); });
 }
@@ -65,8 +95,10 @@ ChangeDetector::Decision ChangeDetector::feed(const QImage& frame, qint64 nowMs)
     if (frame.isNull()) return Decision::Wait;
     const QImage current = signature(frame);
     if (previous_.isNull()) {
-        previous_ = current; reference_ = edges(current);
-        ink_ = inkHigh_ = inkMin_ = inkMax_ = outlineAmount(reference_);
+        previous_ = current;
+        double ignored = 0;
+        measureOutline(current, QImage(), reference_, ignored, ink_);
+        inkHigh_ = inkMin_ = inkMax_ = ink_;
         lastActivity_ = lastPixelChange_ = changingSince_ = lastLook_ = lastStillSettle_ = nowMs;
         return Decision::Wait;
     }
@@ -76,9 +108,7 @@ ChangeDetector::Decision ChangeDetector::feed(const QImage& frame, qint64 nowMs)
     bool known = false;
     QImage outline;
     auto measure = [&] {
-        outline = edges(current);
-        change_ = changedFraction(outline, reference_);
-        ink_ = outlineAmount(outline);
+        measureOutline(current, reference_, outline, change_, ink_);
         inkMin_ = std::min(inkMin_, ink_); inkMax_ = std::max(inkMax_, ink_);
     };
     if (!still) {
