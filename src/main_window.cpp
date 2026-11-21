@@ -85,13 +85,13 @@ MainWindow::MainWindow() {
         QSettings().setValue("ocr/languages", ocrLanguages());
         if (!game_.key.isEmpty()) QSettings().setValue(gameGroup(game_.key) + QStringLiteral("/ocrLanguages"), ocrLanguages());
         ocr_.warmUp(ocrLanguages());
-        st_reset_cache(session_); detector_.reset();
+        st_reset_cache(session_); detector_.reset(); forgetShownLines();
         if (hoverRequest_ && busy_) cancel();
         hoverSince_ = -1; hoverConsumed_ = false; hoverRequest_ = false;
     });
     connect(targetLanguageBox_, &QComboBox::currentIndexChanged, this, [this] {
         QSettings().setValue("translation/target", targetLanguage());
-        st_reset_cache(session_); detector_.reset();
+        st_reset_cache(session_); detector_.reset(); forgetShownLines();
         if (hoverRequest_ && busy_) cancel();
         hoverSince_ = -1; hoverConsumed_ = false; hoverRequest_ = false;
     });
@@ -167,7 +167,7 @@ MainWindow::MainWindow() {
             detector.lookAgain(autoClock_.elapsed() + ChangeDetector::ConfirmReadMs);
             st_finish_ocr(session_, request_);
             sparedCharacters_ += source.size();
-            result_->setPlainText(state->shown);
+            result_->setPlainText(applyFixes(state->shown, true));
             setBusy(false);
             setStatus(QStringLiteral("앞 대사와 거의 같게 읽혀서 한 번 더 확인하고 있어요."));
             return;
@@ -1075,11 +1075,17 @@ MainWindow::ReadState* MainWindow::readState() {
     if (!autoRead_ || activeArea_ < 0 || activeArea_ > int(extras_.size())) return nullptr;
     return activeArea_ == 0 ? &mainRead_ : &extras_[size_t(activeArea_) - 1]->read;
 }
+void MainWindow::forgetShownLines() {
+    mainRead_ = {};
+    for (const auto& extra : extras_) extra->read = {};
+}
 void MainWindow::showRemembered(const Remembered& line) {
-    if (!st_complete(session_, request_, line.shown.toUtf8().constData())) return;
-    result_->setPlainText(line.shown);
-    addToBacklog(original_->toPlainText(), line.shown);
-    if (ReadState* state = readState()) { state->shownKey = currentKey_; state->shown = line.shown; state->variant.clear(); }
+    // The user's fixes apply now, so a fix added after the line was translated is used too.
+    const QString shown = applyFixes(line.translation, true);
+    if (!st_complete(session_, request_, shown.toUtf8().constData())) return;
+    result_->setPlainText(shown);
+    addToBacklog(original_->toPlainText(), shown);
+    if (ReadState* state = readState()) { state->shownKey = currentKey_; state->shown = line.translation; state->variant.clear(); }
     resultStatus_->setText(QStringLiteral("전에 번역한 대사라서 기억해 둔 번역을 보여 줘요."));
     presentTranslation();
     finish(QStringLiteral("기억해 둔 번역이라 번역 요청을 보내지 않았어요."));
@@ -1094,20 +1100,21 @@ void MainWindow::applyTranslation(const QStringList& pieces, const QString& dete
         finish(QStringLiteral("번역 응답 개수가 요청과 달라 결과를 표시하지 않았어요."));
         return;
     }
-    QString shown = applyFixes(QString::fromStdString(joined), true);
+    QString translation = QString::fromStdString(joined);
     if (!prefixShown_.isEmpty()) {
-        // Only the rest of the line was sent: put it after the part translated before.
+        // Only the new part was sent: put it next to the part translated before.
         const QString target = targetLanguage().section('-', 0, 0);
         const QString between = target == QLatin1String("JA") || target == QLatin1String("ZH") ? QString() : QStringLiteral(" ");
-        shown = keptComesLast_ ? shown + between + prefixShown_ : prefixShown_ + between + shown;
+        translation = keptComesLast_ ? translation + between + prefixShown_ : prefixShown_ + between + translation;
     }
+    const QString shown = applyFixes(translation, true);
     if (!st_complete(session_, request_, shown.toUtf8().constData())) return;
     if (!remembered && !pendingCacheKey_.isEmpty() && !lineCache_.contains(pendingCacheKey_)) {
         if (lineCache_.size() >= CacheLines) lineCache_.remove(cacheOrder_.takeFirst());
-        lineCache_.insert(pendingCacheKey_, {shown, detected});
+        lineCache_.insert(pendingCacheKey_, {translation, detected});
         cacheOrder_.append(pendingCacheKey_);
     }
-    if (ReadState* state = readState()) { state->shownKey = currentKey_; state->shown = shown; state->variant.clear(); }
+    if (ReadState* state = readState()) { state->shownKey = currentKey_; state->shown = translation; state->variant.clear(); }
     result_->setPlainText(shown);
     addToBacklog(original_->toPlainText(), shown);
     const QString target = Languages::targetLabel(targetLanguage());

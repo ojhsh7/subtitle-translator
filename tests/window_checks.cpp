@@ -871,6 +871,41 @@ private slots:
         QCOMPARE(window.sentRequests_, qint64(2));
         window.resultWindow_->hide();
     }
+    // P-38: a line taken from memory gets the user's fixes as they are now, not as they were.
+    void rememberedLineUsesTodaysFixes() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("미나 씨, 안녕하세요.")} << LocalHttp::Reply{200, reply("내일 봐요.")};
+        MainWindow window; prepare(window, http);
+        feed(window, QStringLiteral("ミナさん、こんにちは。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        feed(window, QStringLiteral("また明日。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        window.fixes_ = {{true, QStringLiteral("미나"), QStringLiteral("미나미")}};
+        feed(window, QStringLiteral("ミナさん、こんにちは。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QCOMPARE(window.result_->toPlainText(), QStringLiteral("미나미 씨, 안녕하세요."));
+        window.resultWindow_->hide();
+    }
+    // P-38: after the translation language changes, a longer line is translated whole, never glued
+    // to the line on screen in the old language.
+    void languageChangeForgetsTheLineOnScreen() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("오늘은 날씨가 좋아요.")}
+                     << LocalHttp::Reply{200, "{\"translations\":[{\"detected_source_language\":\"JA\",\"text\":\"Nice weather. Let's walk.\"}]}"};
+        MainWindow window; prepare(window, http);
+        feed(window, QStringLiteral("今日はいい天気です。"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        const int english = window.targetLanguageBox_->findData("EN-US");
+        QVERIFY(english >= 0);
+        window.targetLanguageBox_->setCurrentIndex(english);
+        feed(window, QStringLiteral("今日はいい天気です。散歩に行きましょう。"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        QCOMPARE(body(http.requests[1]).value("text").toArray().at(0).toString(), QStringLiteral("今日はいい天気です。散歩に行きましょう。"));
+        QCOMPARE(window.result_->toPlainText(), QStringLiteral("Nice weather. Let's walk."));
+        window.resultWindow_->hide();
+    }
     // P-38 E5: a reading almost equal to the line on screen (a misread) is sent only when the next
     // read agrees. One stray reading costs nothing; a real small change is translated one read later.
     void nearlySameReadingWaitsForASecondRead() {

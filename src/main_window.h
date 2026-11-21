@@ -194,11 +194,12 @@ private:
     struct ReadState {
         QString lastRead;  // the last read, whatever came of it
         QString shownKey;  // the line whose translation is on screen
-        QString shown;     // that translation
+        QString shown;     // that translation, before the user's fixes (they apply when shown)
         QString variant;   // a reading almost equal to shownKey, waiting for a second read to agree
     };
     ReadState mainRead_;
     ReadState* readState(); // of the region being read automatically; null for any other read
+    void forgetShownLines(); // after a language change: what is on screen no longer matches
     struct ExtraArea {
         ~ExtraArea();
         QString gameKey;                 // the game it belongs to; empty when it is a plain screen region
@@ -232,7 +233,7 @@ private:
     static QString lineKey(const QString& text);
     // Recent translations by target language, game language and line (lineKey: spacing and an arrow
     // after the text do not make a new line); memory only, gone when the app closes.
-    struct Remembered { QString shown, detected; };
+    struct Remembered { QString translation, detected; }; // before the user's fixes
     QHash<QString, Remembered> lineCache_;
     QStringList cacheOrder_; // oldest first
     QString memoryKey(const QString& lineKey) const;
@@ -241,13 +242,14 @@ private:
     static constexpr int CacheLines = 200;
     void showRemembered(const Remembered& line);
     // A new read that holds the whole line on screen, with more text after or before it, sends only
-    // the new part (P-38). prefixSource_ and prefixShown_ are the part kept and its translation.
+    // the new part (P-38). prefixSource_ and prefixShown_ are the part kept and its translation
+    // (before the user's fixes).
     QString prefixSource_, prefixShown_;
     bool keptComesLast_ = false; // the new text stands before the kept line
     // Guard against a loop that would spend the quota: no more than FuseRequests automatic requests
     // in FuseWindowMs; beyond that nothing is sent for FusePauseMs.
     QList<qint64> sendTimes_;
-    static constexpr int FuseRequests = 20;
+    static constexpr int FuseRequests = 30; // one a second: faster than anyone reads captions
     static constexpr qint64 FuseWindowMs = 30000, FusePauseMs = 20000;
     // This run only, counts and no text: what was sent and what memory spared.
     qint64 sentRequests_ = 0, sentCharacters_ = 0, sparedCharacters_ = 0;
