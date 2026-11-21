@@ -231,9 +231,11 @@ public:
             ++reads;
             const PaddleOcr::Result& details = window.ocr_.paddleDetails();
             readMs += double(window.ocr_.elapsedMs()); findMs += details.detectMs; recognizeMs += details.recognizeMs;
-            if (verbose) std::printf("  %6lld read  [%s] %lld ms (find %.0f, read %.0f)\n", sceneClock.elapsed(),
+            double lowest = 1;
+            for (const auto& line : details.lines) lowest = std::min(lowest, line.lowestCharacter);
+            if (verbose) std::printf("  %6lld read  [%s] %lld ms (find %.0f, read %.0f) lowest %.3f\n", sceneClock.elapsed(),
                                      qPrintable(QString(text).replace(QLatin1Char('\n'), QLatin1Char('|'))),
-                                     window.ocr_.elapsedMs(), details.detectMs, details.recognizeMs);
+                                     window.ocr_.elapsedMs(), details.detectMs, details.recognizeMs, lowest);
         });
         connect(&window.ocr_, &OcrService::failed, this, [&, verbose](const QString& error) {
             ++reads;

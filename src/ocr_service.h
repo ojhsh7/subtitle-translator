@@ -18,8 +18,10 @@ public:
     // With PaddleOCR models set (setPaddleModelDir) they read the image first: measured far more
     // accurate on game text. Tesseract is the fallback when Paddle finds nothing or is missing;
     // it reads the image as it is, then light-text masks, keeping the most confident reading.
+    // reuse: line boxes from paddleDetails().boxes of an earlier read of a picture this size. With
+    // PaddleOCR, only those lines are recognized and nothing falls back to Tesseract (P-39).
     void recognize(const QImage&, const QString& executable, const QString& tessdataDir, int psm = 0,
-                   const QString& languages = QStringLiteral("jpn+eng+kor"));
+                   const QString& languages = QStringLiteral("jpn+eng+kor"), const QList<QRect>& reuse = {});
     // Folder with the PP-OCRv5 models; empty disables PaddleOCR. recognition false (Tesseract chosen
     // as the engine) still uses the detection model to skip areas without a text line.
     void setPaddleModelDir(const QString& dir, bool recognition = true);
@@ -72,7 +74,7 @@ signals:
 private:
     // attempt: index in attempts_, or -1 for the --list-langs probe.
     void launch(const QString& executable, const QStringList& args, QByteArray bytes, int attempt = -1);
-    void runPaddle(const QImage& image, quint64 ticket);
+    void runPaddle(const QImage& image, quint64 ticket, const QList<QRect>& reuse = {});
     void runDetectorThenTesseract(const QImage& image, quint64 ticket);
     void runTesseract(const QImage& image, quint64 ticket);
     void launchAttempts();

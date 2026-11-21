@@ -154,7 +154,7 @@ bool OcrService::isUniformImage(const QImage& image) {
     return true;
 }
 void OcrService::recognize(const QImage& image, const QString& executable, const QString& data, int psm,
-                           const QString& languages) {
+                           const QString& languages, const QList<QRect>& reuse) {
     if (busy_) return;
     probing_ = false;
     if (image.isNull() || qint64(image.width()) * image.height() > 16000000) {
@@ -176,14 +176,14 @@ void OcrService::recognize(const QImage& image, const QString& executable, const
     // Inspect full-resolution pixels off the UI thread before either OCR engine runs.
     // A completely flat image contains no text, but both engines can hallucinate short strings.
     auto* watcher = new QFutureWatcher<bool>(this);
-    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, image, ticket] {
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher, image, ticket, reuse] {
         const bool blank = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
         if (blank) {
             engineUsed_ = QStringLiteral("blank-image");
             cancel();
             emit recognized(QString()); // The common core classifies this as ST_EMPTY; never translate.
-        } else if (paddle_ && paddleRecognition_ && PaddleOcr::available(paddleDir_, languages_)) runPaddle(image, ticket);
+        } else if (paddle_ && paddleRecognition_ && PaddleOcr::available(paddleDir_, languages_)) runPaddle(image, ticket, reuse);
         else if (paddle_ && languages_ != QLatin1String("multi")) runDetectorThenTesseract(image, ticket);
         else runTesseract(image, ticket);
     });
@@ -222,10 +222,11 @@ void OcrService::runDetectorThenTesseract(const QImage& image, quint64 ticket) {
     const auto cancelled = cancelled_;
     watcher->setFuture(QtConcurrent::run([paddle, image, cancelled] { return paddle->countTextLines(image, cancelled.get()); }));
 }
-void OcrService::runPaddle(const QImage& image, quint64 ticket) {
+void OcrService::runPaddle(const QImage& image, quint64 ticket, const QList<QRect>& reuse) {
     struct Outcome { PaddleOcr::Result result; QString error; };
     auto* watcher = new QFutureWatcher<Outcome>(this);
-    connect(watcher, &QFutureWatcher<Outcome>::finished, this, [this, watcher, ticket, image] {
+    const bool check = !reuse.isEmpty();
+    connect(watcher, &QFutureWatcher<Outcome>::finished, this, [this, watcher, ticket, image, check] {
         const Outcome outcome = watcher->result(); watcher->deleteLater();
         if (!busy_ || generation_ != ticket) return;
         attemptsUsed_ = outcome.result.modelRuns;
@@ -239,7 +240,8 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
         }
         // The detector looked and found no text line, or every line was a misread symbol: the area
         // holds no text. Tesseract would invent some there (measured: "リー", "Po", "이"), so stop.
-        if (outcome.error.isEmpty() && (outcome.result.detectorBoxes == 0 || !outcome.result.dropped.isEmpty())) {
+        // A check of known lines that reads nothing there: the caller then reads the whole region.
+        if (outcome.error.isEmpty() && (check || outcome.result.detectorBoxes == 0 || !outcome.result.dropped.isEmpty())) {
             engineUsed_ = QStringLiteral("PaddleOCR");
             cancel();
             emit recognized(QString()); // The common core classifies this as ST_EMPTY; never translate.
@@ -253,9 +255,9 @@ void OcrService::runPaddle(const QImage& image, quint64 ticket) {
     const QString languages = languages_;
     cancelled_ = std::make_shared<OcrCancel>();
     const auto cancelled = cancelled_;
-    watcher->setFuture(QtConcurrent::run([paddle, image, languages, cancelled] {
+    watcher->setFuture(QtConcurrent::run([paddle, image, languages, cancelled, reuse] {
         Outcome outcome;
-        outcome.result = paddle->read(image, languages, outcome.error, cancelled.get());
+        outcome.result = paddle->read(image, languages, outcome.error, cancelled.get(), reuse.isEmpty() ? nullptr : &reuse);
         return outcome;
     }));
 }

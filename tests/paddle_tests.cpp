@@ -304,6 +304,31 @@ private slots:
             QVERIFY2(compact(result.text).contains(compact(line)), qPrintable(result.text));
         QVERIFY2(result.text.split('\n').size() > expected.size(), qPrintable(result.text)); // the name tag's line too
     }
+    // P-39: a check of known lines skips the detection model and reads what those lines say now.
+    void knownLinesAreReadWithoutDetection() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        PaddleOcr ocr(models()); QString error;
+        const QImage image(fixture("outlined-ko-18px.png"));
+        const auto full = ocr.read(image, "jpn+eng+kor", error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QVERIFY(full.detected && !full.boxes.isEmpty());
+        QCOMPARE(full.boxes.size(), full.detectorBoxes);
+        const auto check = ocr.read(image, "jpn+eng+kor", error, nullptr, &full.boxes);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(check.text, full.text);
+        QCOMPARE(check.detectRunMs, 0.0);
+        QCOMPARE(check.boxes, full.boxes);
+        qInfo("full read: find %.0f ms, read %.0f ms; check: find %.0f ms, read %.0f ms",
+              full.detectMs, full.recognizeMs, check.detectMs, check.recognizeMs);
+        // Other text in the same place is read as it is now, so the caller sees the change.
+        QImage blank(image.size(), QImage::Format_RGB32); blank.fill(Qt::white);
+        const auto empty = ocr.read(blank, "jpn+eng+kor", error, nullptr, &full.boxes);
+        QVERIFY2(empty.text != full.text, qPrintable(empty.text));
+        // Boxes outside the picture are clipped, never read out of bounds.
+        const QList<QRect> outside{QRect(image.width() - 10, 0, 500, 40)};
+        ocr.read(image, "jpn+eng+kor", error, nullptr, &outside);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+    }
     void withoutDetectionModelTheLineFinderReads() {
         if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
         QTemporaryDir dir;

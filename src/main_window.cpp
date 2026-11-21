@@ -106,19 +106,51 @@ MainWindow::MainWindow() {
     });
     connect(&ocr_, &OcrService::recognized, this, [this](const QString& text) {
         if (!busy_) return;
+        if (checking_) {
+            checking_ = false;
+            ReadState* const checked = readState();
+            ChangeDetector& checker = activeArea_ == 0 || !checked ? detector_ : extras_[size_t(activeArea_) - 1]->detector;
+            const QString seen = lineKey(text);
+            if (checked && !text.isEmpty() && seen == checked->lastRead) {
+                // The known lines still say the same: what moved was animation. Nothing else to do.
+                checker.noteRead(false);
+                st_fail(session_, request_);
+                if (!checkStatus_.isEmpty()) setStatus(checkStatus_);
+                setBusy(false);
+                return;
+            }
+            if (checked && (nearlySame(seen, checked->shownKey) || doubtful())) {
+                // Probably the line on screen misread (something crossed it). Reading this same
+                // picture again would agree with the misreading, so the next frame decides.
+                checked->variant = seen;
+                checker.lookAgain(autoClock_.elapsed() + ChangeDetector::ConfirmReadMs);
+                st_fail(session_, request_);
+                if (!checkStatus_.isEmpty()) setStatus(checkStatus_);
+                setBusy(false);
+                return;
+            }
+            // Something else there, or nothing: read the whole region, line finding included.
+            ocr_.recognize(lastImage_, executable_, tessdata_, psm_, ocrLanguages());
+            return;
+        }
+        if (autoRead_) ++fullReads_;
         const auto utf8 = text.toUtf8();
         const int decision = st_accept_ocr(session_, request_, utf8.constData());
         if (decision == ST_STALE) return;
         ReadState* const state = readState();
         ChangeDetector& detector = activeArea_ == 0 || !state ? detector_ : extras_[size_t(activeArea_) - 1]->detector;
         if (state) {
+            // Line boxes for the next check, when PaddleOCR found the lines of this picture.
+            const bool boxed = ocr_.engineUsed() == QLatin1String("PaddleOCR") && !text.isEmpty();
+            state->boxes = boxed ? ocr_.paddleDetails().boxes : QList<QRect>();
+            state->boxesSize = lastImage_.size();
             // Tell the change detector whether its read found other text: if not, what moved was animation.
             const QString seen = lineKey(text);
             detector.noteRead(seen != state->lastRead);
             if (activeArea_ == 0 && state->lastRead.size() >= 2 && seen.size() > state->lastRead.size() &&
                 seen.startsWith(state->lastRead)) typewriterSeen_ = true;
             state->lastRead = seen;
-            if (seen == state->shownKey) state->variant.clear();
+            if (seen == state->shownKey) { state->variant.clear(); state->doubts = 0; }
         }
         original_->setPlainText(QString::fromUtf8(st_source_text(session_)));
         if (decision == ST_EMPTY || decision == ST_TOO_LONG) {
@@ -160,6 +192,19 @@ MainWindow::MainWindow() {
             showRemembered(line);
             return;
         }
+        // Read while something moved, and a character is unsure: wait for the next frame to agree,
+        // so a misread line is not sent (also the first line, which has nothing on screen to compare).
+        if (state && detector.movingAtRead() && doubtful() && currentKey_ != state->variant && state->doubts < MaxDoubts) {
+            ++state->doubts;
+            state->variant = currentKey_;
+            detector.lookAgain(autoClock_.elapsed() + ChangeDetector::ConfirmReadMs);
+            st_finish_ocr(session_, request_);
+            if (!state->shown.isEmpty()) result_->setPlainText(applyFixes(state->shown, true));
+            setBusy(false);
+            setStatus(QStringLiteral("글자가 흐리게 읽혀서 한 번 더 확인하고 있어요."));
+            return;
+        }
+        if (state) state->doubts = 0;
         // Almost the line on screen: probably the same line misread (a light crossed a letter). It is
         // translated only if a second read finds the same; a real small change is still caught.
         if (state && nearlySame(currentKey_, state->shownKey) && currentKey_ != state->variant) {
@@ -746,9 +791,11 @@ void MainWindow::resetOutput() {
     activeOverlay()->hide(); restoreOverlay_ = false;
     resultStatus_->setText(QStringLiteral("이미지를 읽는 중이에요."));
 }
-void MainWindow::processImage(const QImage& image, int source) {
+void MainWindow::processImage(const QImage& image, int source, const QList<QRect>& checkBoxes) {
     resultPlacementWarning_.clear();
     activeSource_ = source;
+    checking_ = !checkBoxes.isEmpty();
+    if (checking_) { ++checkReads_; checkStatus_ = status_->text(); }
     // Every image source enters here. The core sees only portable metadata and UTF-8 OCR.
     dropHeld(); // a new read replaces a line still waiting to be sent
     request_ = st_begin(session_, source, image.width(), image.height());
@@ -757,8 +804,8 @@ void MainWindow::processImage(const QImage& image, int source) {
     if (source == ST_SCREEN_CAPTURE) lastCaptionArea_ = captionArea_;
     setBusy(true);
     preview_->setPixmap(QPixmap::fromImage(image).scaled(preview_->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    setStatus(QStringLiteral("PC에서 OCR 처리 중…"));
-    ocr_.recognize(image, executable_, tessdata_, psm_, ocrLanguages());
+    if (!checking_) setStatus(QStringLiteral("PC에서 OCR 처리 중…"));
+    ocr_.recognize(image, executable_, tessdata_, psm_, ocrLanguages(), checkBoxes);
 }
 void MainWindow::importImage() {
     if (busy_ || modal_) return;
@@ -768,7 +815,7 @@ void MainWindow::importImage() {
         QStringLiteral("Images (*.png *.jpg *.jpeg *.bmp *.webp)"));
     modal_ = false;
     if (path.isEmpty()) return;
-    activeArea_ = 0; autoRead_ = false;
+    activeArea_ = 0; autoRead_ = false; checking_ = false;
     resetOutput(); setBusy(true); activeSource_ = ST_IMAGE_FILE;
     setStatus(QStringLiteral("이미지 읽는 중…"));
     const quint64 ticket = ++generation_;
@@ -889,11 +936,13 @@ void MainWindow::autoTick() {
         return;
     }
     if (decision == ChangeDetector::Decision::Process) {
-        // Keep the previous caption on screen until the new line has a result.
-        original_->clear(); result_->clear();
         activeArea_ = 0; autoRead_ = true;
         captionArea_ = selectedArea();
-        processImage(image, ST_SCREEN_CAPTURE);
+        const QList<QRect> check = checkBoxes(mainRead_, detector_, image);
+        // Keep the previous caption on screen until the new line has a result. A check keeps the
+        // texts too: it usually finds the same line.
+        if (check.isEmpty()) { original_->clear(); result_->clear(); }
+        processImage(image, ST_SCREEN_CAPTURE, check);
         return;
     }
     // Extra regions: each has its own change check; at most one read per tick, after the main one.
@@ -904,10 +953,11 @@ void MainWindow::autoTick() {
         QString ignored;
         const QImage frame = Capture::region(extra.screen, extra.rect, ignored);
         if (frame.isNull() || extra.detector.feed(frame, now) != ChangeDetector::Decision::Process) continue;
-        original_->clear(); result_->clear();
         activeArea_ = int(i) + 1; autoRead_ = true;
         captionArea_ = {extra.screen, extra.screenGeometry, extra.rect, extra.dpr};
-        processImage(frame, ST_SCREEN_CAPTURE);
+        const QList<QRect> check = checkBoxes(extra.read, extra.detector, frame);
+        if (check.isEmpty()) { original_->clear(); result_->clear(); }
+        processImage(frame, ST_SCREEN_CAPTURE, check);
         return;
     }
 }
@@ -1075,6 +1125,17 @@ MainWindow::ReadState* MainWindow::readState() {
     if (!autoRead_ || activeArea_ < 0 || activeArea_ > int(extras_.size())) return nullptr;
     return activeArea_ == 0 ? &mainRead_ : &extras_[size_t(activeArea_) - 1]->read;
 }
+bool MainWindow::doubtful() const {
+    if (ocr_.engineUsed() != QLatin1String("PaddleOCR")) return false;
+    const auto& lines = ocr_.paddleDetails().lines;
+    return std::any_of(lines.begin(), lines.end(), [](const auto& line) { return line.lowestCharacter < DoubtfulBelow; });
+}
+QList<QRect> MainWindow::checkBoxes(ReadState& state, const ChangeDetector& detector, const QImage& image) const {
+    // Only a look (nothing beyond known animation was seen) of a picture whose lines are known.
+    if (!detector.onlyLooking() || state.lastRead.isEmpty() || state.boxesSize != image.size()) { state.checksInRow = 0; return {}; }
+    if (++state.checksInRow >= CheckEvery) { state.checksInRow = 0; return {}; }
+    return state.boxes;
+}
 void MainWindow::forgetShownLines() {
     mainRead_ = {};
     for (const auto& extra : extras_) extra->read = {};
@@ -1209,8 +1270,9 @@ QString MainWindow::diagnostics() const {
                  .arg(apiKey_.isEmpty() ? QStringLiteral("없음") : QStringLiteral("있음"), consent_ ? QStringLiteral("예") : QStringLiteral("아니요"),
                       freeApi_ ? QStringLiteral("Free") : QStringLiteral("Pro")).arg(translation_.lastHttpStatus())
                  .arg(usageLimit_ > 0 ? QStringLiteral("%1%").arg(usageUsed_ * 100 / usageLimit_) : QStringLiteral("모름"))
-          << QStringLiteral("이번 실행: 번역 요청 %1번, 보낸 글자 %2자, 기억으로 아낀 글자 %3자, 움직임 허용 %4%")
+          << QStringLiteral("이번 실행: 번역 요청 %1번, 보낸 글자 %2자, 기억으로 아낀 글자 %3자, 움직임 허용 %4%, 자동 읽기 %5번(확인만 %6번)")
                  .arg(sentRequests_).arg(sentCharacters_).arg(sparedCharacters_).arg(detector_.allowance() * 100, 0, 'f', 2)
+                 .arg(fullReads_ + checkReads_).arg(checkReads_)
           << QStringLiteral("자동 번역 %1, 감지 %2ms, 대기 %3ms, 문장 대기 %4ms, 올려두기 %5, 자막 숨김 %6")
                  .arg(autoTranslating() ? QStringLiteral("켬") : QStringLiteral("끔")).arg(ChangeDetector::PollMs)
                  .arg(ChangeDetector::SettleMs).arg(ChangeDetector::SentenceSettleMs)

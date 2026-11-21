@@ -94,7 +94,7 @@ private:
     void updateHover(const QPoint& point, qint64 nowMs, bool mousePressed = false);
     void beginScreenCapture(const CaptureArea& area, const QString& status);
     void importImage();
-    void processImage(const QImage& image, int source);
+    void processImage(const QImage& image, int source, const QList<QRect>& checkBoxes = {});
     void resetOutput();
     void cancel();
     void finish(const QString& status);
@@ -196,10 +196,28 @@ private:
         QString shownKey;  // the line whose translation is on screen
         QString shown;     // that translation, before the user's fixes (they apply when shown)
         QString variant;   // a reading almost equal to shownKey, waiting for a second read to agree
+        QList<QRect> boxes; // PaddleOCR line boxes of the last full read, for checks (P-39)
+        QSize boxesSize;    // the picture size they belong to
+        int checksInRow = 0; // every CheckEvery-th look reads the whole region again
+        int doubts = 0;      // doubtful readings in a row, waiting for a reading to agree
     };
+    // A reading taken while pixels moved whose least sure character is below DoubtfulBelow is
+    // checked against the next frame before it is sent: a light over a letter gave "今白" for
+    // "今日" at 0.53-0.84, real lines read at 0.98 or more (P-38, measured with scene_probe).
+    // After MaxDoubts doubtful readings in a row the last one is used.
+    static constexpr double DoubtfulBelow = 0.9;
+    static constexpr int MaxDoubts = 3;
+    bool doubtful() const; // the PaddleOCR reading just received, by DoubtfulBelow
+    // A check sees only the lines found before; a short line that appeared elsewhere under the
+    // animation allowance is found by the whole read every CheckEvery looks (about 9 s) instead.
+    static constexpr int CheckEvery = 3;
+    bool checking_ = false;      // the read in progress recognizes only the known lines (P-39)
+    qint64 checkReads_ = 0, fullReads_ = 0; // this run: automatic reads that skipped or ran line finding
     ReadState mainRead_;
     ReadState* readState(); // of the region being read automatically; null for any other read
     void forgetShownLines(); // after a language change: what is on screen no longer matches
+    QList<QRect> checkBoxes(ReadState& state, const ChangeDetector& detector, const QImage& image) const;
+    QString checkStatus_;    // the status line before a check, put back when it finds nothing new
     struct ExtraArea {
         ~ExtraArea();
         QString gameKey;                 // the game it belongs to; empty when it is a plain screen region

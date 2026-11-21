@@ -47,6 +47,11 @@ public:
     // After the read that Process asked for: did it find other text than the read before?
     void noteRead(bool textChanged);
     double allowance() const { return tolerance_; }
+    // After Process: nothing beyond known animation was seen; the read only checks (P-39).
+    bool onlyLooking() const { return uncertainLook_; }
+    // After Process: pixels were still moving when the frame was taken, so something may have
+    // crossed the text (a sparkle over a letter). Reading the next frame can give another result.
+    bool movingAtRead() const { return movingAtRead_; }
     // Read once more at atMs whatever the picture shows then: a reading that looked like a
     // misread of the line on screen is sent only if a second read agrees (P-38).
     void lookAgain(qint64 atMs) { retryAt_ = atMs; }
@@ -82,6 +87,7 @@ private:
     bool atOnce_ = false;
     bool uncertainLook_ = false; // the last Process was a look without a seen change
     bool firstRead_ = true;
+    bool movingAtRead_ = false;
     bool different_ = false;  // the current frame is away from reference_ by more than tolerance_
     int activityPolls_ = 0;   // polls with activity since the last read
     double change_ = 0;       // outline change of the current frame against reference_

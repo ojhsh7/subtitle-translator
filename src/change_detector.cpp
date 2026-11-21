@@ -174,6 +174,7 @@ ChangeDetector::Decision ChangeDetector::feed(const QImage& frame, qint64 nowMs)
     changeAtRead_ = change_;
     inkSpanAtRead_ = inkMax_ - inkMin_;
     uncertainLook_ = look && !changed;
+    movingAtRead_ = !still;
     firstRead_ = processed_.isNull();
     processed_ = current;
     reference_ = outline;

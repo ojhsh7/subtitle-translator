@@ -990,6 +990,44 @@ private slots:
         QVERIFY(window.translationPausedUntil_ > window.autoClock_.elapsed());
         window.resultWindow_->hide();
     }
+    // P-39: on a picture that never rests, the looks every few seconds only check the known lines
+    // (no line finding), every third look still reads the whole region, and a new line is caught.
+    void looksCheckKnownLinesAndStillFindNewLines() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:44px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(900, 160); fixture.move(30, 30);
+        QLabel arrow(&fixture);
+        arrow.setStyleSheet("background:black;"); arrow.resize(26, 26); arrow.move(840, 110);
+        fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        int step = 0;
+        QTimer bob; bob.setInterval(60); // an arrow that bobs: the picture never rests
+        connect(&bob, &QTimer::timeout, &arrow, [&] { arrow.move(840, 104 + (++step * 3) % 14); });
+        bob.start();
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("오늘은 날씨가 좋아요.")} << LocalHttp::Reply{200, reply("내일은 학교에 가요.")};
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        prepare(window, http);
+        window.followGame_->setChecked(false);
+        window.setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+        window.setAutoTranslate(true);
+        QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 1, 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(window.result_->toPlainText().contains(QStringLiteral("오늘은")), 5000);
+        const qint64 fullBefore = window.fullReads_;
+        QTest::qWait(10000);
+        qInfo("10 s of a bobbing arrow: %lld checks, %lld whole reads", window.checkReads_, window.fullReads_ - fullBefore);
+        QVERIFY2(window.checkReads_ >= 1, qPrintable(QString::number(window.checkReads_)));
+        QVERIFY(window.fullReads_ - fullBefore >= 1);              // every third look reads everything
+        QCOMPARE(int(http.requests.size()), 1);
+        QVERIFY(window.result_->toPlainText().contains(QStringLiteral("오늘은"))); // a check leaves the caption alone
+        fixture.setText(QStringLiteral("明日は学校に行きます。"));
+        QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 2, 8000);
+        QTRY_VERIFY_WITH_TIMEOUT(window.result_->toPlainText().contains(QStringLiteral("내일은")), 5000);
+        window.setAutoTranslate(false);
+    }
     // P-38 E1-E4: a dialogue box as games draw it, with an arrow that blinks after the text. A line
     // without a sentence ending used to be dropped every time the arrow changed and was never sent.
     void unfinishedLineOverBlinkingArrowIsSentOnce() {

@@ -100,6 +100,7 @@ public:
     struct Result {
         QString text; double confidence = 0; int modelRuns = 0; bool detected = false;
         int detectorBoxes = -1; QList<LineInfo> lines; QStringList dropped;
+        QList<QRect> boxes; // the detection model's line boxes, in the region's pixels (P-39)
         double detectMs = 0, detectRunMs = 0, recognizeMs = 0, recognizeRunMs = 0;
     };
     // ONNX Runtime threads: one pool shared by every model in the process. Takes effect only before
@@ -136,8 +137,11 @@ public:
     // Loads the needed models on first use. Safe to call from a worker thread.
     // cancel: a cancelled read releases the engine at once instead of finishing the whole region
     // (R-02, P-03, P-23); error is then "취소됨".
+    // reuse: line boxes of an earlier read of the same picture size. The detection model is then
+    // skipped (about 65 of 75 ms on a dialogue box) and only those lines are recognized: a check
+    // that the text there is still the same (P-39).
     Result read(const QImage& region, const QString& languages, QString& error,
-                const OcrCancel* cancel = nullptr);
+                const OcrCancel* cancel = nullptr, const QList<QRect>* reuse = nullptr);
     // Text lines the detection model finds, for engines that only recognize (Tesseract);
     // -1 when the detection model is not installed. Safe to call from a worker thread.
     int countTextLines(const QImage& region, const OcrCancel* cancel = nullptr);

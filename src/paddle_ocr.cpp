@@ -537,7 +537,7 @@ int PaddleOcr::countTextLines(const QImage& region, const OcrCancel* cancel) {
     return detector_ ? int(detector_->lines(region, nullptr, cancel).size()) : -1;
 }
 PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages, QString& error,
-                                  const OcrCancel* cancel) {
+                                  const OcrCancel* cancel, const QList<QRect>* reuse) {
     std::lock_guard<std::mutex> lock(mutex_);
     error.clear();
     auto stop = [&] {
@@ -562,10 +562,17 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
     const auto detectStart = Clock::now();
     QList<QImage> lines, taller;
     // Crops as RapidOCR makes them: extra padding was measured as no better (horizontal) or worse (vertical).
-    if (detector_)
-        for (const QRect& box : detector_->lines(region, &result.detectRunMs, cancel)) lines << region.copy(box);
-    if (stop()) return {}; // an aborted detection found nothing; do not fall back to the line finder
-    if (detector_) result.detectorBoxes = int(lines.size());
+    if (reuse && !reuse->isEmpty()) {
+        for (const QRect& box : *reuse) {
+            const QRect inside = box.intersected(region.rect());
+            if (!inside.isEmpty()) { lines << region.copy(inside); result.boxes << inside; }
+        }
+        result.detectorBoxes = int(lines.size());
+    } else if (detector_) {
+        for (const QRect& box : detector_->lines(region, &result.detectRunMs, cancel)) { lines << region.copy(box); result.boxes << box; }
+        if (stop()) return {}; // an aborted detection found nothing; do not fall back to the line finder
+        result.detectorBoxes = int(lines.size());
+    }
     result.detected = !lines.isEmpty();
     if (!result.detected) {
         lines = textLines(region);
