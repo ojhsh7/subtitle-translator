@@ -20,6 +20,7 @@
 | [BACKLOG.md](plan/BACKLOG.md) | 다음에 무엇을 할지 정할 때. 남은 일은 여기에만 적는다 |
 | [DECISIONS.md](plan/DECISIONS.md) | "왜 이렇게 했지?"가 궁금할 때, 기존 결정을 바꾸기 전 |
 | [TEMPLATE.md](plan/TEMPLATE.md) | 새 기능 계획서를 만들 때 |
+| [2026-11-23-expressions-and-open-checks](plan/2026-11-23-expressions-and-open-checks.ko.md) | 완료: 일상 한자·나라별 이모티콘·이모지·문장 부호 판독과 분류, 실제 DeepL 자동 번역, 장시간, Android 실제 번역 (P-40) |
 | [2026-11-15-auto-efficiency](plan/2026-11-15-auto-efficiency.ko.md) | 완료: 움직이는 화면에서 빠른 자동 번역, 한 줄 한 요청, 요청 폭주 차단 (P-38) |
 | [2026-11-02-multi-region](plan/2026-11-02-multi-region.ko.md) | 완료: 여러 영역 동시 번역, 자막이 다른 영역을 덮지 않는 배치 (P-37) |
 | [2026-11-02-priorities](plan/2026-11-02-priorities.ko.md) | 완료: 필요한 것 22개와 우선순위 점수, 점수 순 개발 결과, 막힌 항목의 조건 |

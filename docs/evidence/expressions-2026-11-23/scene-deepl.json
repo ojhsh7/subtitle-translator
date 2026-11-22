@@ -1,0 +1,127 @@
+[
+    {
+        "captioned": 4,
+        "captions": [
+            {
+                "source": "今日はいい天気ですね。",
+                "translation": "오늘 날씨가 참 좋네요."
+            },
+            {
+                "source": "明日は学校に行きます。",
+                "translation": "내일은 학교에 갈 거예요."
+            },
+            {
+                "source": "この本はとても面白い。",
+                "translation": "이 책은 정말 재미있어요."
+            },
+            {
+                "source": "駅まで一緒に歩きましょう。",
+                "translation": "역까지 같이 걸어가요."
+            }
+        ],
+        "charactersSent": 46,
+        "cpuPercentOfOneCore": 8.480499219968799,
+        "deepl": true,
+        "distinctTexts": 4,
+        "latencyAvgMs": 1242,
+        "latencyMaxMs": 1696,
+        "latencyMs": [
+            1696,
+            979,
+            1173,
+            1121
+        ],
+        "lineCharacters": 46,
+        "lines": 4,
+        "ocrReads": 5,
+        "polls": 134,
+        "requests": 4,
+        "scene": "still",
+        "textsSent": 4
+    },
+    {
+        "captioned": 4,
+        "captions": [
+            {
+                "source": "今日はいい天気ですね。",
+                "translation": "오늘 날씨가 참 좋네요."
+            },
+            {
+                "source": "明日は学校に行きます。",
+                "translation": "내일은 학교에 갈 거예요."
+            },
+            {
+                "source": "この本はとても面白い。",
+                "translation": "이 책은 정말 재미있어요."
+            },
+            {
+                "source": "駅まで一緒に歩きましょう。",
+                "translation": "역까지 같이 걸어가요."
+            }
+        ],
+        "charactersSent": 46,
+        "cpuPercentOfOneCore": 10.614177152111623,
+        "deepl": true,
+        "distinctTexts": 4,
+        "latencyAvgMs": 1180,
+        "latencyMaxMs": 1659,
+        "latencyMs": [
+            1659,
+            981,
+            1054,
+            1026
+        ],
+        "lineCharacters": 46,
+        "lines": 4,
+        "ocrReads": 9,
+        "polls": 153,
+        "requests": 4,
+        "scene": "bounce",
+        "textsSent": 4
+    },
+    {
+        "captioned": 4,
+        "captions": [
+            {
+                "source": "今日はいい天気ですね。散歩に行きましょう。",
+                "translation": "오늘 날씨가 참 좋네요. 산책하러 가요."
+            },
+            {
+                "source": "明日は雨が降ります。傘を持って行きます。",
+                "translation": "내일은 비가 올 거예요. 우산을 챙겨 갈게요."
+            },
+            {
+                "source": "この本は面白いです。もう一度読みたい。",
+                "translation": "이 책은 재미있습니다. 다시 한 번 읽고 싶습니다."
+            },
+            {
+                "source": "駅まで歩きましょう。電車に乗ります。",
+                "translation": "역까지 걸어가 봅시다. 전철을 탈 거예요."
+            }
+        ],
+        "charactersSent": 78,
+        "cpuPercentOfOneCore": 6.6274642116932565,
+        "deepl": true,
+        "distinctTexts": 4,
+        "latencyAvgMs": 1179,
+        "latencyMaxMs": 1561,
+        "latencyMs": [
+            1561,
+            1025,
+            1058,
+            1073
+        ],
+        "lineCharacters": 78,
+        "lines": 4,
+        "ocrReads": 5,
+        "polls": 191,
+        "requests": 4,
+        "scene": "typed",
+        "textsSent": 4
+    },
+    {
+        "limit": 1000000,
+        "usedAfter": 222654,
+        "usedBefore": 222484
+    }
+]

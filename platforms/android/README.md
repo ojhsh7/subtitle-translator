@@ -2,7 +2,7 @@
 
 ## 간단한 사전 설명
 
-Android 9(API28)+에서 이미지 선택·공유 → 확대·자르기 → 로컬 일본어 OCR → 개인 DeepL 키로 한국어 번역을 연결한 네이티브 Java 프로토타입입니다. **APK 빌드와 Android15 에뮬레이터 OCR 흐름은 검증했으며, 실기기와 실제 DeepL 번역은 미검증입니다.**
+Android 9(API28)+에서 이미지 선택·공유 → 확대·자르기 → 로컬 일본어 OCR → 개인 DeepL 키로 한국어 번역을 연결한 네이티브 Java 프로토타입입니다. **APK 빌드, Android15 에뮬레이터의 OCR 흐름과 실제 DeepL 번역(2026-11-23)은 검증했으며, 실기기는 미검증입니다.**
 
 ## 자세한 설명
 
@@ -56,4 +56,12 @@ Wi-Fi·모바일 데이터를 끈 상태에서 포함 모델 OCR이 성공했습
 
 테스트 이미지와 가짜 번역 문자열은 androidTest에만 있습니다. 프로덕션 앱에서 테스트 번역을 성공처럼 보여주는 모드는 없습니다.
 
-**실기기:** 연결된 기기가 없어 미검증. **실제 API:** 키가 없어 미검증. Play 배포·서명·스토어 심사도 수행하지 않았습니다. OS 화면 캡처·overlay는 이 흐름과 실서비스 검증 후 별도 단계이며 구현하지 않았습니다.
+2026-11-23(P-40): 창 있는 에뮬레이터 `Medium_Phone`(Android 15 API35)에서 다시 빌드(Android Studio JBR 25.0.4)해 4개를 돌렸고, 3개 통과·1개 건너뜀(아래 실제 번역 테스트, 키를 주지 않을 때)이었습니다. 백그라운드 취소 확인은 800ms 고정 대기 대신 5초 안에 취소되기를 기다립니다(창 있는 에뮬레이터는 `onStop`이 더 늦음).
+
+실제 번역 테스트 `realTranslationWhenAKeyIsGiven`은 `-e deeplKey <키>`를 줄 때만 실행됩니다. 키는 메모리로만 쓰고 저장하거나 로그·결과 파일에 남기지 않습니다. 이 테스트로 `今日はいい天気です。` → `오늘은 날씨가 좋습니다.`(OCR 3,870ms 첫 실행, 번역 987ms, 10자)를 확인했습니다.
+
+```powershell
+& $adb -s <serial> shell am instrument -w -r -e class 'dev.personal.subtitle.FlowTest#realTranslationWhenAKeyIsGiven' -e deeplKey <키> dev.personal.subtitle.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+**실기기:** 연결된 기기가 없어 미검증. **실제 API:** 에뮬레이터에서 확인(위). Play 배포·서명·스토어 심사도 수행하지 않았습니다. OS 화면 캡처·overlay는 이 흐름과 실서비스 검증 후 별도 단계이며 구현하지 않았습니다.
