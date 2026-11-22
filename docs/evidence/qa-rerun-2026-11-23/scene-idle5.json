@@ -1,0 +1,40 @@
+[
+    {
+        "captioned": 1,
+        "charactersSent": 11,
+        "cpuPercentOfOneCore": 1.1459732606239188,
+        "distinctTexts": 1,
+        "findAvgMs": 70.58715,
+        "gdiObjects": [
+            30
+        ],
+        "handles": [
+            764
+        ],
+        "latencyAvgMs": 569,
+        "latencyMaxMs": 569,
+        "latencyMs": [
+            569
+        ],
+        "lineCharacters": 11,
+        "lines": 1,
+        "memoryMb": [
+            382.296875
+        ],
+        "memoryStartMb": 222.796875,
+        "ocrReads": 2,
+        "otherTexts": 0,
+        "polls": 1927,
+        "readAvgMs": 79.5,
+        "recognizeAvgMs": 8.1852,
+        "requests": 1,
+        "scene": "idle5",
+        "sent": [
+            "今日はいい天気ですね。"
+        ],
+        "textsSent": 1,
+        "userObjects": [
+            44
+        ]
+    }
+]
