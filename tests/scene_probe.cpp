@@ -95,6 +95,14 @@ public:
     bool sparkles = false; // lights that drift in front of the text, as weather and effects do
     QString line;
     int shown = 0;
+    // Fade-in text (common in visual novels): each character goes from clear to white over fadeMs
+    // after it appears. 0 = characters appear at once.
+    int fadeMs = 0;
+    void showLine(const QString& text, bool typed) {
+        line = text; shown = typed ? 0 : int(text.size());
+        revealedAt_ = QList<qint64>(shown, clock_.elapsed());
+    }
+    void revealNext() { ++shown; revealedAt_ << clock_.elapsed(); }
 
     FakeGame() {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
@@ -137,7 +145,20 @@ protected:
         font.setBold(true);
         p.setFont(font);
         p.setPen(Qt::white);
-        p.drawText(box.adjusted(34, 20, -70, -20), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, line.left(shown));
+        const QRect textBox = box.adjusted(34, 20, -70, -20);
+        if (fadeMs <= 0) {
+            p.drawText(textBox, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, line.left(shown));
+        } else {
+            // One line, character by character, each at its own opacity.
+            const QFontMetrics metrics(font);
+            const int baseline = textBox.center().y() + (metrics.ascent() - metrics.descent()) / 2;
+            for (int i = 0; i < shown && i < line.size(); ++i) {
+                const qint64 age = i < revealedAt_.size() ? t - revealedAt_[i] : fadeMs;
+                const int alpha = int(255 * std::clamp(double(age) / fadeMs, 0.0, 1.0));
+                p.setPen(QColor(255, 255, 255, alpha));
+                p.drawText(textBox.left() + metrics.horizontalAdvance(line.left(i)), baseline, line.mid(i, 1));
+            }
+        }
         if (sparkles) {
             p.setPen(Qt::NoPen);
             for (int i = 0; i < 10; ++i) {
@@ -147,7 +168,8 @@ protected:
                 p.drawEllipse(QPointF(x, y), 4 + i % 3 * 2, 4 + i % 3 * 2);
             }
         }
-        if (arrow != NoArrow && shown == line.size() && !line.isEmpty()) {
+        if (arrow != NoArrow && shown == line.size() && !line.isEmpty() &&
+            (fadeMs <= 0 || revealedAt_.isEmpty() || t - revealedAt_.last() >= fadeMs)) {
             const bool on = arrow == Bounce || (t / 450) % 2 == 0;
             if (on) {
                 const double dy = arrow == Bounce ? 6 * qSin(t / 160.0) : 0;
@@ -164,6 +186,7 @@ protected:
 private:
     QTimer frame_;
     QElapsedTimer clock_;
+    QList<qint64> revealedAt_; // when each shown character appeared
 };
 
 int editDistance(const QString& a, const QString& b) {
@@ -198,6 +221,7 @@ struct Scene {
     bool numbered = false; // every line different ("12回目、..."), so none is answered from memory
     bool onlyWhenNamed = false; // long runs: not part of the default set
     bool varied = false;   // every line a different sentence (720 of them), so each one is translated
+    int fadeMs = 0;        // characters fade in over this long (visual-novel text)
 };
 
 // 24 people x 30 places = 720 different sentences: "先生は公園で本を読みました。"
@@ -235,6 +259,7 @@ public:
         game.arrow = scene.arrow;
         game.movingBackground = scene.movingBackground;
         game.sparkles = scene.sparkles;
+        game.fadeMs = scene.fadeMs;
         game.show();
         wait(400);
         EchoHttp http;
@@ -298,10 +323,9 @@ public:
             const QString text = (scene.numbered ? QStringLiteral("%1回目、").arg(i + 1) : QString()) +
                                  source[i % source.size()] + (scene.punctuated ? QStringLiteral("。") : QString());
             lineCharacters += text.size();
-            game.line = text;
-            game.shown = scene.typeMs ? 0 : int(text.size());
+            game.showLine(text, scene.typeMs > 0);
             if (verbose) std::printf("  %6lld show  [%s]\n", sceneClock.elapsed(), qPrintable(text));
-            while (game.shown < text.size()) { wait(scene.typeMs); ++game.shown; }
+            while (game.shown < text.size()) { wait(scene.typeMs); game.revealNext(); }
             QElapsedTimer clock;
             clock.start();
             qint64 latency = -1;
@@ -422,6 +446,10 @@ int main(int argc, char** argv) {
         {"idle-blink", FakeGame::Blink, false, false, 0, true, 1, 20000},
         {"idle-moving", FakeGame::Bounce, true, false, 0, true, 1, 20000},
         {"idle-sparkle", FakeGame::Blink, true, true, 0, true, 1, 30000},
+        // Visual-novel text: typed out, each character fading in over 250 ms (P-12 follow-up).
+        {"faded", FakeGame::Blink, false, false, 60, true, 4, 4000, false, true, false, 250},
+        {"faded-moving", FakeGame::Bounce, true, false, 60, true, 4, 4000, false, true, false, 250},
+        {"faded-slow", FakeGame::Blink, false, false, 120, true, 4, 5000, false, true, false, 400},
         // 60 different lines, 10 s each, over the busiest picture: memory and CPU over 10 minutes.
         {"long", FakeGame::Blink, true, true, 0, true, 60, 10000, true, true},
         // P-12 C-06: an hour of auto translation, moving background, a new sentence every 5 s.
