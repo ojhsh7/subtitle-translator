@@ -23,5 +23,5 @@ PASS   : ProtocolChecks::detectedLanguageFixture()
 PASS   : ProtocolChecks::languageTables()
 PASS   : ProtocolChecks::freeKeySuffix()
 PASS   : ProtocolChecks::cleanupTestCase()
-Totals: 23 passed, 0 failed, 0 skipped, 0 blacklisted, 2748ms
+Totals: 23 passed, 0 failed, 0 skipped, 0 blacklisted, 2766ms
 ********* Finished testing of ProtocolChecks *********

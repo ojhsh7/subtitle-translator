@@ -8,23 +8,20 @@ PASS   : WindowChecks::sentenceEndsAreRecognized()
 PASS   : WindowChecks::emoticonEndsAreRecognized()
 PASS   : WindowChecks::backlogAndTextFixes()
 PASS   : WindowChecks::longTypewriterSentenceIsSentOnce()
-FAIL!  : WindowChecks::wrongKeyIsToldAtOnce() 'window.status_->text().contains(QStringLiteral("요금제"))' returned FALSE. (게임 언어를 고르고 자막 영역을 선택한 다음 자동 번역을 켜 주세요.
-Ctrl+Alt+P, Ctrl+Alt+T, Ctrl+Alt+M 키는 다른 앱이 쓰고 있어서 등록하지 못했어요. 설정의 단축키 페이지에서 바꿀 수 있어요.)
-D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(228) : failure location
+PASS   : WindowChecks::wrongKeyIsToldAtOnce()
 PASS   : WindowChecks::captionsCanBeHidden()
 PASS   : WindowChecks::iconsExistInTheIconFont()
 PASS   : WindowChecks::darkModeFollowsWindows()
 PASS   : WindowChecks::problemReportHoldsNoText()
 PASS   : WindowChecks::eachGameKeepsItsLanguage()
 PASS   : WindowChecks::usageAndNextStepGuidance()
-QINFO  : WindowChecks::repeatedLineIsTranslatedFromMemory() repeated line shown 103 ms after the read began (OCR included, no request)
+QINFO  : WindowChecks::repeatedLineIsTranslatedFromMemory() repeated line shown 104 ms after the read began (OCR included, no request)
 PASS   : WindowChecks::repeatedLineIsTranslatedFromMemory()
-QINFO  : WindowChecks::unfinishedLineWaitsThenIsSentOnce() unfinished line sent 1087 ms after auto translation started
+QINFO  : WindowChecks::unfinishedLineWaitsThenIsSentOnce() unfinished line sent 1035 ms after auto translation started
 PASS   : WindowChecks::unfinishedLineWaitsThenIsSentOnce()
 PASS   : WindowChecks::autoTranslationHandlesRateLimitAndQuota()
 PASS   : WindowChecks::gameRegionFollowsMoveResizeAndMinimize()
-FAIL!  : WindowChecks::gameRegionReadsTextAfterWindowMoves() 'window.registered_' returned FALSE. ()
-D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(510) : failure location
+PASS   : WindowChecks::gameRegionReadsTextAfterWindowMoves()
 PASS   : WindowChecks::gameRegionIsRememberedAndFollowsTheFrontGame()
 PASS   : WindowChecks::regionHotkeyOpensSelector()
 PASS   : WindowChecks::regionSelectorKeyboardAdjustsCurrentRegion()
@@ -48,14 +45,12 @@ PASS   : WindowChecks::lineWithTextInFrontSendsOnlyTheNewPart()
 PASS   : WindowChecks::requestStormIsStopped()
 QINFO  : WindowChecks::looksCheckKnownLinesAndStillFindNewLines() 10 s of a bobbing arrow: 2 checks, 2 whole reads
 PASS   : WindowChecks::looksCheckKnownLinesAndStillFindNewLines()
-QINFO  : WindowChecks::unfinishedLineOverBlinkingArrowIsSentOnce() line without an ending, shown at once over a blinking arrow: sent after 459 ms
+QINFO  : WindowChecks::unfinishedLineOverBlinkingArrowIsSentOnce() line without an ending, shown at once over a blinking arrow: sent after 360 ms
 PASS   : WindowChecks::unfinishedLineOverBlinkingArrowIsSentOnce()
 PASS   : WindowChecks::actualImagePipelineAndRetry()
-FAIL!  : WindowChecks::actualScreenCaptureThroughHotkeyMessage() 'window.registered_' returned FALSE. ()
-D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(1158) : failure location
+PASS   : WindowChecks::actualScreenCaptureThroughHotkeyMessage()
 PASS   : WindowChecks::mouseSizeIsRememberedAndInvalidSizeUsesDefault()
-FAIL!  : WindowChecks::actualCursorCaptureKeepsSavedRegionAndRetryAnchor() 'window.cursorRegistered_' returned FALSE. ()
-D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(1213) : failure location
+PASS   : WindowChecks::actualCursorCaptureKeepsSavedRegionAndRetryAnchor()
 PASS   : WindowChecks::cursorCaptureWorksWithoutSelectingGameRegion()
 PASS   : WindowChecks::cancelledMouseCountdownNeverCaptures()
 PASS   : WindowChecks::hoverReadsOncePerStopAndCancelsWhenMoved()
@@ -64,8 +59,7 @@ PASS   : WindowChecks::hoverAndGameAutoAreExclusiveAndHoverIsNotSaved()
 PASS   : WindowChecks::overlayStaysOutsideSourceAndOnItsMonitor()
 PASS   : WindowChecks::overlayHasTransparentBackgroundAndPreservesFocus()
 PASS   : WindowChecks::cancelledCaptureDoesNotResurrectCaption()
-FAIL!  : WindowChecks::autoTranslateReadsEachNewLineOnce() 'window.autoRegistered_' returned FALSE. ()
-D:\SubtitleTranslatorToolchain\windows-source\tests\window_checks.cpp(1468) : failure location
+PASS   : WindowChecks::autoTranslateReadsEachNewLineOnce()
 PASS   : WindowChecks::autoRetriesSameFrameAfterActualOcrFailure()
 PASS   : WindowChecks::regionIsRememberedForTheNextLaunch()
 PASS   : WindowChecks::koreanLineIsNotSentWhenTranslatingIntoKorean()
@@ -74,5 +68,5 @@ PASS   : WindowChecks::foreignLatinIsNotSkippedForEnglish()
 PASS   : WindowChecks::autoWithoutRegionWaitsForSelection()
 PASS   : WindowChecks::cancelInvalidatesPendingResult()
 PASS   : WindowChecks::cleanupTestCase()
-Totals: 59 passed, 5 failed, 0 skipped, 0 blacklisted, 63166ms
+Totals: 64 passed, 0 failed, 0 skipped, 0 blacklisted, 61623ms
 ********* Finished testing of WindowChecks *********

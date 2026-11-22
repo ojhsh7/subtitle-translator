@@ -8,13 +8,13 @@
 
 1. 이 파일의 **지금 하는 일**을 읽는다.
 2. [백로그](docs/plan/BACKLOG.md)의 `진행 중` 항목과 그 계획서를 연다. 계획서 5절 "일정"에서 끝난 단계 다음부터 이어 간다.
-3. 아래 **빌드·테스트**로 지금 코드가 통과하는지 먼저 확인한다(기대: 217 통과, 건너뜀 0. 설치본 앱을 켜 둔 채 돌리면 전역 단축키 때문에 5개가 실패한다).
+3. 아래 **빌드·테스트**로 지금 코드가 통과하는지 먼저 확인한다(기대: 217 통과, 건너뜀 0. 설치본 앱을 켜 둔 채 돌리면 전역 단축키 때문에 5개가 실패하므로 앱을 닫고 돌린다).
 4. 일을 끝내면 계획서 6절 결과 → 백로그 상태 → 이 파일의 "지금 하는 일"과 "흐름" 순서로 갱신하고 커밋한다.
 5. 기존 결정을 바꿀 때는 [결정 기록](docs/plan/DECISIONS.md)에 "변경" 줄을 추가한다.
 
 ## 지금 하는 일
 
-진행 중인 항목 없음. 방금 끝난 일: P-40 일상 한자·이모티콘·이모지·문장 부호 확인과 남은 검증 ([결과](docs/plan/2026-11-23-expressions-and-open-checks.ko.md): 이모지가 남긴 엉뚱한 글자 7 → 0번, 얼굴 문자·`^^`·괄호 속 한자 복구, 이모티콘으로 끝나는 줄도 끝난 문장, 바른 줄 의심 46 → 10%, 타자기 반쪽 줄 전송 수정, 번호만 다른 줄은 조각 기억, 실제 DeepL에서 요청 = 줄 수, 10분 메모리 증가 없음, Android 에뮬레이터 실제 번역, CTest 216 + 1). 그 전: P-38 자동 번역 효율 ([결과](docs/plan/2026-11-15-auto-efficiency.ko.md): 움직이는 화면에서 자막 2~3초 → 0.4~0.6초, 마침표 없는 줄 번역, 깜빡임 읽기 34 → 3회, 한 줄 한 요청, 요청 폭주 차단, 확인 읽기 75 → 10ms, CTest 212). 그 전: P-37 여러 영역 동시 번역 ([결과](docs/plan/2026-11-02-multi-region.ko.md): 추가 영역 2개, 자막이 다른 영역을 덮지 않음, CTest 196). 그 전: 우선순위 점수 순 개발 ([목록·결과](docs/plan/2026-11-02-priorities.ko.md): 중복 실행 막기, 시작 메뉴·제거, 키 오류 알림, 앞 대사 문맥, 자막 숨기기, 어두운 모드, 문제 보고, P-24·P-32 해결, CTest 193). 그 전: P-33 MVP 사용자 기준 보강 ([결과](docs/plan/2026-11-02-mvp-gaps.ko.md): 대사 기록, 고쳐 쓰기, 게임별 언어, 사용량 표시, 다음 할 일 안내, CTest 187). 그 전: P-31 번역 표시 지연 ([결과](docs/plan/2026-11-02-translation-latency.ko.md): 대사 → 원문 1,118 → 480ms, DeepL 끊긴 연결 1,058 → 252ms, 최근 200줄 기억, CTest 184). 그 전: P-30 디자인 다듬기 ([결과](docs/plan/2026-11-01-design-pass.ko.md): 시스템 색·Fluent 아이콘·스위치, 메인 창 자막 무대, 문구 해요체, CTest 180). 그 전: P-29 앱 화면·설정 개편 ([결과](docs/plan/2026-11-01-app-ui.ko.md): 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 크기·배경, CTest 180). 그 전: P-23 취소 즉시 반영(대기 264ms → 0), P-27 Tesseract 시도 동시 실행(베트남어 524 → 305ms) ([결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md), CTest 176). 그 전: P-26 OCR 인식 속도 ([결과](docs/plan/2026-11-01-ocr-speed.ko.md): 단축키 → 자막 351 → 83ms, 기본 설정 대사창 OCR 288 → 105ms, 인식 결과 차이 0, CTest 174). 구현 언어는 C++, 엔진은 PaddleOCR 유지로 결정(측정 근거는 같은 계획서 2절).
+진행 중인 항목 없음. 방금 끝난 일: P-40 일상 한자·이모티콘·이모지·문장 부호 확인과 남은 검증 ([결과](docs/plan/2026-11-23-expressions-and-open-checks.ko.md): 이모지가 남긴 엉뚱한 글자 7 → 0번, 얼굴 문자·`^^`·괄호 속 한자 복구, 이모티콘으로 끝나는 줄도 끝난 문장, 바른 줄 의심 46 → 10%, 타자기 반쪽 줄 전송 수정, 번호만 다른 줄은 조각 기억, 실제 DeepL에서 요청 = 줄 수, 10분 메모리 증가 없음, Android 에뮬레이터 실제 번역, CTest 217). 그 전: P-38 자동 번역 효율 ([결과](docs/plan/2026-11-15-auto-efficiency.ko.md): 움직이는 화면에서 자막 2~3초 → 0.4~0.6초, 마침표 없는 줄 번역, 깜빡임 읽기 34 → 3회, 한 줄 한 요청, 요청 폭주 차단, 확인 읽기 75 → 10ms, CTest 212). 그 전: P-37 여러 영역 동시 번역 ([결과](docs/plan/2026-11-02-multi-region.ko.md): 추가 영역 2개, 자막이 다른 영역을 덮지 않음, CTest 196). 그 전: 우선순위 점수 순 개발 ([목록·결과](docs/plan/2026-11-02-priorities.ko.md): 중복 실행 막기, 시작 메뉴·제거, 키 오류 알림, 앞 대사 문맥, 자막 숨기기, 어두운 모드, 문제 보고, P-24·P-32 해결, CTest 193). 그 전: P-33 MVP 사용자 기준 보강 ([결과](docs/plan/2026-11-02-mvp-gaps.ko.md): 대사 기록, 고쳐 쓰기, 게임별 언어, 사용량 표시, 다음 할 일 안내, CTest 187). 그 전: P-31 번역 표시 지연 ([결과](docs/plan/2026-11-02-translation-latency.ko.md): 대사 → 원문 1,118 → 480ms, DeepL 끊긴 연결 1,058 → 252ms, 최근 200줄 기억, CTest 184). 그 전: P-30 디자인 다듬기 ([결과](docs/plan/2026-11-01-design-pass.ko.md): 시스템 색·Fluent 아이콘·스위치, 메인 창 자막 무대, 문구 해요체, CTest 180). 그 전: P-29 앱 화면·설정 개편 ([결과](docs/plan/2026-11-01-app-ui.ko.md): 트레이 상주, 조작판 메인 창, 설정 7쪽, 단축키 변경, 자막 크기·배경, CTest 180). 그 전: P-23 취소 즉시 반영(대기 264ms → 0), P-27 Tesseract 시도 동시 실행(베트남어 524 → 305ms) ([결과](docs/plan/2026-11-01-cancel-and-tesseract.ko.md), CTest 176). 그 전: P-26 OCR 인식 속도 ([결과](docs/plan/2026-11-01-ocr-speed.ko.md): 단축키 → 자막 351 → 83ms, 기본 설정 대사창 OCR 288 → 105ms, 인식 결과 차이 0, CTest 174). 구현 언어는 C++, 엔진은 PaddleOCR 유지로 결정(측정 근거는 같은 계획서 2절).
 
 다음 후보 ([백로그](docs/plan/BACKLOG.md)):
 - P-22 배포 실행 파일 코드 서명 (Smart App Control이 켜진 PC에서 실행되도록)
@@ -43,7 +43,7 @@ $env:SUBTITLE_TEST_TESSERACT="$root\ocr\tesseract.exe"; $env:SUBTITLE_TEST_TESSD
 & "$root\windows-build\Release\window_checks.exe" 테스트이름 -o "$root\windows-build\single.txt,txt"
 ```
 
-마지막 결과(2026-11-23, 표현 확인 후): 앱을 닫고 CTest 7/7 그룹 **216 통과 · 실패 0 · 건너뜀 0**. 조각 기억 테스트를 더한 217개는 설치본 앱이 켜진 채라 212 통과, 단축키 관련 5개 실패([P-40 6절](docs/plan/2026-11-23-expressions-and-open-checks.ko.md)). 움직이는 게임 화면 측정은 `scene_probe.exe <결과.json> [화면 이름…]`(로컬 가짜 서버, DeepL 안 씀. `--deepl`은 저장된 키로 실제 DeepL, `long`은 10분 장시간). 글꼴별 표현 판독은 `expression_probe.exe <결과.json> [--deepl]`. 두 도구의 `--deepl`은 사용자 키의 글자를 쓰므로 확인 없이 실행하지 않는다. `autoTranslateReadsEachNewLineOnce`는 다른 화면 테스트 바로 뒤에 가끔 실패한다(P-40 5절, 고치기 전과 같은 비율). 비교 빌드를 만들 때는 P-32(복사한 헤더의 수정 시각) 주의. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.
+마지막 결과(2026-11-23, 표현 확인 후): CTest 7/7 그룹, **217 통과 · 실패 0 · 건너뜀 0**. 움직이는 게임 화면 측정은 `scene_probe.exe <결과.json> [화면 이름…]`(로컬 가짜 서버, DeepL 안 씀. `--deepl`은 저장된 키로 실제 DeepL, `long`은 10분 장시간). 글꼴별 표현 판독은 `expression_probe.exe <결과.json> [--deepl]`. 두 도구의 `--deepl`은 사용자 키의 글자를 쓰므로 확인 없이 실행하지 않는다. `autoTranslateReadsEachNewLineOnce`는 다른 화면 테스트 바로 뒤에 가끔 실패한다(P-40 5절, 고치기 전과 같은 비율). 비교 빌드를 만들 때는 P-32(복사한 헤더의 수정 시각) 주의. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.
 
 **건너뜀이 0이 아니면 통과로 보지 않는다.** Tesseract가 없으면 UI 테스트 9개가 "엔진 없음"으로 조용히 건너뛰어진다.
 
@@ -69,7 +69,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 
 | 플랫폼 | 상태 | 검증 수준 |
 |---|---|---|
-| Windows | 기능 구현 완료, 오인식·속도·화면 개선 | CTest 216/216, 합성 이미지 CER, 실제 DeepL(CLI) 10회 |
+| Windows | 기능 구현 완료, 오인식·속도·화면 개선 | CTest 217/217, 합성 이미지 CER, 실제 DeepL(CLI) 10회 |
 | Android | 프로토타입 (일본어 → 한국어, 이미지 선택·자르기) | 에뮬레이터 계측 테스트 4개(실제 번역 1개는 키를 줄 때만), 에뮬레이터에서 실제 DeepL 번역 확인(2026-11-23). 실기기 미검증 (P-15) |
 | iOS | 설계만 | — |
 
@@ -95,7 +95,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 | 우선순위 개발: 중복 실행 막기, 시작 메뉴·제거, 키 오류 알림, 앞 대사 문맥, 자막 숨기기, 어두운 모드, 문제 보고 | 완료 (2026-11-02, CTest 193/193) | [목록·결과](docs/plan/2026-11-02-priorities.ko.md) |
 | 여러 영역 동시 번역 (추가 영역 2개) | 완료 (2026-11-02, CTest 196/196) | [계획·결과](docs/plan/2026-11-02-multi-region.ko.md) |
 | 자동 번역 효율: 움직이는 화면 속도, 한 줄 한 요청, 요청 폭주 차단, 확인 읽기 비용 | 완료 (2026-11-22, CTest 212/212) | [계획·결과](docs/plan/2026-11-15-auto-efficiency.ko.md) |
-| 일상 한자·이모티콘·이모지·문장 부호, 실제 DeepL 자동 번역, 장시간, Android 실제 번역 | 완료 (2026-11-23, CTest 216/216) | [계획·결과](docs/plan/2026-11-23-expressions-and-open-checks.ko.md) |
+| 일상 한자·이모티콘·이모지·문장 부호, 실제 DeepL 자동 번역, 장시간, Android 실제 번역 | 완료 (2026-11-23, CTest 217/217) | [계획·결과](docs/plan/2026-11-23-expressions-and-open-checks.ko.md) |
 | 코드 서명, 실제 게임·다중 모니터·장시간 확인 | 남음 (조건: [우선순위 4절](docs/plan/2026-11-02-priorities.ko.md)) | [백로그](docs/plan/BACKLOG.md) |
 
 ## 지금까지의 흐름
@@ -113,7 +113,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\probes\false-text-pr
 | 2026-11-02 | 우선순위 점수 목록 22개 작성 후 점수 순 개발 12개, 막힌 5개는 조건 기록, CTest 193 |
 | 2026-11-02 | 여러 영역 동시 번역(추가 영역 2개, 자막 배치가 다른 영역을 피함), CTest 196 |
 | 2026-11-22 | 자동 번역 효율(움직이는 화면에서 자막 0.4~0.6초, 마침표 없는 줄 번역, 한 줄 한 요청, 요청 폭주 차단, 확인 읽기 비용), CTest 212 |
-| 2026-11-23 | 표현 확인(이모지 잔여 글자 제거, 얼굴 문자·한자 복구, 이모티콘 끝 판단, 글자만 보는 오독 의심, 타자기 반쪽 줄 수정), 실제 DeepL·장시간·Android 실제 번역 확인, CTest 216 |
+| 2026-11-23 | 표현 확인(이모지 잔여 글자 제거, 얼굴 문자·한자 복구, 이모티콘 끝 판단, 글자만 보는 오독 의심, 타자기 반쪽 줄 수정), 조각 기억, 실제 DeepL·장시간·Android 실제 번역 확인, CTest 217 |
 
 ## 측정 수치 (근거가 있는 것만)
 

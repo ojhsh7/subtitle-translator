@@ -43,19 +43,19 @@ PASS   : PaddleChecks::autoDetectPrefersTheFullerReading()
 PASS   : PaddleChecks::multiLanguageAutoDetectIsStaged()
 PASS   : PaddleChecks::decoratedDialogBoxIsReadLineByLine(scene-ja-notebook-22.png)
 PASS   : PaddleChecks::decoratedDialogBoxIsReadLineByLine(scene-ko-dark-window-16.png)
-QINFO  : PaddleChecks::knownLinesAreReadWithoutDetection() full read: find 5 ms, read 128 ms; check: find 0 ms, read 18 ms
+QINFO  : PaddleChecks::knownLinesAreReadWithoutDetection() full read: find 5 ms, read 133 ms; check: find 0 ms, read 18 ms
 PASS   : PaddleChecks::knownLinesAreReadWithoutDetection()
 PASS   : PaddleChecks::withoutDetectionModelTheLineFinderReads()
-QINFO  : PaddleChecks::warmReadIsFast() warm read, auto-detect (2 models): median 21 ms
+QINFO  : PaddleChecks::warmReadIsFast() warm read, auto-detect (2 models): median 20 ms
 PASS   : PaddleChecks::warmReadIsFast()
 QINFO  : PaddleChecks::defaultThreadsLeaveTheGameMostOfTheCpu() 24 logical processors -> 4 OCR threads
 PASS   : PaddleChecks::defaultThreadsLeaveTheGameMostOfTheCpu()
-QINFO  : PaddleChecks::warmUpLoadsTheModelsBeforeTheFirstRead() first read without warm-up 167 ms, after warm-up 22 ms
+QINFO  : PaddleChecks::warmUpLoadsTheModelsBeforeTheFirstRead() first read without warm-up 167 ms, after warm-up 21 ms
 PASS   : PaddleChecks::warmUpLoadsTheModelsBeforeTheFirstRead()
-QINFO  : PaddleChecks::cancelledReadReleasesTheEngine() small read alone 54 ms; 8-line read 569 ms; small read right after cancelling it 55 ms (waited 1 ms)
+QINFO  : PaddleChecks::cancelledReadReleasesTheEngine() small read alone 55 ms; 8-line read 570 ms; small read right after cancelling it 54 ms (waited -1 ms)
 PASS   : PaddleChecks::cancelledReadReleasesTheEngine()
 PASS   : PaddleChecks::cancelledTokenStopsTheRead()
 PASS   : PaddleChecks::serviceUsesPaddleThenFallsBack()
 PASS   : PaddleChecks::cleanupTestCase()
-Totals: 52 passed, 0 failed, 0 skipped, 0 blacklisted, 7270ms
+Totals: 52 passed, 0 failed, 0 skipped, 0 blacklisted, 7268ms
 ********* Finished testing of PaddleChecks *********

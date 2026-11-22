@@ -7,5 +7,5 @@ PASS   : GameWindowChecks::regionScalesWithAResizedWindow()
 PASS   : GameWindowChecks::physicalAndLogicalRoundTrip()
 PASS   : GameWindowChecks::findsTheWindowUnderARegionAndAfterItMoves()
 PASS   : GameWindowChecks::cleanupTestCase()
-Totals: 7 passed, 0 failed, 0 skipped, 0 blacklisted, 80ms
+Totals: 7 passed, 0 failed, 0 skipped, 0 blacklisted, 79ms
 ********* Finished testing of GameWindowChecks *********
