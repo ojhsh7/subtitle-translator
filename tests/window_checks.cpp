@@ -35,6 +35,7 @@
 #include <QKeySequence>
 #include <QListWidget>
 #include <QSystemTrayIcon>
+#include <QThreadPool>
 #include <windows.h>
 namespace {
 // Logical -> physical -> logical conversion may round by a pixel on scaled monitors.
@@ -224,8 +225,25 @@ private slots:
         window.apiKey_ = QStringLiteral("wrong-key:fx"); window.consent_ = true;
         window.usage_.setEndpointForTests(http.url());
         window.refreshUsage();
-        QTRY_VERIFY_WITH_TIMEOUT(window.status_->text().contains(QStringLiteral("키")), 5000);
-        QVERIFY2(window.status_->text().contains(QStringLiteral("요금제")), qPrintable(window.status_->text()));
+        // The start message can name taken shortcuts ("… 키는 다른 앱이 쓰고 있어서"): wait for the key message itself.
+        QTRY_VERIFY2_WITH_TIMEOUT(window.status_->text().contains(QStringLiteral("요금제")), qPrintable(window.status_->text()), 5000);
+    }
+    // P-12 D-01: keys another app holds are named at the start; M, H and R fall back to Ctrl+Alt+F8/F9/F7.
+    void takenShortcutsAreToldAtTheStart() {
+        QWidget holder;
+        const HWND other = reinterpret_cast<HWND>(holder.winId());
+        // Ctrl+Alt+V has no fallback, Ctrl+Alt+H falls back to Ctrl+Alt+F9. (On the test PC another app
+        // already holds Ctrl+Alt+M, so that key is not used here.)
+        const bool tookCaptions = RegisterHotKey(other, 101, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'V');
+        RegisterHotKey(other, 102, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'H'); // held by us or by someone else
+        QVERIFY2(tookCaptions, "Ctrl+Alt+V is already held: close the installed app first");
+        MainWindow window;
+        UnregisterHotKey(other, 101); UnregisterHotKey(other, 102);
+        QVERIFY(!window.captionsRegistered_);
+        QVERIFY2(window.status_->text().contains(window.captionsShortcut_), qPrintable(window.status_->text()));
+        QVERIFY(window.hoverRegistered_); // took its fallback
+        QCOMPARE(window.hoverShortcut_, QKeySequence(QStringLiteral("Ctrl+Alt+F9")).toString(QKeySequence::NativeText));
+        QVERIFY2(!window.status_->text().contains(window.hoverShortcut_), qPrintable(window.status_->text()));
     }
     // P-36: captions can be held back while reading and translating go on; the tray item follows.
     void captionsCanBeHidden() {
@@ -860,9 +878,29 @@ private slots:
         window.translation_.setEndpointForTests(http.url());
     }
     void lineKeyIgnoresSpacingAndTheAdvanceArrow() {
-        QCOMPARE(MainWindow::lineKey(QStringLiteral("今日は いい天気です。\n▼")), QStringLiteral("今日はいい天気です。"));
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("今日は いい天気です。\n▼")), QStringLiteral("今日はいい天気です"));
         QCOMPARE(MainWindow::lineKey(QStringLiteral("Wait…  ▶")), QStringLiteral("Wait…"));
         QVERIFY(MainWindow::lineKey(QStringLiteral("右に行く")) != MainWindow::lineKey(QStringLiteral("左に行く")));
+        // P-12: missed or doubled final periods are the same line; "？" and "…" are kept.
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("今日はいい天気です。")), MainWindow::lineKey(QStringLiteral("今日はいい天気です")));
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("そう。。")), QStringLiteral("そう"));
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("Wait.")), QStringLiteral("Wait"));
+        QVERIFY(MainWindow::lineKey(QStringLiteral("行く？")) != MainWindow::lineKey(QStringLiteral("行く")));
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("えっと…")), QStringLiteral("えっと…"));
+        QCOMPARE(MainWindow::lineKey(QStringLiteral("。")), QStringLiteral("。"));
+    }
+    // P-12: in the hour scene one line was read with and without its "。" and translated twice.
+    void lineReadWithAndWithoutItsFinalPeriodIsOneLine() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("경찰관은 차 안에서 편지를 썼어요.")};
+        MainWindow window; prepare(window, http);
+        feed(window, QStringLiteral("警察官は車の中で手紙を書きました"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        feed(window, QStringLiteral("警察官は車の中で手紙を書きました。"), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 1);
+        QVERIFY2(window.result_->toPlainText().contains(QStringLiteral("편지")), qPrintable(window.result_->toPlainText()));
+        window.resultWindow_->hide();
     }
     // P-38 E5: the same line read with other spacing or with the arrow after it is not sent again.
     void respacedLineUsesMemory() {
@@ -948,7 +986,8 @@ private slots:
         LocalHttp http; QVERIFY(http.listening());
         http.replies << LocalHttp::Reply{200, reply("오늘은 정말 날씨가 좋네요.")} << LocalHttp::Reply{200, reply("오늘은 정말 날씨가 나쁘네요.")};
         MainWindow window; prepare(window, http);
-        const QString line = QStringLiteral("今日はとてもいい天気ですね。"), misread = QStringLiteral("今日はとてもいい天気ですね。。"),
+        // (A doubled period is no misread any more: lineKey drops final periods, P-12.)
+        const QString line = QStringLiteral("今日はとてもいい天気ですね。"), misread = QStringLiteral("今日はとてもいい天気ですねっ。"),
                       changed = QStringLiteral("今日はとてもいい天気ですよ。");
         feed(window, line, true);
         QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
@@ -1169,6 +1208,63 @@ private slots:
         QVERIFY(!window.subtitleOverlay_->isVisible());
         window.showResult(); window.resultWindow_->move(200,180);
         QTest::qWait(50); QCOMPARE(window.resultWindow_->pos(),QPoint(200,180));
+    }
+    // P-12 D-02: "translate now" pressed five times a second for ten seconds: a press while reading is
+    // ignored, every read that started finishes, and the window is idle afterwards.
+    void captureKeyPressedRepeatedlyNeverStacksReads() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気です。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:52px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(1000, 180); fixture.move(30, 30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        window.apiKey_.clear(); window.consent_ = false;
+        window.followGame_->setChecked(false);
+        window.setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+        window.inlineCaptions_->setChecked(false);
+        int reads = 0, failures = 0;
+        connect(&window.ocr_, &OcrService::recognized, &window, [&](const QString&) { ++reads; });
+        connect(&window.ocr_, &OcrService::failed, &window, [&](const QString&) { ++failures; });
+        const auto firstRequest = window.request_;
+        for (int press = 0; press < 50; ++press) {
+            QVERIFY(PostMessageW(reinterpret_cast<HWND>(window.winId()), WM_HOTKEY, 1, 0));
+            QTest::qWait(200);
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 10000);
+        QTest::qWait(300);
+        QCOMPARE(failures, 0);
+        QVERIFY2(reads >= 2 && reads < 50, qPrintable(QString::number(reads))); // presses while reading were ignored
+        QCOMPARE(int(window.request_ - firstRequest), reads); // every capture that began ended with its reading
+        QVERIFY2(window.original_->toPlainText().contains(QStringLiteral("天気")), qPrintable(window.original_->toPlainText()));
+        window.resultWindow_->hide();
+    }
+    // P-12 D-03: quitting while a read runs (the models still loading) lets everything go within two seconds.
+    void quittingDuringAReadIsQuick() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        QLabel fixture(QStringLiteral("今日はいい天気です。明日も晴れるといいですね。"));
+        fixture.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        fixture.setStyleSheet("background:white;color:black;font-family:'Yu Gothic';font-size:52px;");
+        fixture.setAlignment(Qt::AlignCenter); fixture.resize(1300, 180); fixture.move(30, 30); fixture.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&fixture));
+        for (int round = 0; round < 5; ++round) {
+            auto* window = new MainWindow;
+            window->paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window->paddleEngine_ = true; window->applyOcrEngine();
+            window->ocrLanguageBox_->setCurrentIndex(window->ocrLanguageBox_->findData("jpn"));
+            window->apiKey_.clear(); window->consent_ = false;
+            window->followGame_->setChecked(false);
+            window->setRegion(fixture.screen(), QRect(fixture.mapToGlobal(QPoint()) - fixture.screen()->geometry().topLeft(), fixture.size()));
+            window->inlineCaptions_->setChecked(false);
+            window->startCapture();
+            for (int i = 0; i < 400 && !window->ocr_.isBusy(); ++i) QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+            QVERIFY2(window->ocr_.isBusy(), "the read did not start");
+            QElapsedTimer clock; clock.start();
+            delete window;
+            QVERIFY2(QThreadPool::globalInstance()->waitForDone(2000), qPrintable(QStringLiteral("round %1").arg(round)));
+            QVERIFY2(clock.elapsed() < 2000, qPrintable(QString::number(clock.elapsed())));
+        }
     }
     void mouseSizeIsRememberedAndInvalidSizeUsesDefault() {
         {

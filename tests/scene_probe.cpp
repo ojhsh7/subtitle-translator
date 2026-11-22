@@ -197,7 +197,22 @@ struct Scene {
     int holdMs;       // time each line stays after it is complete
     bool numbered = false; // every line different ("12回目、..."), so none is answered from memory
     bool onlyWhenNamed = false; // long runs: not part of the default set
+    bool varied = false;   // every line a different sentence (720 of them), so each one is translated
 };
+
+// 24 people x 30 places = 720 different sentences: "先生は公園で本を読みました。"
+QString variedLine(int i) {
+    static const QStringList who = {
+        "私", "先生", "友達", "母", "父", "兄", "姉", "弟", "妹", "猫", "犬", "店員",
+        "医者", "子供", "彼", "彼女", "隣の人", "社長", "学生", "祖母", "祖父", "警察官", "運転手", "歌手"};
+    static const QStringList where = {
+        "駅で", "公園で", "学校で", "図書館で", "病院で", "会社で", "海で", "山で", "空港で", "喫茶店で",
+        "映画館で", "台所で", "庭で", "部屋で", "教室で", "市場で", "橋の上で", "森の中で", "川のそばで", "町で",
+        "港で", "銀行で", "郵便局で", "美術館で", "動物園で", "神社で", "店で", "車の中で", "電車で", "家で"};
+    static const QStringList did = {"本を読みました", "歌を歌いました", "写真を撮りました", "手紙を書きました",
+                                    "ご飯を食べました", "友達を待ちました"};
+    return who[i % who.size()] + QStringLiteral("は") + where[(i / who.size()) % where.size()] + did[i % did.size()];
+}
 }
 
 // --deepl: the saved key, and whether it is a free-plan key.
@@ -274,8 +289,10 @@ public:
         qint64 latencySum = 0, latencyMax = 0;
         qsizetype lineCharacters = 0;
         QString previousCaption; // real DeepL answers in Korean: a line is captioned when a new caption shows for it
-        const QStringList& source = scene.typeMs ? twoSentences : oneSentence;
+        QStringList source = scene.typeMs ? twoSentences : oneSentence;
+        if (scene.varied) { source.clear(); for (int i = 0; i < scene.lines; ++i) source << variedLine(i); }
         QJsonArray memory; // private bytes in MB after each line (P-40 U3)
+        QJsonArray handles, gdi, user; // kernel handles and GDI/USER objects after each line (P-12 C-06)
         const double memoryStart = privateMb();
         for (int i = 0; i < scene.lines; ++i) {
             const QString text = (scene.numbered ? QStringLiteral("%1回目、").arg(i + 1) : QString()) +
@@ -305,9 +322,17 @@ public:
             latencies << latency;
             if (latency >= 0) { ++captioned; latencySum += latency; latencyMax = std::max(latencyMax, latency); }
             memory << privateMb();
-            if (scene.numbered && (i + 1) % 10 == 0)
-                std::printf("  line %d: %.1f MB, cpu %.1f%%\n", i + 1, privateMb(),
+            DWORD handleCount = 0;
+            GetProcessHandleCount(GetCurrentProcess(), &handleCount);
+            handles << int(handleCount);
+            gdi << int(GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS));
+            user << int(GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS));
+            const int every = scene.varied ? 60 : 10;
+            if ((scene.numbered || scene.varied) && (i + 1) % every == 0)
+                std::printf("  line %d (%lld s): %.1f MB, handles %d, GDI %d, USER %d, cpu %.1f%%\n", i + 1, sceneClock.elapsed() / 1000,
+                            privateMb(), int(handleCount), gdi.last().toInt(), user.last().toInt(),
                             100.0 * double(processCpuMs() - cpuBefore) / double(std::max<qint64>(1, wall.elapsed())));
+            std::fflush(stdout);
         }
         const double cpuPercent = 100.0 * double(processCpuMs() - cpuBefore) / double(std::max<qint64>(1, wall.elapsed()));
         window.setAutoTranslate(false);
@@ -346,7 +371,8 @@ public:
             {"recognizeAvgMs", reads ? recognizeMs / reads : 0}, {"requests", http.requests}, {"textsSent", http.texts.size()},
             {"distinctTexts", distinct.size()}, {"charactersSent", http.characters()},
             {"cpuPercentOfOneCore", cpuPercent}, {"polls", polls}, {"sent", QJsonArray::fromStringList(sent)},
-            {"otherTexts", otherTexts}, {"memoryStartMb", memoryStart}, {"memoryMb", memory}};
+            {"otherTexts", otherTexts}, {"memoryStartMb", memoryStart}, {"memoryMb", memory},
+            {"handles", handles}, {"gdiObjects", gdi}, {"userObjects", user}};
     }
 
 private:
@@ -398,6 +424,10 @@ int main(int argc, char** argv) {
         {"idle-sparkle", FakeGame::Blink, true, true, 0, true, 1, 30000},
         // 60 different lines, 10 s each, over the busiest picture: memory and CPU over 10 minutes.
         {"long", FakeGame::Blink, true, true, 0, true, 60, 10000, true, true},
+        // P-12 C-06: an hour of auto translation, moving background, a new sentence every 5 s.
+        {"hour", FakeGame::Blink, true, false, 0, true, 720, 5000, false, true, true},
+        // P-12 C-03: auto translation over a still line for 5 minutes.
+        {"idle5", FakeGame::NoArrow, false, false, 0, true, 1, 300000, false, true},
     };
     QStringList wanted;
     bool deepl = false;

@@ -234,6 +234,8 @@ MainWindow::MainWindow() {
             qsizetype position = 0, counted = 0;
             while (position < source.size() && counted < state->shownKey.size())
                 if (!source[position++].isSpace()) ++counted;
+            // The shown line's final period, which its key leaves out, belongs to it.
+            while (position < source.size() && (source[position].isSpace() || QStringLiteral("。．.").contains(source[position]))) ++position;
             split(source.mid(position).trimmed());
             if (!pieces.isEmpty()) { prefixSource_ = source.left(position); prefixShown_ = state->shown; }
         } else if (state && state->shownKey.size() >= 4 && !state->shown.isEmpty() &&
@@ -386,6 +388,7 @@ MainWindow::MainWindow() {
     if (!registered_) taken << captureShortcut_;
     if (!cursorRegistered_) taken << cursorShortcut_;
     if (!hoverRegistered_) taken << hoverShortcut_;
+    if (!captionsRegistered_) taken << captionsShortcut_;
     if (!taken.isEmpty())
         ready += QStringLiteral("\n%1 키는 다른 앱이 쓰고 있어서 등록하지 못했어요. 설정의 단축키 페이지에서 바꿀 수 있어요.").arg(taken.join(", "));
     setStatus(ready);
@@ -1234,6 +1237,11 @@ QString MainWindow::lineKey(const QString& text) {
     for (const QChar ch : text)
         if (!ch.isSpace()) key.append(ch);
     while (!key.isEmpty() && arrows.contains(key.back())) key.chop(1);
+    // Final periods the OCR misses (or doubles) in some fonts or frames are not a new line (P-12: 25 of
+    // 720 lines were read without "。", one of them both ways and sent twice). "？" "！" change the
+    // meaning and stay, and so do "…" "‥".
+    static const QString periods = QStringLiteral("。．.");
+    while (key.size() >= 2 && periods.contains(key.back())) key.chop(1);
     return key;
 }
 bool MainWindow::looksFinished(const QString& text) {
