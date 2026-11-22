@@ -201,9 +201,11 @@ private:
         int checksInRow = 0; // every CheckEvery-th look reads the whole region again
         int doubts = 0;      // doubtful readings in a row, waiting for a reading to agree
     };
-    // A reading taken while pixels moved whose least sure character is below DoubtfulBelow is
+    // A reading taken while pixels moved whose least sure letter is below DoubtfulBelow is
     // checked against the next frame before it is sent: a light over a letter gave "今白" for
     // "今日" at 0.53-0.84, real lines read at 0.98 or more (P-38, measured with scene_probe).
+    // Letters and digits only (P-40): with punctuation counted, 46% of right readings in six fonts
+    // were doubted (？ 0.70, ！ 0.74) and waited ConfirmReadMs for nothing; with letters, 10%.
     // After MaxDoubts doubtful readings in a row the last one is used.
     static constexpr double DoubtfulBelow = 0.9;
     static constexpr int MaxDoubts = 3;
@@ -259,6 +261,13 @@ private:
     QString pendingCacheKey_;
     static constexpr int CacheLines = 200;
     void showRemembered(const Remembered& line);
+    // The pieces sent for translation and what came back (P-40), by the same key: a line that differs
+    // only in what is not sent (a number in front, a word already in the target language, or a misread
+    // of those) needs no request. Whole lines only: a part sent with its prefix as context is not kept.
+    QHash<QString, Remembered> pieceCache_;
+    QStringList pieceOrder_;    // oldest first, at most CacheLines
+    QStringList pendingPieces_; // what the request in flight sent, when it may be remembered
+    bool fromPieceMemory(const QStringList& pieces);
     // A new read that holds the whole line on screen, with more text after or before it, sends only
     // the new part (P-38). prefixSource_ and prefixShown_ are the part kept and its translation
     // (before the user's fixes).

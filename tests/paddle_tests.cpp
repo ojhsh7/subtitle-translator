@@ -53,6 +53,70 @@ private slots:
         // Arabic pieces are in visual order: only the short-line rule applies.
         QVERIFY(!PaddleOcr::filterLine(pieces({{"ب", 0.3f}, {" ", 1.0f}, {"ل", 1.0f}, {"ا", 1.0f}, {"م", 1.0f}}), true).changed);
     }
+    // P-40, probabilities measured by tests/expression_probe.cpp.
+    void filterLineDropsWhatAnEmojiOrNoteBecame() {
+        using Piece = PaddleRecognizer::Piece;
+        auto line = [](const char* text, float last, float rest = 0.99f) {
+            QList<Piece> out;
+            const QList<uint> points = QString::fromUtf8(text).toUcs4();
+            for (qsizetype i = 0; i < points.size(); ++i)
+                out << Piece{QString::fromUcs4(reinterpret_cast<const char32_t*>(&points[i]), 1), i + 1 == points.size() ? last : rest};
+            return out;
+        };
+        auto kept = [](const PaddleOcr::Filtered& f) {
+            QString s; for (const auto& p : f.kept) s += p.text; return f.changed ? s : QStringLiteral("(unchanged)");
+        };
+        // "おめでとう🎉" read with a stray last letter (0.12, 0.24, 0.27), "悲しい😭" as "悲しい🎯" (0.41).
+        QCOMPARE(kept(PaddleOcr::filterLine(line("おめでとう楽", 0.12f))), QStringLiteral("おめでとう"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("おめでとうご", 0.24f))), QStringLiteral("おめでとう"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("悲しい🎯", 0.41f))), QStringLiteral("悲しい"));
+        // "最高！👍" as "最高！自" (0.86-0.93): a Han letter right after "！".
+        QCOMPARE(kept(PaddleOcr::filterLine(line("最高！自", 0.93f))), QStringLiteral("最高！"));
+        // "ふふっ♪" as "ふふっ」" (0.50-0.56) with no "「" in the line.
+        QCOMPARE(kept(PaddleOcr::filterLine(line("ふふっ」", 0.5f))), QStringLiteral("ふふっ"));
+        // Real last letters stay: sure ones, kana after "！" and a "」" that closes the line's "「".
+        QCOMPARE(kept(PaddleOcr::filterLine(line("おめでとう", 0.97f))), QStringLiteral("(unchanged)"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("最高！嘘", 0.99f))), QStringLiteral("(unchanged)"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("えっ！あ", 0.6f))), QStringLiteral("(unchanged)"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("「行こう」", 0.5f))), QStringLiteral("(unchanged)"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("ふふっ♪", 0.4f))), QStringLiteral("(unchanged)"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("好きだよ♡", 0.3f))), QStringLiteral("(unchanged)"));
+        QCOMPARE(kept(PaddleOcr::filterLine(line("先生、大丈夫ですか？", 0.7f))), QStringLiteral("(unchanged)"));
+        // A two-letter line is left to the short-line rule.
+        QCOMPARE(kept(PaddleOcr::filterLine(line("はい", 0.3f))), QStringLiteral("(unchanged)"));
+    }
+    void crossModelRepairsOfFacesAndHanja() {
+        // "학교(學校)에 갑니다": the Korean model kept empty brackets, the Chinese/Japanese model read the hanja.
+        QCOMPARE(PaddleOcr::restoreHanja(QStringLiteral("학교()에 갑니다"), QStringLiteral("站卫(學校)沓L")),
+                 QStringLiteral("학교(學校)에 갑니다"));
+        QCOMPARE(PaddleOcr::restoreHanja(QStringLiteral("학교（）와 시장()"), QStringLiteral("(學校)外 (市場)")),
+                 QStringLiteral("학교（學校）와 시장(市場)"));
+        // Counts differ or nothing in the other reading: unchanged.
+        QCOMPARE(PaddleOcr::restoreHanja(QStringLiteral("학교()에 갑니다"), QStringLiteral("站卫()沓L")),
+                 QStringLiteral("학교()에 갑니다"));
+        QCOMPARE(PaddleOcr::restoreHanja(QStringLiteral("학교()와 시장()"), QStringLiteral("(學校)")),
+                 QStringLiteral("학교()와 시장()"));
+        // Faces: "^" read as "へ"/"ヘ".
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("ありがとう(ヘ_^)"), QStringLiteral("(_^)"), false),
+                 QStringLiteral("ありがとう(^_^)"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("ありがとう(ヘ_へ)"), QString(), false),
+                 QStringLiteral("ありがとう(^_^)"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("やったーソ(へo^)/"), QString(), false),
+                 QStringLiteral("やったーソ(^o^)/"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("よろしくね(へへ)"), QStringLiteral("3L<(^^)"), false),
+                 QStringLiteral("よろしくね(^^)"));
+        // Without evidence "(へへ)" may be a laugh; "(・へ・)" and "(へー)" are real.
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("よろしくね(へへ)"), QStringLiteral("3L<()"), false),
+                 QStringLiteral("よろしくね(へへ)"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("むっ(・へ・)"), QString(), false), QStringLiteral("むっ(・へ・)"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("そう(へー)"), QString(), false), QStringLiteral("そう(へー)"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("へえ、すごい(笑)"), QString(), false), QStringLiteral("へえ、すごい(笑)"));
+        // Korean "고마워요^^" read as "고마워요ㅅㅅ"; the other model read "正へ" or "卫へへ".
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("고마워요ㅅㅅ"), QStringLiteral("正へ"), true), QStringLiteral("고마워요^^"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("고마워요ㅅㅅ"), QStringLiteral("卫へへ"), true), QStringLiteral("고마워요^^"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("고마워요ㅅㅅ"), QStringLiteral("卫人人"), true), QStringLiteral("고마워요ㅅㅅ"));
+        QCOMPARE(PaddleOcr::restoreCaret(QStringLiteral("ㅅㅅ 하자"), QStringLiteral("へへ"), true), QStringLiteral("ㅅㅅ 하자"));
+    }
     // P-19/P-20, readings measured in tests/probes/false-text-probe.ps1.
     void crossModelRepairs() {
         // The other model read "Lv.10": the "이" before the divider was a zero.
@@ -239,6 +303,30 @@ private slots:
         QVERIFY2(result.text.contains(expected), result.text.toUtf8().constData());
         QCOMPARE(result.modelRuns, 2); // one line, both models compared
         QVERIFY(result.confidence > 0.5);
+    }
+    // P-40: a right reading whose "？" reads low (0.70 in expression_probe) is not unsure in its letters,
+    // so a moving screen does not wait for a second read of it.
+    void punctuationDoesNotMakeALineDoubtful() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        QImage image(1100, 130, QImage::Format_RGB32);
+        image.fill(Qt::white);
+        {
+            QPainter p(&image);
+            p.setRenderHint(QPainter::TextAntialiasing);
+            QFont font(QStringLiteral("Yu Gothic"));
+            font.setPixelSize(44);
+            p.setFont(font); p.setPen(Qt::black);
+            p.drawText(image.rect().adjusted(30, 0, -30, 0), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("先生、大丈夫ですか？"));
+        }
+        PaddleOcr ocr(models());
+        QString error;
+        const auto result = ocr.read(image, "jpn+eng+kor", error);
+        QVERIFY2(error.isEmpty(), error.toUtf8().constData());
+        QCOMPARE(result.lines.size(), 1);
+        const auto& line = result.lines.front();
+        QVERIFY2(line.text.contains(QStringLiteral("大丈夫")), line.text.toUtf8().constData());
+        QVERIFY2(line.lowestLetter >= 0.9, qPrintable(QString::number(line.lowestLetter)));
+        QVERIFY(line.lowestCharacter <= line.lowestLetter);
     }
     void singleLanguageUsesOneModel() {
         if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");

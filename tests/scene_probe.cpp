@@ -1,14 +1,19 @@
 // Measurement, not a test: auto translation against a fake game that animates like real ones do
 // (blinking advance arrow, moving background, typewriter text). Counts what a line costs: OCR reads,
 // translation requests, characters sent, and how long the caption took. The translation server is a
-// local echo server, never DeepL. Plan and numbers: docs/plan/2026-11-15-auto-efficiency.ko.md.
+// local echo server, unless --deepl: then the app uses the user's saved DeepL key (P-40 U1, few short
+// scenes only; the characters used are reported). Plan and numbers:
+// docs/plan/2026-11-15-auto-efficiency.ko.md, docs/plan/2026-11-23-expressions-and-open-checks.ko.md.
 //
-//   scene_probe.exe <result.json> [scene name ...]
+//   scene_probe.exe <result.json> [--deepl] [scene name ...]
 #include "main_window.h"
+#include "credential_store.h"
+#include "translation_service.h"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -28,6 +33,7 @@
 #include <memory>
 #define NOMINMAX
 #include <windows.h>
+#include <psapi.h>
 
 namespace {
 // Answers every translate request with one "KO<source>" per text, like a server that always works.
@@ -189,8 +195,14 @@ struct Scene {
     bool punctuated;
     int lines;
     int holdMs;       // time each line stays after it is complete
+    bool numbered = false; // every line different ("12回目、..."), so none is answered from memory
+    bool onlyWhenNamed = false; // long runs: not part of the default set
 };
 }
+
+// --deepl: the saved key, and whether it is a free-plan key.
+QString realKey;
+bool realFree = false;
 
 // Named like the UI test class: MainWindow lets exactly that class read its members.
 class WindowChecks final : public QObject {
@@ -216,10 +228,11 @@ public:
         window.paddleEngine_ = true;
         window.applyOcrEngine();
         window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
-        window.apiKey_ = QStringLiteral("test-key:fx");
+        const bool real = !realKey.isEmpty();
+        window.apiKey_ = real ? realKey : QStringLiteral("test-key:fx");
         window.consent_ = true;
-        window.freeApi_ = true;
-        window.translation_.setEndpointForTests(http.url());
+        window.freeApi_ = real ? realFree : true;
+        if (!real) window.translation_.setEndpointForTests(http.url());
         window.followGame_->setChecked(false);
         window.ocr_.waitForWarmUp();
         int reads = 0;
@@ -232,8 +245,8 @@ public:
             const PaddleOcr::Result& details = window.ocr_.paddleDetails();
             readMs += double(window.ocr_.elapsedMs()); findMs += details.detectMs; recognizeMs += details.recognizeMs;
             double lowest = 1;
-            for (const auto& line : details.lines) lowest = std::min(lowest, line.lowestCharacter);
-            if (verbose) std::printf("  %6lld read  [%s] %lld ms (find %.0f, read %.0f) lowest %.3f\n", sceneClock.elapsed(),
+            for (const auto& line : details.lines) lowest = std::min(lowest, line.lowestLetter); // what doubtful() uses
+            if (verbose) std::printf("  %6lld read  [%s] %lld ms (find %.0f, read %.0f) lowest letter %.3f\n", sceneClock.elapsed(),
                                      qPrintable(QString(text).replace(QLatin1Char('\n'), QLatin1Char('|'))),
                                      window.ocr_.elapsedMs(), details.detectMs, details.recognizeMs, lowest);
         });
@@ -242,6 +255,11 @@ public:
             if (verbose) std::printf("  %6lld fail  [%s]\n", sceneClock.elapsed(), qPrintable(error.left(60)));
         });
         window.setRegion(game.screen(), QRect(game.mapToGlobal(QPoint()) - game.screen()->geometry().topLeft(), game.size()));
+        // Test mode never opens a DeepL connection ahead of a line; the app does on every poll (no text, no quota).
+        if (real) {
+            window.translation_.warmUp(window.freeApi_);
+            connect(window.autoTimer_, &QTimer::timeout, &window, [&window] { window.translation_.warmUp(window.freeApi_); });
+        }
         window.setAutoTranslate(true);
         if (const int poll = qEnvironmentVariableIntValue("SCENE_PROBE_POLL")) window.autoTimer_->setInterval(poll);
         wait(600);
@@ -255,9 +273,13 @@ public:
         int captioned = 0;
         qint64 latencySum = 0, latencyMax = 0;
         qsizetype lineCharacters = 0;
+        QString previousCaption; // real DeepL answers in Korean: a line is captioned when a new caption shows for it
         const QStringList& source = scene.typeMs ? twoSentences : oneSentence;
+        QJsonArray memory; // private bytes in MB after each line (P-40 U3)
+        const double memoryStart = privateMb();
         for (int i = 0; i < scene.lines; ++i) {
-            const QString text = source[i % source.size()] + (scene.punctuated ? QStringLiteral("。") : QString());
+            const QString text = (scene.numbered ? QStringLiteral("%1回目、").arg(i + 1) : QString()) +
+                                 source[i % source.size()] + (scene.punctuated ? QStringLiteral("。") : QString());
             lineCharacters += text.size();
             game.line = text;
             game.shown = scene.typeMs ? 0 : int(text.size());
@@ -270,19 +292,52 @@ public:
                 wait(15);
                 if (latency >= 0) continue;
                 const QString shown = bare(window.result_->toPlainText());
-                if (!shown.isEmpty() && editDistance(shown, bare(text)) * 5 <= text.size()) latency = clock.elapsed();
+                if (real) {
+                    const QString read = bare(window.original_->toPlainText());
+                    if (!shown.isEmpty() && shown != previousCaption && !window.busy_ && editDistance(read, bare(text)) * 5 <= text.size())
+                        latency = clock.elapsed();
+                } else if (!shown.isEmpty() && editDistance(shown, bare(text)) * 5 <= text.size()) latency = clock.elapsed();
             }
+            previousCaption = bare(window.result_->toPlainText());
             if (verbose) std::printf("  %6lld line %d latency %lld status [%s] shown [%s]\n", sceneClock.elapsed(), i, latency,
                                      qPrintable(window.status_->text().left(50).replace(QLatin1Char('\n'), QLatin1Char(' '))),
                                      qPrintable(window.result_->toPlainText().left(40)));
             latencies << latency;
             if (latency >= 0) { ++captioned; latencySum += latency; latencyMax = std::max(latencyMax, latency); }
+            memory << privateMb();
+            if (scene.numbered && (i + 1) % 10 == 0)
+                std::printf("  line %d: %.1f MB, cpu %.1f%%\n", i + 1, privateMb(),
+                            100.0 * double(processCpuMs() - cpuBefore) / double(std::max<qint64>(1, wall.elapsed())));
         }
         const double cpuPercent = 100.0 * double(processCpuMs() - cpuBefore) / double(std::max<qint64>(1, wall.elapsed()));
         window.setAutoTranslate(false);
         window.resultWindow_->hide();
         QStringList distinct = http.texts;
         distinct.removeDuplicates();
+        if (real) {
+            QJsonArray captions;
+            for (const auto& entry : window.backlog_) captions << QJsonObject{{"source", entry.source}, {"translation", entry.translation}};
+            return QJsonObject{
+                {"scene", scene.name}, {"deepl", true}, {"memoryStartMb", memoryStart}, {"memoryMb", memory}, {"lines", scene.lines}, {"lineCharacters", lineCharacters},
+                {"captioned", captioned}, {"latencyMs", latencies},
+                {"latencyAvgMs", captioned ? latencySum / captioned : -1}, {"latencyMaxMs", latencyMax},
+                {"ocrReads", reads}, {"requests", window.sentRequests_}, {"textsSent", window.sentRequests_},
+                {"distinctTexts", window.sentRequests_}, {"charactersSent", window.sentCharacters_},
+                {"cpuPercentOfOneCore", cpuPercent}, {"polls", polls}, {"captions", captions}};
+        }
+        // Only the fake game's own text is written down: when another window covers the region, what it
+        // shows is the user's and is recorded as "(다른 글)" without its content.
+        QStringList sent;
+        int otherTexts = 0;
+        for (const QString& t : http.texts) {
+            QString piece = bare(t);
+            if (piece.endsWith(QChar(u'。'))) piece.chop(1);
+            const bool own = std::any_of(source.begin(), source.end(), [&](const QString& line) {
+                return editDistance(piece.right(line.size()), line) * 4 <= line.size(); // "12回目、" is not sent
+            });
+            sent << (own ? t : QStringLiteral("(다른 글)"));
+            otherTexts += !own;
+        }
         return QJsonObject{
             {"scene", scene.name}, {"lines", scene.lines}, {"lineCharacters", lineCharacters},
             {"captioned", captioned}, {"latencyMs", latencies},
@@ -290,10 +345,18 @@ public:
             {"ocrReads", reads}, {"readAvgMs", reads ? readMs / reads : 0}, {"findAvgMs", reads ? findMs / reads : 0},
             {"recognizeAvgMs", reads ? recognizeMs / reads : 0}, {"requests", http.requests}, {"textsSent", http.texts.size()},
             {"distinctTexts", distinct.size()}, {"charactersSent", http.characters()},
-            {"cpuPercentOfOneCore", cpuPercent}, {"polls", polls}, {"sent", QJsonArray::fromStringList(http.texts)}};
+            {"cpuPercentOfOneCore", cpuPercent}, {"polls", polls}, {"sent", QJsonArray::fromStringList(sent)},
+            {"otherTexts", otherTexts}, {"memoryStartMb", memoryStart}, {"memoryMb", memory}};
     }
 
 private:
+    // Committed private memory of this process, in MB.
+    static double privateMb() {
+        PROCESS_MEMORY_COUNTERS_EX counters{};
+        counters.cb = sizeof(counters);
+        if (!GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters))) return 0;
+        return double(counters.PrivateUsage) / (1024.0 * 1024.0);
+    }
     // Kernel and user time of this process, fake game and probe loop included.
     static qint64 processCpuMs() {
         FILETIME created, exited, kernel, user;
@@ -333,14 +396,40 @@ int main(int argc, char** argv) {
         {"idle-blink", FakeGame::Blink, false, false, 0, true, 1, 20000},
         {"idle-moving", FakeGame::Bounce, true, false, 0, true, 1, 20000},
         {"idle-sparkle", FakeGame::Blink, true, true, 0, true, 1, 30000},
+        // 60 different lines, 10 s each, over the busiest picture: memory and CPU over 10 minutes.
+        {"long", FakeGame::Blink, true, true, 0, true, 60, 10000, true, true},
     };
     QStringList wanted;
-    for (int i = 2; i < argc; ++i) wanted << QString::fromLocal8Bit(argv[i]);
+    bool deepl = false;
+    for (int i = 2; i < argc; ++i) {
+        if (QLatin1String(argv[i]) == QLatin1String("--deepl")) deepl = true;
+        else wanted << QString::fromLocal8Bit(argv[i]);
+    }
+    TranslationService usage;
+    qint64 usedBefore = -1, usedAfter = -1, limit = -1;
+    auto checkUsage = [&](qint64& into) {
+        QEventLoop loop;
+        auto got = QObject::connect(&usage, &TranslationService::usageChecked, &loop, [&](qint64 used, qint64 max) { into = used; limit = max; loop.quit(); });
+        auto bad = QObject::connect(&usage, &TranslationService::failed, &loop, &QEventLoop::quit);
+        QTimer::singleShot(20000, &loop, &QEventLoop::quit);
+        usage.checkUsage(realKey, realFree);
+        loop.exec();
+        QObject::disconnect(got); QObject::disconnect(bad);
+    };
+    if (deepl) {
+        // Only scenes named on the command line: real DeepL costs the user's characters.
+        if (wanted.isEmpty()) { std::puts("--deepl needs scene names"); return 2; }
+        QString error;
+        realKey = Credentials::load(error);
+        if (realKey.isEmpty()) { std::printf("no DeepL key: %s\n", qPrintable(error)); return 3; }
+        realFree = realKey.endsWith(QLatin1String(":fx"));
+        checkUsage(usedBefore);
+    }
     WindowChecks probe;
     QJsonArray results;
     std::printf("%-14s %5s %8s %8s %8s %6s %8s %6s %6s %6s %6s\n", "scene", "lines", "caption", "avg ms", "max ms", "reads", "requests", "texts", "chars", "cpu%", "polls");
     for (const Scene& scene : scenes) {
-        if (!wanted.isEmpty() && !wanted.contains(QLatin1String(scene.name))) continue;
+        if (wanted.isEmpty() ? scene.onlyWhenNamed : !wanted.contains(QLatin1String(scene.name))) continue;
         const QJsonObject r = probe.run(scene);
         results << r;
         std::printf("%-14s %5d %8d %8d %8d %6d %8d %6d %6d %6.1f %6d (line chars %d)\n", scene.name, r["lines"].toInt(),
@@ -350,6 +439,18 @@ int main(int argc, char** argv) {
         std::fflush(stdout);
     }
     QSettings().clear();
+    if (deepl) {
+        QEventLoop pause; QTimer::singleShot(1500, &pause, &QEventLoop::quit); pause.exec(); // the count trails a moment behind
+        checkUsage(usedAfter);
+        std::printf("DeepL usage %lld -> %lld of %lld\n", usedBefore, usedAfter, limit);
+        for (const auto& value : results) {
+            const QJsonObject r = value.toObject();
+            for (const auto& caption : r["captions"].toArray())
+                std::printf("  %s: %s -> %s\n", qPrintable(r["scene"].toString()), qPrintable(caption.toObject()["source"].toString()),
+                            qPrintable(caption.toObject()["translation"].toString()));
+        }
+        results << QJsonObject{{"usedBefore", usedBefore}, {"usedAfter", usedAfter}, {"limit", limit}};
+    }
     if (argc > 1) {
         QFile file(QString::fromLocal8Bit(argv[1]));
         if (file.open(QIODevice::WriteOnly)) file.write(QJsonDocument(results).toJson());

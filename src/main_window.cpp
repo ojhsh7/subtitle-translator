@@ -927,8 +927,10 @@ void MainWindow::autoTick() {
     if (autoTimer_->interval() != interval && autoTimer_->interval() <= ChangeDetector::IdlePollMs) autoTimer_->setInterval(interval);
     if (holding_ && decision != ChangeDetector::Decision::Process) {
         // An arrow or the background may keep moving; only text that is still arriving postpones
-        // the send. A new read (below) replaces the held line.
-        if (detector_.stableMs(now) >= ChangeDetector::SettleMs && now - pendingSince_ >= ChangeDetector::SentenceSettleMs) {
+        // the send. A new read (below) replaces the held line, and a line held from a read taken
+        // while text was still arriving waits for the read that follows it.
+        if (detector_.stableMs(now) >= ChangeDetector::SettleMs && now - pendingSince_ >= ChangeDetector::SentenceSettleMs &&
+            !detector_.readOwed()) {
             holding_ = false; pendingText_.clear();
             setBusy(true);
             requestTranslation(heldPieces_, heldScripts_);
@@ -1087,7 +1089,23 @@ bool MainWindow::ocrReady() const {
     return (paddleEngine_ && PaddleOcr::available(paddleDir_, ocrLanguages())) ||
            (ocrLanguages() != QLatin1String("multi") && !executable_.isEmpty() && QFileInfo::exists(executable_));
 }
+bool MainWindow::fromPieceMemory(const QStringList& pieces) {
+    pendingPieces_.clear();
+    if (!prefixShown_.isEmpty() || pieces.isEmpty()) return false;
+    QStringList known;
+    QString detected;
+    for (const QString& piece : pieces) {
+        const auto found = pieceCache_.constFind(memoryKey(lineKey(piece)));
+        if (found == pieceCache_.constEnd()) { pendingPieces_ = pieces; return false; }
+        known << found->translation; detected = found->detected;
+    }
+    for (const QString& piece : pieces) sparedCharacters_ += piece.size();
+    pendingCacheKey_.clear();
+    applyTranslation(known, detected, true);
+    return true;
+}
 void MainWindow::requestTranslation(const QStringList& pieces, unsigned scripts) {
+    if (fromPieceMemory(pieces)) return;
     const QString source = Languages::sourceForScripts(scripts, ocrLanguages());
     if (autoRead_) {
         const qint64 now = autoClock_.elapsed();
@@ -1128,7 +1146,7 @@ MainWindow::ReadState* MainWindow::readState() {
 bool MainWindow::doubtful() const {
     if (ocr_.engineUsed() != QLatin1String("PaddleOCR")) return false;
     const auto& lines = ocr_.paddleDetails().lines;
-    return std::any_of(lines.begin(), lines.end(), [](const auto& line) { return line.lowestCharacter < DoubtfulBelow; });
+    return std::any_of(lines.begin(), lines.end(), [](const auto& line) { return line.lowestLetter < DoubtfulBelow; });
 }
 QList<QRect> MainWindow::checkBoxes(ReadState& state, const ChangeDetector& detector, const QImage& image) const {
     // Only a look (nothing beyond known animation was seen) of a picture whose lines are known.
@@ -1175,6 +1193,16 @@ void MainWindow::applyTranslation(const QStringList& pieces, const QString& dete
         lineCache_.insert(pendingCacheKey_, {translation, detected});
         cacheOrder_.append(pendingCacheKey_);
     }
+    if (!remembered && pendingPieces_.size() == pieces.size()) {
+        for (qsizetype i = 0; i < pieces.size(); ++i) {
+            const QString key = memoryKey(lineKey(pendingPieces_[i]));
+            if (pieceCache_.contains(key)) continue;
+            if (pieceCache_.size() >= CacheLines) pieceCache_.remove(pieceOrder_.takeFirst());
+            pieceCache_.insert(key, {pieces[i], detected});
+            pieceOrder_.append(key);
+        }
+    }
+    pendingPieces_.clear();
     if (ReadState* state = readState()) { state->shownKey = currentKey_; state->shown = translation; state->variant.clear(); }
     result_->setPlainText(shown);
     addToBacklog(original_->toPlainText(), shown);
@@ -1211,8 +1239,40 @@ QString MainWindow::lineKey(const QString& text) {
 bool MainWindow::looksFinished(const QString& text) {
     const QString trimmed = text.trimmed();
     if (trimmed.isEmpty()) return true;
-    static const QString endings = QStringLiteral("。．.！!？?…‥」』）)】〉》\"”’'～~♪");
-    return endings.contains(trimmed.back());
+    static const QString endings = QStringLiteral("。．.！!？?…‥」』）)】〉》\"”’'～~♪♡♥☆★‼⁉⁈・･^");
+    if (endings.contains(trimmed.back())) return true;
+    // P-40: a line that ends in an emoticon is finished too. Emoji and symbols such as ♫ ✨ ❤️
+    // (the last code point, past a variation selector, joiner or skin tone).
+    const QList<uint> points = trimmed.toUcs4();
+    qsizetype end = points.size();
+    auto modifier = [](uint c) { return c == 0xFE0F || c == 0xFE0E || c == 0x200D || (c >= 0x1F3FB && c <= 0x1F3FF); };
+    while (end > 0 && modifier(points[end - 1])) --end;
+    if (end == 0) return true;
+    const uint last = points[end - 1];
+    if (QChar::category(last) == QChar::Symbol_Other) return true;
+    // A run of the same mark: ㅋㅋ ㅠㅠ ㅇㅇ, ｗｗｗ (not "aww"), laughter あはは えへへ 哈哈, 666.
+    qsizetype run = 1;
+    while (end - run > 0 && points[end - run - 1] == last) ++run;
+    const bool jamo = last >= 0x3131 && last <= 0x318E;
+    if (jamo && run >= 2) return true;
+    if (run >= 2 && (last == 'w' || last == 'W' || last == 0xFF57 || last == 0xFF37)) {
+        const qsizetype before = end - run - 1;
+        if (before < 0 || !(QChar::isLetter(points[before]) && QChar::script(points[before]) == QChar::Script_Latin)) return true;
+    }
+    static const QString laughs = QStringLiteral("はハへヘふフひヒ哈呵嘿嘻");
+    if (run >= 2 && last <= 0xFFFF && laughs.contains(QChar(char16_t(last)))) return true;
+    if (run >= 3 && last == '6') return true;
+    // An emoticon word after a space: "orz", "XD", ":D", "<3", "T_T".
+    const qsizetype space = trimmed.lastIndexOf(QLatin1Char(' '));
+    if (space > 0) {
+        const QString word = trimmed.mid(space + 1);
+        static const QStringList words = {QStringLiteral("orz"), QStringLiteral("OTL"), QStringLiteral("lol"), QStringLiteral("LOL"),
+                                          QStringLiteral("xD"), QStringLiteral("XD"), QStringLiteral("<3")};
+        if (words.contains(word)) return true;
+        if (word.size() >= 2 && word.size() <= 4 && QStringLiteral(":;=").contains(word.front())) return true;
+        if (word.size() >= 3 && word.size() <= 5 && word.contains(QLatin1Char('_'))) return true;
+    }
+    return false;
 }
 void MainWindow::restoreGameLanguage() {
     if (game_.key.isEmpty()) return;

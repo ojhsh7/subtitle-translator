@@ -451,6 +451,50 @@ QString PaddleOcr::preferDividerOverI(const QString& chosen, const QString& othe
     }
     return swapped ? other : chosen;
 }
+QString PaddleOcr::restoreHanja(const QString& korean, const QString& other) {
+    static const QRegularExpression empty(QStringLiteral("[(（]\\s*[)）]"));
+    static const QRegularExpression hanja(QStringLiteral("[(（](\\p{Han}+)[)）]"));
+    QList<QRegularExpressionMatch> holes, found;
+    for (auto it = empty.globalMatch(korean); it.hasNext();) holes << it.next();
+    for (auto it = hanja.globalMatch(other); it.hasNext();) found << it.next();
+    if (holes.isEmpty() || holes.size() != found.size()) return korean;
+    QString repaired = korean;
+    for (qsizetype i = holes.size() - 1; i >= 0; --i) { // right to left keeps offsets valid
+        const auto& hole = holes[i];
+        repaired.replace(hole.capturedStart(), hole.capturedLength(),
+                         korean[hole.capturedStart()] + found[i].captured(1) + korean[hole.capturedEnd() - 1]);
+    }
+    return repaired;
+}
+QString PaddleOcr::restoreCaret(const QString& chosen, const QString& other, bool korean) {
+    QString repaired = chosen;
+    if (korean) {
+        static const QRegularExpression tail(QStringLiteral("ㅅ{2,}$"));
+        static const QRegularExpression evidence(QStringLiteral("[へヘ^＾]$"));
+        const auto m = tail.match(repaired);
+        if (m.hasMatch() && evidence.match(other.trimmed()).hasMatch())
+            repaired.replace(m.capturedStart(), m.capturedLength(), QString(m.capturedLength(), QLatin1Char('^')));
+        return repaired;
+    }
+    static const QRegularExpression face(QStringLiteral("[(（]([^()（）]{1,6})[)）]"));
+    static const QString parts = QStringLiteral("^＾_＿oOω・･`´;'∀▽дДε°へヘ");
+    static const QString eyes = QStringLiteral("^＾_＿oω");
+    const bool caretsInOther = other.contains(QStringLiteral("^^")) || other.contains(QStringLiteral("＾＾"));
+    QList<QRegularExpressionMatch> faces;
+    for (auto it = face.globalMatch(chosen); it.hasNext();) faces << it.next();
+    for (auto f = faces.crbegin(); f != faces.crend(); ++f) {
+        const QString inner = f->captured(1);
+        const bool hasHe = inner.contains(u'へ') || inner.contains(u'ヘ');
+        const bool allParts = std::all_of(inner.begin(), inner.end(), [](QChar c) { return parts.contains(c); });
+        const bool hasEye = std::any_of(inner.begin(), inner.end(), [](QChar c) { return eyes.contains(c); });
+        const bool onlyHe = std::all_of(inner.begin(), inner.end(), [](QChar c) { return c == u'へ' || c == u'ヘ'; });
+        if (!hasHe || !allParts || !(hasEye || (onlyHe && inner.size() == 2 && caretsInOther))) continue;
+        QString fixed = inner;
+        fixed.replace(u'へ', u'^').replace(u'ヘ', u'^');
+        repaired.replace(f->capturedStart(1), inner.size(), fixed);
+    }
+    return repaired;
+}
 PaddleOcr::Filtered PaddleOcr::filterLine(const QList<PaddleRecognizer::Piece>& pieces, bool visualOrder) {
     using Piece = PaddleRecognizer::Piece;
     Filtered result;
@@ -464,6 +508,32 @@ PaddleOcr::Filtered PaddleOcr::filterLine(const QList<PaddleRecognizer::Piece>& 
         if (isLetter(p)) { ++letters; surest = std::max(surest, p.probability); }
     if (letters > 0 && letters <= ShortLineLetters && surest < ShortLineSurest) { result.drop = true; return result; }
     if (visualOrder) return result;
+    // The end of the line: an emoji read as a letter, a "♪" read as "」".
+    QList<Piece> line = pieces;
+    while (!line.isEmpty() && line.back().text.trimmed().isEmpty()) line.removeLast();
+    if (line.size() >= 3) {
+        const Piece& last = line.back();
+        const QString& previous = line[line.size() - 2].text;
+        const QList<uint> point = last.text.toUcs4();
+        const bool single = point.size() == 1;
+        const QChar::Script script = single ? QChar::script(point.front()) : QChar::Script_Unknown;
+        // Emoji past the first plane: the models never read a real one (0 of 30), but real ♪ ♡ ☆ can
+        // read below 0.5 and stay.
+        const bool symbol = single && point.front() >= 0x10000 && QChar::category(point.front()) == QChar::Symbol_Other;
+        const bool han = script == QChar::Script_Han;
+        const bool word = han || script == QChar::Script_Hiragana || script == QChar::Script_Katakana || script == QChar::Script_Hangul;
+        const bool afterMark = previous.size() == 1 && QStringLiteral("！？!?。").contains(previous.front());
+        int before = 0;
+        for (qsizetype i = 0; i + 1 < line.size(); ++i) before += isLetter(line[i]) ? 1 : 0;
+        bool stray = before >= 2 && ((word || symbol) && last.probability < StrayGlyphBelow);
+        stray = stray || (afterMark && (han || symbol) && last.probability < StrayAfterMarkBelow);
+        if (!stray && single && (last.text == QStringLiteral("」") || last.text == QStringLiteral("』")) &&
+            last.probability < LoneCloseBelow) {
+            const QChar open = last.text == QStringLiteral("」") ? QChar(u'「') : QChar(u'『');
+            stray = std::none_of(line.begin(), line.end() - 1, [&](const Piece& p) { return p.text.contains(open); });
+        }
+        if (stray) { line.removeLast(); result.changed = true; }
+    }
     // Longer line: an unsure lone letter at either end is usually a symbol ("s Hello s").
     // Scripts whose real short words read with low probability (Devanagari, Arabic) are left alone.
     auto loneLetter = [](const QList<Piece>& token) {
@@ -475,7 +545,7 @@ PaddleOcr::Filtered PaddleOcr::filterLine(const QList<PaddleRecognizer::Piece>& 
                                 script == QChar::Script_Hiragana || script == QChar::Script_Katakana);
     };
     QList<QList<Piece>> tokens(1);
-    for (const Piece& p : pieces) {
+    for (const Piece& p : line) {
         if (p.text.trimmed().isEmpty()) { if (!tokens.back().isEmpty()) tokens.append(QList<Piece>()); }
         else tokens.back() << p;
     }
@@ -627,16 +697,31 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
         for (const Reading& r : readings) {
             if (&r == &chosen) continue;
             const QString other = r.line.text.trimmed();
-            if (chosen.file == QLatin1String(KoreanModel) && r.file == QLatin1String(CjkModel))
+            if (chosen.file == QLatin1String(KoreanModel) && r.file == QLatin1String(CjkModel)) {
                 text = restoreZeroBeforeSymbol(text, other);
+                text = restoreHanja(text, other);
+                text = restoreCaret(text, other, true);
+            }
             text = preferDividerOverI(text, other);
         }
-        double lowest = chosen.line.pieces.isEmpty() ? 0.0 : 1.0;
-        for (const auto& piece : chosen.line.pieces) lowest = std::min(lowest, double(piece.probability));
+        if (chosen.file == QLatin1String(CjkModel)) {
+            QString korean; // evidence for "(^^)"; faces with eyes need none
+            for (const Reading& r : readings)
+                if (r.file == QLatin1String(KoreanModel)) korean = r.line.text;
+            text = restoreCaret(text, korean, false);
+        }
+        // The least sure character of what is kept: a dropped stray letter does not make the line doubtful.
+        const auto& kept = filtered.changed ? filtered.kept : chosen.line.pieces;
+        double lowest = kept.isEmpty() ? 0.0 : 1.0, lowestLetter = 1.0;
+        for (const auto& piece : kept) {
+            lowest = std::min(lowest, double(piece.probability));
+            if (std::any_of(piece.text.begin(), piece.text.end(), [](QChar c) { return c.isLetterOrNumber(); }))
+                lowestLetter = std::min(lowestLetter, double(piece.probability));
+        }
         QStringList others;
         for (const Reading& r : readings)
             if (&r != &chosen) others << QStringLiteral("%1: %2").arg(r.file.section('_', 0, 0), r.line.text.trimmed());
-        result.lines << LineInfo{text, chosen.line.confidence, lowest, chosen.file, chosen.line.pieces, others};
+        result.lines << LineInfo{text, chosen.line.confidence, lowest, chosen.file, chosen.line.pieces, others, lowestLetter};
         texts << text;
         weighted += chosen.line.confidence * text.size(); letters += text.size();
     }

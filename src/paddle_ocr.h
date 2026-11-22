@@ -90,8 +90,10 @@ public:
     static constexpr const char* DetectionModel = "ch_PP-OCRv5_det_mobile.onnx"; // all scripts
     // One recognized line as chosen among the models, kept for diagnostics and filtering.
     // others: what the models that were not chosen read on the same line, "model: text".
+    // lowestLetter: like lowestCharacter, over letters and digits only (1 without any). Punctuation
+    // and symbols read low even when right (？ 0.70, ！ 0.74; P-40), letters rarely do.
     struct LineInfo { QString text; double confidence = 0; double lowestCharacter = 0; QString model;
-                      QList<PaddleRecognizer::Piece> pieces; QStringList others; };
+                      QList<PaddleRecognizer::Piece> pieces; QStringList others; double lowestLetter = 1; };
     // detected: the lines came from the detection model (not the fallback line finder).
     // detectorBoxes: text lines the detection model found; -1 when the model is not installed.
     // dropped: lines removed or shortened by filterLine, as read before filtering.
@@ -119,6 +121,15 @@ public:
     // A lone Latin/Hangul/kana letter or digit at either end of a longer line, separated by a space,
     // is dropped below this (misread symbols: 0.16-0.45; real lone letters such as "Я": 0.6 or more).
     static constexpr double EdgeLetterBelow = 0.5;
+    // P-40 (docs/plan/2026-11-23-expressions-and-open-checks.ko.md): the models have no emoji, and one
+    // glued to the end of a line can come out as a stray letter ("おめでとう🎉" -> "おめでとう楽" 0.12,
+    // "ご" 0.24, "送" 0.27, "🎯" 0.41; "最高！👍" -> "最高！自" 0.86-0.93). The last letter or emoji of a
+    // longer line is dropped below StrayGlyphBelow, and a Han letter or emoji right after ！？。 below
+    // StrayAfterMarkBelow (real ♪ ♡ ☆ can read below 0.5 and are kept). "♪" often reads as "」"
+    // (0.50-0.56); a "」" or "』" that closes nothing in its line is dropped below LoneCloseBelow.
+    static constexpr double StrayGlyphBelow = 0.5;
+    static constexpr double StrayAfterMarkBelow = 0.95;
+    static constexpr double LoneCloseBelow = 0.6;
     // Cross-model repairs when the Korean and the Chinese/Japanese/English models both read a line
     // (measurements in docs/plan/2026-10-25-cleanup-and-reliability.ko.md):
     // P-19: the Korean model reads "0" before a divider as "이" with 0.99 ("Lv.1이|전사"); keep "0" only
@@ -128,6 +139,15 @@ public:
     // P-20: an "I" glued between capitals ("HPIMPISP") where the other model read "|" in the same
     // place is a divider. Real capital words (MISSION, QUIT) read as "I" in both models.
     static QString preferDividerOverI(const QString& chosen, const QString& other);
+    // P-40: the Korean model drops hanja in brackets ("학교(學校)" -> "학교()") and the other model reads
+    // them. Each empty pair is filled, in order, only when the other reading has exactly as many
+    // bracketed runs of Han letters.
+    static QString restoreHanja(const QString& korean, const QString& other);
+    // P-40: "^" in faces reads as "へ"/"ヘ" ("(ヘ_^)" for "(^_^)"). Inside a short bracket made of face
+    // parts only, with "^", "_", "o" or "ω" in it, へ/ヘ become "^" ("(・へ・)" keeps its mouth);
+    // "(へへ)" only when the other reading has "^^". korean: the Korean model read "^^" as "ㅅㅅ" at
+    // the end of the line, and the other model read "へ" or "^" there.
+    static QString restoreCaret(const QString& chosen, const QString& other, bool korean);
     struct Filtered { bool drop = false; bool changed = false; QList<PaddleRecognizer::Piece> kept; };
     // visualOrder: the pieces are not in reading order (Arabic), so edge letters are left alone.
     static Filtered filterLine(const QList<PaddleRecognizer::Piece>& pieces, bool visualOrder = false);

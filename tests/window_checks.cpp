@@ -123,6 +123,16 @@ private slots:
         for (const char* unfinished : {"今日は、", "今日はいい天気", "Hello, my", "そして"})
             QVERIFY2(!MainWindow::looksFinished(QString::fromUtf8(unfinished)), unfinished);
     }
+    // P-40: lines that end in each country's emoticons are finished too, so they go out without
+    // the typewriter wait.
+    void emoticonEndsAreRecognized() {
+        for (const char* finished : {"好きだよ♡", "すごい☆", "ええええ⁉", "そうなんだ・・・", "それな ｗｗｗ", "負けた orz",
+                                     "おはよう😊", "사랑해❤️", "最高👍🏻", "오늘 날씨 좋다 ㅋㅋㅋ", "진짜 슬프다 ㅠㅠ", "고마워요^^",
+                                     "あはは", "哈哈哈", "这操作666", "See you :D", "Thanks <3", "Sorry T_T"})
+            QVERIFY2(MainWindow::looksFinished(QString::fromUtf8(finished)), finished);
+        for (const char* unfinished : {"I saw", "Oh aww", "안녕ㅎ", "第6", "母は", "Now is the time", "今日は天気"})
+            QVERIFY2(!MainWindow::looksFinished(QString::fromUtf8(unfinished)), unfinished);
+    }
     // P-33 G1/G2: shown lines go to the backlog (memory only); fixes change the original before it is
     // sent and the translation before it is shown.
     void backlogAndTextFixes() {
@@ -174,7 +184,8 @@ private slots:
     }
     // P-24: a sentence typed for longer than MaxWaitMs is read once while still typing. That read does not
     // end a sentence, so it waits, and it is dropped as the text keeps changing: only the finished
-    // sentence is sent.
+    // sentence is sent. P-40: the held partial waits for the read after typing (ChangeDetector::readOwed);
+    // before, it could go out one poll before that read (about 1 run in 4).
     void longTypewriterSentenceIsSentOnce() {
         if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
         const QString full = QStringLiteral("今日はいい天気ですね明日も晴れるといいですね本当にそう思います。");
@@ -200,7 +211,8 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(shown == full.size(), 10000);
         QTRY_COMPARE_WITH_TIMEOUT(int(http.requests.size()), 1, 10000);
         QTest::qWait(1500);
-        QCOMPARE(int(http.requests.size()), 1); // the partial read while typing was never sent
+        // the partial read while typing was never sent
+        QVERIFY2(http.requests.size() == 1, http.requests.join("\n---\n").constData());
         QVERIFY2(http.requests[0].contains(QStringLiteral("思います").toUtf8()), http.requests[0].constData());
         window.setAutoTranslate(false);
     }
@@ -871,6 +883,30 @@ private slots:
         QCOMPARE(window.sentRequests_, qint64(2));
         window.resultWindow_->hide();
     }
+    // P-40: a line that differs only in what is not sent (the number in front, or a misread of it) is
+    // shown from the pieces translated before, without a request. Measured in the 10-minute scene: two
+    // lines read as "9回目" and then "19回目" were each sent twice.
+    void lineDifferingOnlyInTheKeptPartUsesPieceMemory() {
+        LocalHttp http; QVERIFY(http.listening());
+        http.replies << LocalHttp::Reply{200, reply("번째, 오늘은 날씨가 좋아요.")} << LocalHttp::Reply{200, reply("내일은 비가 와요.")};
+        MainWindow window; prepare(window, http);
+        feed(window, QStringLiteral("12回目、今日はいい天気です。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 1);
+        QVERIFY2(!body(http.requests[0]).value("text").toArray().at(0).toString().contains(QStringLiteral("12")), http.requests[0].constData());
+        feed(window, QStringLiteral("13回目、今日はいい天気です。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 1);
+        QVERIFY2(window.result_->toPlainText().contains(QStringLiteral("13")) && window.result_->toPlainText().contains(QStringLiteral("오늘은")),
+                 qPrintable(window.result_->toPlainText()));
+        QVERIFY2(window.resultStatus_->text().contains(QStringLiteral("기억해 둔")), qPrintable(window.resultStatus_->text()));
+        QCOMPARE(window.sentRequests_, qint64(1));
+        // Another sentence still goes out.
+        feed(window, QStringLiteral("14回目、明日は雨が降ります。"), false);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.busy_, 5000);
+        QCOMPARE(int(http.requests.size()), 2);
+        window.resultWindow_->hide();
+    }
     // P-38: a line taken from memory gets the user's fixes as they are now, not as they were.
     void rememberedLineUsesTodaysFixes() {
         LocalHttp http; QVERIFY(http.listening());
@@ -1441,8 +1477,14 @@ private slots:
         QTRY_VERIFY2_WITH_TIMEOUT(window.original_->toPlainText().contains(QStringLiteral("天気")) && !window.busy_,
                                   qPrintable(state()), 25000);
         const auto firstRequest=window.request_;
+        QStringList reads; QElapsedTimer since; since.start();
+        connect(&window.ocr_, &OcrService::recognized, &window, [&](const QString& t) {
+            // On failure: when the extra read came and whether the picture was moving (something on screen).
+            reads << QStringLiteral("%1ms [%2] moving %3 look %4").arg(since.elapsed()).arg(t)
+                         .arg(window.detector_.movingAtRead()).arg(window.detector_.onlyLooking());
+        });
         QTest::qWait(1600); // The unchanged line must not be read again.
-        QCOMPARE(window.request_,firstRequest);
+        QVERIFY2(window.request_ == firstRequest, qPrintable(state() + QStringLiteral(" | ") + reads.join(QStringLiteral(" | "))));
         fixture.setText(QStringLiteral("明日は雨が降ります。"));
         QTRY_VERIFY2_WITH_TIMEOUT(window.request_!=firstRequest && !window.busy_ && !window.original_->toPlainText().isEmpty(),
                                   qPrintable(state()), 25000);

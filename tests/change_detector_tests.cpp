@@ -301,9 +301,12 @@ private slots:
             QCOMPARE(detector.feed(last,i*P), i == forcedAt ? Decision::Process : Decision::Wait);
         }
         const qint64 forced = forcedAt * P;
+        QVERIFY(detector.readOwed()); // P-40: a line held from the forced read waits for the next one
         QCOMPARE(detector.feed(last,forced+P),Decision::Wait);
         QCOMPARE(detector.feed(last,forced+2*P),Decision::Wait);
+        QVERIFY(detector.readOwed());
         QCOMPARE(detector.feed(last,forced+3*P),Decision::Process);
+        QVERIFY(!detector.readOwed());
         QCOMPARE(detector.feed(last,forced+4*P),Decision::Unchanged);
     }
     void resetForgetsTheProcessedLine() {

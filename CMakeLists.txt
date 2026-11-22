@@ -115,6 +115,12 @@ if(BUILD_TESTING)
   endif()
   add_test(NAME windows_flow COMMAND window_checks -o "${CMAKE_CURRENT_BINARY_DIR}/windows-flow.txt,txt")
   add_version_resource(window_checks "Subtitle Translator - test window_checks")
+  # Measurement, not a test: everyday kanji, emoticons, emoji and punctuation through OCR and the app's rules (P-40).
+  qt_add_executable(expression_probe tests/expression_probe.cpp src/main_window.cpp src/main_window_ui.cpp src/main_window.h src/fluent_widgets.cpp src/fluent_widgets.h src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
+  target_link_libraries(expression_probe PRIVATE subtitle_services subtitle_core Qt6::Concurrent User32)
+  if(MSVC)
+    target_compile_options(expression_probe PRIVATE /utf-8)
+  endif()
   # Measurement, not a test: auto translation against an animated fake game (docs/plan/2026-11-15-auto-efficiency.ko.md).
   qt_add_executable(scene_probe tests/scene_probe.cpp src/main_window.cpp src/main_window_ui.cpp src/main_window.h src/fluent_widgets.cpp src/fluent_widgets.h src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
   target_link_libraries(scene_probe PRIVATE subtitle_services subtitle_core Qt6::Concurrent User32)

@@ -69,7 +69,41 @@ public final class FlowTest {
             waitFor(()->!p.busy,10000); assertTrue(p.status,p.status.contains("권한"));
             scenario.onActivity(a->p.load(IMAGE,0)); waitFor(()->!p.busy,10000); assertNotNull(p.image);
             scenario.onActivity(a->{ p.run(); a.moveTaskToBack(true); });
-            SystemClock.sleep(800); assertFalse(p.busy);
+            // onStop cancels; a windowed emulator calls it later than a headless one did (P-40: not within 800 ms).
+            waitFor(()->!p.busy,5000);
+        }
+    }
+    // P-40 U4 (P-15): the real DeepL call through the app's own pipeline, only when the runner is given a
+    // key (am instrument -e deeplKey ...). The key is not in the source, the logs or the metrics. Costs
+    // the 10 characters of the fixture line. Skipped otherwise.
+    @Test public void realTranslationWhenAKeyIsGiven() throws Exception {
+        final String key=InstrumentationRegistry.getArguments().getString("deeplKey","");
+        Assume.assumeFalse("no deeplKey argument",key.isEmpty());
+        Context target=InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Intent share=new Intent(Intent.ACTION_SEND).setClass(target,MainActivity.class).setType("image/png")
+            .putExtra(Intent.EXTRA_STREAM,IMAGE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(share)) {
+            AtomicReference<Pipeline> ref=new AtomicReference<>();
+            scenario.onActivity(a->ref.set(field(a,"model")));
+            Pipeline p=ref.get();
+            waitFor(()->p.image!=null && !p.busy,10000);
+            scenario.onActivity(a->{
+                CropView crop=field(a,"cropView"); long now=SystemClock.uptimeMillis();
+                float y=crop.getHeight()/2f;
+                crop.dispatchTouchEvent(MotionEvent.obtain(now,now,MotionEvent.ACTION_DOWN,4,y-45,0));
+                crop.dispatchTouchEvent(MotionEvent.obtain(now,now+30,MotionEvent.ACTION_MOVE,crop.getWidth()-4,y+45,0));
+                crop.dispatchTouchEvent(MotionEvent.obtain(now,now+60,MotionEvent.ACTION_UP,crop.getWidth()-4,y+45,0));
+                // In memory only: not saved, so the key does not stay on the device.
+                p.key=key; p.freeApi=key.endsWith(":fx"); p.consent=true; p.run();
+            });
+            waitFor(()->!p.busy,40000);
+            assertTrue(p.status,p.japanese.contains("天気"));
+            assertTrue(p.status,p.korean.contains("날씨"));
+            org.json.JSONObject metrics=new org.json.JSONObject().put("platform",android.os.Build.MODEL+" API"+android.os.Build.VERSION.SDK_INT)
+                .put("realDevice",false).put("translationVerified",true).put("ocrMs",p.ocrMs).put("translateMs",p.translateMs)
+                .put("source",p.japanese).put("translation",p.korean);
+            try(FileOutputStream out=target.openFileOutput("test-metrics-real.json",0)) { out.write(metrics.toString(2).getBytes(StandardCharsets.UTF_8)); }
+            scenario.onActivity(a->{ p.key=""; p.consent=false; });
         }
     }
     @Test public void pickerCancellation() throws Exception {

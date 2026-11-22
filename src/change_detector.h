@@ -55,6 +55,10 @@ public:
     // Read once more at atMs whatever the picture shows then: a reading that looked like a
     // misread of the line on screen is sent only if a second read agrees (P-38).
     void lookAgain(qint64 atMs) { retryAt_ = atMs; }
+    // The last read was taken while text was still arriving (after MaxWaitMs of change); another read
+    // follows once the picture is quiet. A line held from that read must wait for it (P-40: sending
+    // it when the outline stopped growing could beat the final read by one poll and send half a line).
+    bool readOwed() const { return sampledWhileChanging_; }
     static constexpr qint64 ConfirmReadMs = 400;
     // Only OCR failure schedules a bounded retry. Never retry a paid API failure here.
     bool retryAfterFailure(qint64 nowMs);
