@@ -41,6 +41,9 @@ Copy-Item tests\window_checks.cpp "$root\windows-source\tests\" -Force
 $env:PATH="$qt\bin;$env:PATH"; $env:QT_PLUGIN_PATH="$qt\plugins"; $env:SUBTITLE_TEST_PADDLE="$root\paddle"
 $env:SUBTITLE_TEST_TESSERACT="$root\ocr\tesseract.exe"; $env:SUBTITLE_TEST_TESSDATA="$root\ocr\tessdata"
 & "$root\windows-build\Release\window_checks.exe" 테스트이름 -o "$root\windows-build\single.txt,txt"
+
+# 코드 서명 (P-22): 인증서가 있을 때만. 이미 서명된 Qt·ONNX Runtime은 그대로 두고 나머지 54개를 서명
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\sign-windows.ps1 -Thumbprint <인증서 지문>
 ```
 
 마지막 결과(2026-11-23, QA 재확인 후): CTest 7/7 그룹, **221 통과 · 실패 0 · 건너뜀 0**. 움직이는 게임 화면 측정은 `scene_probe.exe <결과.json> [화면 이름…]`(로컬 가짜 서버, DeepL 안 씀. `--deepl`은 저장된 키로 실제 DeepL, `long`은 10분, `hour`는 1시간에 핸들·GDI·USER까지, `idle5`는 정지 화면 5분). 글꼴별 표현 판독은 `expression_probe.exe <결과.json> [--deepl]`. 두 도구의 `--deepl`은 사용자 키의 글자를 쓰므로 확인 없이 실행하지 않는다. 화면을 읽는 테스트는 PC를 쓰는 중이면 다른 창 때문에 가끔 실패한다(조용한 화면에서는 10/10, P-12 2.5절). 비교 빌드를 만들 때는 P-32(복사한 헤더의 수정 시각) 주의. 그룹별 결과 파일은 `D:\SubtitleTranslatorToolchain\windows-build\*.txt`.

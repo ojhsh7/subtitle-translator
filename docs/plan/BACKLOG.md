@@ -14,7 +14,7 @@
 
 | ID | 할 일 | 우선 | 근거 | 완료 기준 |
 |---|---|---|---|---|
-| P-22 | 배포 실행 파일 코드 서명 | P1 | [일괄 처리 5절](2026-10-25-cleanup-and-reliability.ko.md): 서명 없는 실행 파일을 Smart App Control이 무작위로 막음(앱 본체 포함). [P-40 4.5절](2026-11-23-expressions-and-open-checks.ko.md): 서명 없는 파일 55개 중 53개가 Tesseract 예비 엔진, 개인용 Azure 서명은 미국·캐나다만 | 인증서 구매 여부(비용) 사용자 결정, Tesseract를 배포에서 뺄지 결정, 서명한 설치본이 Smart App Control이 켜진 PC에서 실행됨 |
+| P-22 | 배포 실행 파일 코드 서명 | P1 | [일괄 처리 5절](2026-10-25-cleanup-and-reliability.ko.md): 서명 없는 실행 파일을 Smart App Control이 무작위로 막음(앱 본체 포함). [P-40 4.5절](2026-11-23-expressions-and-open-checks.ko.md): 서명이 없거나 유효하지 않은 파일 54개 중 52개가 Tesseract 예비 엔진, 개인용 Azure 서명은 미국·캐나다만. 인증서만 있으면 `scripts/sign-windows.ps1 -Thumbprint …`로 54개를 서명(시험 인증서로 동작 확인) | 인증서 구매 여부(비용) 사용자 결정, 서명한 설치본이 Smart App Control이 켜진 PC에서 실행됨 |
 
 ## 대기
 

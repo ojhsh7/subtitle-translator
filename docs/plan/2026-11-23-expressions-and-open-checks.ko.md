@@ -142,7 +142,7 @@
 
 - **실제 게임 (P-13)**: 설치된 게임은 많지만 대신 실행하지 않았다(온라인 접속·안티치트·업데이트가 따라올 수 있음). 사용자가 게임을 켜 두면 그 화면으로 확인할 수 있다.
 - **모니터 2대 (P-14)**: 이 PC는 모니터 1대(2560×1440)라 확인할 수 없다.
-- **코드 서명 (P-22)**: 배포본의 서명을 확인했다. Qt(The Qt Company)와 ONNX Runtime(Microsoft) DLL은 서명돼 있다. 서명이 없는 것은 `SubtitleTranslator.exe`, `subtitle_cli.exe`, 그리고 Tesseract 예비 엔진(`tesseract.exe`와 DLL 51개, `libtesseract`의 Mannheim 대학 서명은 유효하지 않음)이다. Smart App Control은 앱의 파일 하나만 서명이 없어도 앱 전체를 막을 수 있고, 자체 서명 인증서는 인정하지 않는다. 그래서 서명하려면 Microsoft 신뢰 루트에 있는 인증서로 모든 파일에 서명해야 한다. 서명 안 된 55개 중 53개가 Tesseract 쪽이므로, PaddleOCR만 배포하면 서명할 파일이 2개로 준다. Azure Artifact Signing(구 Trusted Signing, 월 9.99달러)은 2026년 3월 기준 개인 신원 확인이 미국·캐나다로 한정이라는 보고가 있어, 한국 개인이면 일반 CA의 코드 서명 인증서(하드웨어 토큰 또는 클라우드 서명)가 현실적이다. 비용이 드는 결정이라 사용자 확인이 필요하다.
+- **코드 서명 (P-22)**: 배포본의 서명을 확인했다. Qt(The Qt Company)와 ONNX Runtime(Microsoft) DLL은 서명돼 있다. 서명이 없는 것은 `SubtitleTranslator.exe`, `subtitle_cli.exe`, 그리고 Tesseract 예비 엔진(`tesseract.exe`와 DLL 51개, `tesseract.exe`·`libtesseract`의 Mannheim 대학 서명은 유효하지 않음)이다. Smart App Control은 앱의 파일 하나만 서명이 없어도 앱 전체를 막을 수 있고, 자체 서명 인증서는 인정하지 않는다. 그래서 서명하려면 Microsoft 신뢰 루트에 있는 인증서로 모든 파일에 서명해야 한다. 서명이 없거나 유효하지 않은 54개 중 52개가 Tesseract 쪽이므로, PaddleOCR만 배포하면 서명할 파일이 2개로 준다(2026-11-23 P-12 뒤 `scripts/sign-windows.ps1`로 다시 세어 바로잡음). Azure Artifact Signing(구 Trusted Signing, 월 9.99달러)은 2026년 3월 기준 개인 신원 확인이 미국·캐나다로 한정이라는 보고가 있어, 한국 개인이면 일반 CA의 코드 서명 인증서(하드웨어 토큰 또는 클라우드 서명)가 현실적이다. 비용이 드는 결정이라 사용자 확인이 필요하다.
 
 ## 5. 함께 고친 것
 
