@@ -268,6 +268,26 @@ private slots:
         QCOMPARE(window.keyHints_[0]->text(), window.regionRegistered_ ? window.regionShortcut_ : QString());
         QCOMPARE(window.keyHints_[1]->text(), window.registered_ ? window.captureShortcut_ : QString());
         QCOMPARE(window.keyHints_[2]->text(), window.cursorRegistered_ ? window.cursorShortcut_ : QString());
+        // Menu items with a shortcut show it, in the tray and in the more (⋯) menu.
+        if (window.trayRegion_ && window.regionRegistered_) QVERIFY(window.trayRegion_->text().endsWith(window.regionShortcut_));
+        if (window.trayCapture_ && window.registered_) QVERIFY(window.trayCapture_->text().endsWith(window.captureShortcut_));
+        if (window.captionsRegistered_) QVERIFY(window.moreCaptions_->text().endsWith(window.captionsShortcut_));
+    }
+    // P-41: a long status or region line makes the window taller instead of laying rows over each
+    // other (the installed app showed the language row on top of the stage).
+    void longTextsGrowTheWindowInsteadOfOverlapping() {
+        MainWindow window;
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        window.resize(window.width(), 200); // as a short saved size would leave it
+        window.regionLabel_->setText(QStringLiteral("아주 긴 게임 이름이 들어간 창 기준으로 저장된 영역이에요. 게임을 실행하면 위치를 다시 맞춰요."));
+        window.setStatus(QStringLiteral("준비됐어요. 자동 번역(Ctrl+Alt+P)을 켜면 대사가 바뀔 때마다 번역해요. ") +
+                         QStringLiteral("Ctrl+Alt+V 키는 다른 앱이 쓰고 있어서 등록하지 못했어요. 설정의 단축키 페이지에서 바꿀 수 있어요."));
+        QTest::qWait(50);
+        const QRect stage = window.stage_->geometry(), language = window.ocrLanguageBox_->geometry();
+        QVERIFY2(stage.bottom() < language.top(), qPrintable(QStringLiteral("stage bottom %1, language top %2").arg(stage.bottom()).arg(language.top())));
+        QVERIFY2(window.status_->geometry().bottom() <= window.centralWidget()->height(), "the status is cut off");
+        QVERIFY(window.status_->geometry().top() >= window.regionLabel_->geometry().bottom());
     }
     // P-41: the Tesseract settings show only when Tesseract reads.
     void tesseractSettingsShowOnlyWhenUsed() {
@@ -628,6 +648,32 @@ private slots:
         next.followGame_->setChecked(false);
         QVERIFY(next.game_.key.isEmpty());
         QVERIFY(next.hasRegion());
+    }
+    // P-41: a region saved when games were named by their program file takes the window title once found.
+    void oldGameNameBecomesTheWindowTitle() {
+        QWidget game;
+        game.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        game.setWindowTitle(QStringLiteral("Old Save Quest"));
+        game.resize(700, 400); game.move(60, 60); game.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&game));
+        QTest::qWait(200);
+        const QString key = GameWindow::normalizedKey(QCoreApplication::applicationFilePath());
+        {
+            MainWindow window;
+            window.ignoreProcess_ = 0;
+            window.setRegion(game.screen(), QRect(game.mapToGlobal(QPoint(50, 280)) - game.screen()->geometry().topLeft(), QSize(400, 60)));
+            QCOMPARE(window.game_.key, key);
+            QCOMPARE(window.game_.name, QStringLiteral("Old Save Quest"));
+        }
+        // As an older version saved it.
+        const QString group = QStringLiteral("games/") +
+            QString::fromLatin1(key.toUtf8().toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+        QSettings().setValue(group + QStringLiteral("/name"), QStringLiteral("window_checks.exe"));
+        MainWindow next;
+        QCOMPARE(next.game_.key, key);
+        QCOMPARE(next.game_.name, QStringLiteral("Old Save Quest"));
+        QCOMPARE(QSettings().value(group + QStringLiteral("/name")).toString(), QStringLiteral("Old Save Quest"));
+        QVERIFY2(next.regionLabel_->text().contains(QStringLiteral("Old Save Quest")), qPrintable(next.regionLabel_->text()));
     }
     // F3: the region hotkey opens the selector on the monitor under the mouse, also while minimized.
     void regionHotkeyOpensSelector() {

@@ -1027,6 +1027,13 @@ bool MainWindow::followGame(bool switchToForeground) {
     const GameWindow::Info info = GameWindow::find(game_.key, game_.handle);
     if (!info.isValid()) return false;
     game_.handle = info.handle;
+    // P-41: a region saved when games were named by their program file ("hspy.exe") takes the window
+    // title once the window is found. Only then: some games keep changing their title.
+    if (game_.name.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive) && !info.title.trimmed().isEmpty()) {
+        game_.name = gameLabel(info);
+        if (knownGames_.contains(game_.key)) knownGames_[game_.key].name = game_.name;
+        QSettings().setValue(gameGroup(game_.key) + QStringLiteral("/name"), game_.name);
+    }
     const GameWindow::Area area = GameWindow::toScreen(GameWindow::place(game_.relative, game_.client, info.client));
     if (!area.screen || area.rect.width() < 8 || area.rect.height() < 8) return false;
     if (area.screen != selectedScreen_ || area.rect != region_ || area.screen->geometry() != selectedGeometry_ ||

@@ -13,6 +13,8 @@
 #include <QEventLoop>
 #include <QGuiApplication>
 #include <QListWidget>
+#include <QMenu>
+#include <QStyleHints>
 #include <QPlainTextEdit>
 #include <QScreen>
 #include <QSettings>
@@ -63,6 +65,15 @@ public:
             window.setStatus(QStringLiteral("번역했어요. 다음 대사를 기다리고 있어요."));
             shoot(&window, QStringLiteral("03-main-caption"));
 
+            // The more (⋯) and tray menus, opened beside the window.
+            int menuIndex = 0;
+            for (QMenu* menu : window.findChildren<QMenu*>()) {
+                if (menu->actions().isEmpty()) continue;
+                menu->popup(window.geometry().topRight() + QPoint(16, 0));
+                shoot(menu, QStringLiteral("04-menu-%1").arg(++menuIndex));
+                menu->hide();
+            }
+
             // Every settings page, shown without its modal loop.
             for (int page = 0; page < window.settingsPages_->count(); ++page) {
                 window.settingsPages_->setCurrentRow(page);
@@ -107,6 +118,8 @@ int main(int argc, char** argv) {
     app.setOrganizationName("SubtitleTranslatorChecks");
     app.setApplicationName("TemporaryUiShots");
     app.setQuitOnLastWindowClosed(false);
-    if (argc < 2) { std::puts("usage: ui_shots <output folder>"); return 2; }
+    if (argc < 2) { std::puts("usage: ui_shots <output folder> [--dark]"); return 2; }
+    // --dark: as on a PC in dark mode (the app follows Windows through the palette).
+    if (argc > 2 && QLatin1String(argv[2]) == QLatin1String("--dark")) QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
     return WindowChecks::run(QString::fromLocal8Bit(argv[1]));
 }

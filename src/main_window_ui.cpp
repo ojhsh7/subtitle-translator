@@ -201,6 +201,7 @@ void MainWindow::refreshUi() {
     if (moreCaptions_) {
         const QSignalBlocker blocker(moreCaptions_);
         moreCaptions_->setChecked(captionsHidden_);
+        moreCaptions_->setText(QStringLiteral("자막 숨기기") + (captionsRegistered_ ? QStringLiteral("\t") + captionsShortcut_ : QString()));
     }
     // Before anything was read, the stage says what to do next.
     if (stage_) stage_->setPlaceholder(apiKey_.isEmpty() || !consent_
@@ -232,7 +233,17 @@ void MainWindow::refreshUi() {
             trayCaptions_->setChecked(captionsHidden_);
         }
         trayCaptions_->setText(QStringLiteral("자막 숨기기") + (captionsRegistered_ ? QStringLiteral("\t") + captionsShortcut_ : QString()));
+        // P-41: every item that has a shortcut shows it.
+        if (trayRegion_) trayRegion_->setText(QStringLiteral("영역 선택") + (regionRegistered_ ? QStringLiteral("\t") + regionShortcut_ : QString()));
+        if (trayCapture_) trayCapture_->setText(QStringLiteral("지금 번역") + (registered_ ? QStringLiteral("\t") + captureShortcut_ : QString()));
         tray_->setToolTip(QStringLiteral("자막 번역: %1").arg(state));
+    }
+    // P-41: the window took its height from the first, one-line status. A longer status or region
+    // line (wrapped) needs more: grow so nothing overlaps (the language row sat on the stage).
+    if (QWidget* central = centralWidget(); central && central->layout()) {
+        QLayout* box = central->layout();
+        const int need = box->hasHeightForWidth() ? box->totalHeightForWidth(central->width()) : box->totalMinimumSize().height();
+        if (need > central->height()) resize(width(), height() + need - central->height());
     }
 }
 
@@ -1051,9 +1062,9 @@ void MainWindow::buildTray() {
     trayCaptions_->setCheckable(true);
     connect(trayCaptions_, &QAction::triggered, this, [this](bool hidden) { setCaptionsHidden(hidden); });
     menu->addSeparator();
-    menu->addAction(QStringLiteral("영역 선택"), this, [this] { chooseRegionUnderCursor(); });
+    trayRegion_ = menu->addAction(QStringLiteral("영역 선택"), this, [this] { chooseRegionUnderCursor(); });
     menu->addAction(QStringLiteral("영역 추가"), this, [this] { showFromTray(); addExtraArea(); });
-    menu->addAction(QStringLiteral("지금 번역"), this, &MainWindow::startCapture);
+    trayCapture_ = menu->addAction(QStringLiteral("지금 번역"), this, &MainWindow::startCapture);
     menu->addAction(QStringLiteral("대사 기록"), this, &MainWindow::showBacklog);
     menu->addSeparator();
     menu->addAction(QStringLiteral("설정"), this, [this] { showFromTray(); settings(); });

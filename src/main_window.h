@@ -339,6 +339,8 @@ private:
     QString captionsShortcut_ = QStringLiteral("Ctrl+Alt+V");
     bool captionsHidden_ = false;   // translation goes on; only the on-screen caption is held back
     QAction* trayCaptions_ = nullptr;
+    QAction* trayRegion_ = nullptr;  // tray items that carry the shortcut in use (P-41)
+    QAction* trayCapture_ = nullptr;
     bool contextOn_ = true;         // send the line before as DeepL context (not billed)
     QString contextLine_;           // the original of the last line sent
     int hoverDwellMs_ = 1000;
