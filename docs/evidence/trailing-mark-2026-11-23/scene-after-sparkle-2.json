@@ -1,0 +1,58 @@
+[
+    {
+        "captioned": 4,
+        "charactersSent": 42,
+        "cpuPercentOfOneCore": 7.666070462959111,
+        "distinctTexts": 4,
+        "findAvgMs": 40.40839999999999,
+        "gdiObjects": [
+            30,
+            30,
+            30,
+            30
+        ],
+        "handles": [
+            770,
+            770,
+            770,
+            770
+        ],
+        "latencyAvgMs": 584,
+        "latencyMaxMs": 1053,
+        "latencyMs": [
+            1053,
+            421,
+            424,
+            440
+        ],
+        "lineCharacters": 42,
+        "lines": 4,
+        "memoryMb": [
+            437.31640625,
+            438.1953125,
+            438.20703125,
+            454.2421875
+        ],
+        "memoryStartMb": 165.96484375,
+        "ocrReads": 10,
+        "otherTexts": 0,
+        "polls": 184,
+        "readAvgMs": 50.8,
+        "recognizeAvgMs": 9.254290000000001,
+        "requests": 4,
+        "scene": "sparkle-nomark",
+        "sent": [
+            "今日はいい天気ですね",
+            "明日は学校に行きます",
+            "この本はとても面白い",
+            "駅まで一緒に歩きましょう"
+        ],
+        "textsSent": 4,
+        "userObjects": [
+            49,
+            49,
+            49,
+            49
+        ]
+    }
+]

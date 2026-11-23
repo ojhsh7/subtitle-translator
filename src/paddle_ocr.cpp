@@ -451,6 +451,53 @@ QString PaddleOcr::preferDividerOverI(const QString& chosen, const QString& othe
     }
     return swapped ? other : chosen;
 }
+QRect PaddleOcr::withTrailingMark(const QImage& region, const QRect& box) {
+    const int h = box.height();
+    const int limit = std::min(region.width() - 1, box.right() + int(0.8 * h));
+    if (h < 8 || limit <= box.right()) return box;
+    const QImage image = region.convertToFormat(QImage::Format_RGB32);
+    auto luma = [&](int x, int y) { const QRgb c = image.pixel(x, y); return (qRed(c) * 299 + qGreen(c) * 587 + qBlue(c) * 114) / 1000; };
+    // Ink: brightness steps as sharp as a glyph's stroke. Each column reports the rows it has ink in.
+    auto ink = [&](int x, int& top, int& bottom) {
+        bool any = false;
+        for (int y = std::max(1, box.top()); y <= std::min(image.height() - 1, box.bottom()); ++y)
+            if (std::abs(luma(x, y) - luma(x - 1, y)) > 60 || std::abs(luma(x, y) - luma(x, y - 1)) > 60) {
+                top = std::min(top, y); bottom = std::max(bottom, y); any = true;
+            }
+        return any;
+    };
+    // The glyphs' own band at the end of the line.
+    int glyphTop = INT_MAX, glyphBottom = -1;
+    for (int x = std::max(1, box.right() - h); x <= box.right(); ++x) ink(x, glyphTop, glyphBottom);
+    if (glyphBottom <= glyphTop) return box;
+    const int band = glyphBottom - glyphTop + 1;
+    // Ink that starts within half a line height of the box and continues without a longer gap.
+    int first = -1, last = -1, gapFrom = box.right(), markTop = INT_MAX, markBottom = -1;
+    for (int x = box.right() + 1; x <= limit; ++x) {
+        if (ink(x, markTop, markBottom)) { if (first < 0) first = x; last = x; gapFrom = x; }
+        else if (x - gapFrom > h / 2) break;
+    }
+    if (last < 0) return box;
+    // Only a small mark low in the band: "。" "、" "．" (the marks that were left out). A light that
+    // drifts past the end of a line (P-41 sparkle scene) is mostly elsewhere and was read as letters.
+    if (last - first + 1 > band * 6 / 10 || markTop < glyphTop + band * 4 / 10 || markBottom > glyphBottom + band / 6) return box;
+    // An emoji (or an icon) after the line is ink too, and the model then reads it as some letter at
+    // 0.78-0.93. It is far more colourful than the line's own end: leave it out. Coloured text or a
+    // coloured box is colourful on both sides and still gets its mark.
+    auto colourful = [&](int from, int to) {
+        int count = 0, all = 0;
+        for (int y = std::max(0, box.top()); y <= std::min(image.height() - 1, box.bottom()); ++y)
+            for (int x = std::max(0, from); x <= to; ++x, ++all) {
+                const QRgb c = image.pixel(x, y);
+                count += std::max({qRed(c), qGreen(c), qBlue(c)}) - std::min({qRed(c), qGreen(c), qBlue(c)}) > 60;
+            }
+        return all ? double(count) / all : 0.0;
+    };
+    if (colourful(box.right() + 1, last) > colourful(box.right() - h, box.right()) + 0.08) return box;
+    QRect extended = box;
+    extended.setRight(std::min(region.width() - 1, last + std::max(2, h / 8)));
+    return extended;
+}
 QString PaddleOcr::restoreHanja(const QString& korean, const QString& other) {
     static const QRegularExpression empty(QStringLiteral("[(（]\\s*[)）]"));
     static const QRegularExpression hanja(QStringLiteral("[(（](\\p{Han}+)[)）]"));
@@ -639,7 +686,10 @@ PaddleOcr::Result PaddleOcr::read(const QImage& region, const QString& languages
         }
         result.detectorBoxes = int(lines.size());
     } else if (detector_) {
-        for (const QRect& box : detector_->lines(region, &result.detectRunMs, cancel)) { lines << region.copy(box); result.boxes << box; }
+        for (QRect box : detector_->lines(region, &result.detectRunMs, cancel)) {
+            box = withTrailingMark(region, box);
+            lines << region.copy(box); result.boxes << box;
+        }
         if (stop()) return {}; // an aborted detection found nothing; do not fall back to the line finder
         result.detectorBoxes = int(lines.size());
     }

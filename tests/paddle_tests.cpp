@@ -5,6 +5,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QFontMetrics>
 #include <QPainter>
 #include <QSignalSpy>
 #include <QRegularExpression>
@@ -12,6 +13,7 @@
 #include <QtTest>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <thread>
 namespace {
 QString fixture(const QString& name) { return QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath(name); }
@@ -84,6 +86,48 @@ private slots:
         QCOMPARE(kept(PaddleOcr::filterLine(line("先生、大丈夫ですか？", 0.7f))), QStringLiteral("(unchanged)"));
         // A two-letter line is left to the short-line rule.
         QCOMPARE(kept(PaddleOcr::filterLine(line("はい", 0.3f))), QStringLiteral("(unchanged)"));
+    }
+    // P-41: a "。" the detection box left out is taken in; a light high in the line or a colourful
+    // emoji is not (it was read as a letter).
+    void lineBoxTakesInItsFinalMarkOnly() {
+        QFont font(QStringLiteral("MS Gothic"));
+        font.setPixelSize(44);
+        const QFontMetrics metrics(font);
+        const QString text = QStringLiteral("会います");
+        auto picture = [&](const std::function<void(QPainter&, int markX, int baseline)>& extra) {
+            QImage image(700, 120, QImage::Format_RGB32);
+            image.fill(Qt::white);
+            QPainter p(&image);
+            p.setFont(font); p.setPen(Qt::black);
+            const int baseline = 80;
+            p.drawText(30, baseline, text);
+            extra(p, 30 + metrics.horizontalAdvance(text), baseline);
+            return image;
+        };
+        // The box as the detection model gives it: the four glyphs' ink with a small margin, no mark.
+        const QImage plain = picture([](QPainter&, int, int) {});
+        QRect glyphs;
+        for (int y = 0; y < plain.height(); ++y)
+            for (int x = 0; x < plain.width(); ++x)
+                if (qGray(plain.pixel(x, y)) < 128) glyphs |= QRect(x, y, 1, 1);
+        QVERIFY(!glyphs.isEmpty());
+        const QRect box = glyphs.adjusted(-4, -4, 4, 4);
+        const QImage withMark = picture([&](QPainter& p, int x, int baseline) { p.drawText(x, baseline, QStringLiteral("。")); });
+        const int markRight = 30 + metrics.horizontalAdvance(text) + metrics.boundingRect(QStringLiteral("。")).right();
+        QVERIFY2(PaddleOcr::withTrailingMark(withMark, box).right() >= markRight,
+                 qPrintable(QStringLiteral("%1 < %2").arg(PaddleOcr::withTrailingMark(withMark, box).right()).arg(markRight)));
+        // Nothing after the line: the box stays.
+        QCOMPARE(PaddleOcr::withTrailingMark(picture([](QPainter&, int, int) {}), box), box);
+        // A white light high in the line (on a dark line the same holds; here grey on white).
+        const QImage light = picture([&](QPainter& p, int x, int) {
+            p.setPen(Qt::NoPen); p.setBrush(QColor(90, 90, 90)); p.drawEllipse(QPoint(x + 8, glyphs.top() + 6), 6, 6);
+        });
+        QCOMPARE(PaddleOcr::withTrailingMark(light, box), box);
+        // A colourful round thing low in the line: an emoji, not a mark.
+        const QImage emoji = picture([&](QPainter& p, int x, int baseline) {
+            p.setPen(Qt::NoPen); p.setBrush(QColor(250, 190, 20)); p.drawEllipse(QPoint(x + 8, baseline - 8), 7, 7);
+        });
+        QCOMPARE(PaddleOcr::withTrailingMark(emoji, box), box);
     }
     void crossModelRepairsOfFacesAndHanja() {
         // "학교(學校)에 갑니다": the Korean model kept empty brackets, the Chinese/Japanese model read the hanja.

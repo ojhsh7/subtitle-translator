@@ -1,0 +1,115 @@
+[
+    {
+        "captioned": 4,
+        "charactersSent": 46,
+        "cpuPercentOfOneCore": 8.517455165813672,
+        "distinctTexts": 4,
+        "findAvgMs": 40.93861,
+        "gdiObjects": [
+            30,
+            30,
+            30,
+            30
+        ],
+        "handles": [
+            770,
+            770,
+            770,
+            770
+        ],
+        "latencyAvgMs": 480,
+        "latencyMaxMs": 651,
+        "latencyMs": [
+            651,
+            406,
+            423,
+            440
+        ],
+        "lineCharacters": 46,
+        "lines": 4,
+        "memoryMb": [
+            435.671875,
+            435.70703125,
+            435.296875,
+            451.33203125
+        ],
+        "memoryStartMb": 163.4765625,
+        "ocrReads": 10,
+        "otherTexts": 0,
+        "polls": 184,
+        "readAvgMs": 51.2,
+        "recognizeAvgMs": 9.134799999999998,
+        "requests": 4,
+        "scene": "sparkle",
+        "sent": [
+            "今日はいい天気ですね。",
+            "明日は学校に行きます。",
+            "この本はとても面白い。",
+            "駅まで一緒に歩きましょう。"
+        ],
+        "textsSent": 4,
+        "userObjects": [
+            49,
+            49,
+            49,
+            49
+        ]
+    },
+    {
+        "captioned": 4,
+        "charactersSent": 56,
+        "cpuPercentOfOneCore": 8.844216922628709,
+        "distinctTexts": 5,
+        "findAvgMs": 42.991254545454545,
+        "gdiObjects": [
+            30,
+            30,
+            30,
+            30
+        ],
+        "handles": [
+            770,
+            770,
+            770,
+            770
+        ],
+        "latencyAvgMs": 599,
+        "latencyMaxMs": 978,
+        "latencyMs": [
+            978,
+            522,
+            530,
+            367
+        ],
+        "lineCharacters": 42,
+        "lines": 4,
+        "memoryMb": [
+            440.86328125,
+            441.27734375,
+            441.27734375,
+            457.63671875
+        ],
+        "memoryStartMb": 175.51171875,
+        "ocrReads": 11,
+        "otherTexts": 1,
+        "polls": 184,
+        "readAvgMs": 53.72727272727273,
+        "recognizeAvgMs": 9.864072727272726,
+        "requests": 5,
+        "scene": "sparkle-nomark",
+        "sent": [
+            "今日はいい天気ですね",
+            "明日は学校に行きます",
+            "この本はとても面白い",
+            "駅まで一緒に歩きましょう",
+            "(다른 글)"
+        ],
+        "textsSent": 5,
+        "userObjects": [
+            49,
+            49,
+            49,
+            49
+        ]
+    }
+]

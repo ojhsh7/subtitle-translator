@@ -143,6 +143,13 @@ public:
     // them. Each empty pair is filled, in order, only when the other reading has exactly as many
     // bracketed runs of Han letters.
     static QString restoreHanja(const QString& korean, const QString& other);
+    // P-41: the detection model leaves a small final mark ("。") out of the line box in some fonts
+    // (P-40: 7 of 74 lines; P-12: 25 of 720), and the line then looks unfinished. When glyph ink
+    // continues right of the box (within 0.8 of the line height, no gap over half of it) and it is a
+    // small mark low in the glyphs' band (at most 0.6 of the band wide, top below 0.4 of it), not
+    // much more colourful than the line's end (an emoji), the box takes it in. Widening every box
+    // instead moved spaces and brackets elsewhere in the line (the model reads the whole line at once).
+    static QRect withTrailingMark(const QImage& region, const QRect& box);
     // P-40: "^" in faces reads as "へ"/"ヘ" ("(ヘ_^)" for "(^_^)"). Inside a short bracket made of face
     // parts only, with "^", "_", "o" or "ω" in it, へ/ヘ become "^" ("(・へ・)" keeps its mouth);
     // "(へへ)" only when the other reading has "^^". korean: the Korean model read "^^" as "ㅅㅅ" at
