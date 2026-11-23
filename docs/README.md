@@ -20,6 +20,7 @@
 | [BACKLOG.md](plan/BACKLOG.md) | 다음에 무엇을 할지 정할 때. 남은 일은 여기에만 적는다 |
 | [DECISIONS.md](plan/DECISIONS.md) | "왜 이렇게 했지?"가 궁금할 때, 기존 결정을 바꾸기 전 |
 | [TEMPLATE.md](plan/TEMPLATE.md) | 새 기능 계획서를 만들 때 |
+| [2026-11-23-convenience](plan/2026-11-23-convenience.ko.md) | 완료: 편의성 검토(앱 창 스크린샷)와 보완 10가지 (P-41) |
 | [2026-11-23-qa-rerun](plan/2026-11-23-qa-rerun.ko.md) | 완료: QA 남은 케이스(1시간 누수, 유휴 CPU, 콜드 스타트, 단축키 선점·연타·종료) 재확인 (P-12) |
 | [2026-11-23-expressions-and-open-checks](plan/2026-11-23-expressions-and-open-checks.ko.md) | 완료: 일상 한자·나라별 이모티콘·이모지·문장 부호 판독과 분류, 실제 DeepL 자동 번역, 장시간, Android 실제 번역 (P-40) |
 | [2026-11-15-auto-efficiency](plan/2026-11-15-auto-efficiency.ko.md) | 완료: 움직이는 화면에서 빠른 자동 번역, 한 줄 한 요청, 요청 폭주 차단 (P-38) |
