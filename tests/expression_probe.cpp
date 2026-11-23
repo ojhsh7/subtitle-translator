@@ -28,6 +28,9 @@
 #include <QTimer>
 #include <algorithm>
 #include <cstdio>
+#define NOMINMAX
+#include <windows.h>
+#include <psapi.h>
 
 namespace {
 struct Sample {
@@ -174,8 +177,17 @@ void wait(TranslationService& service) {
 }
 }
 
+// Committed private memory of this process, in MB (P-43).
+double privateMb() {
+    PROCESS_MEMORY_COUNTERS_EX counters{};
+    counters.cb = sizeof(counters);
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters))) return 0;
+    return double(counters.PrivateUsage) / (1024.0 * 1024.0);
+}
+
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
+    const double memoryStart = privateMb();
     const QString models = qEnvironmentVariable("SUBTITLE_TEST_PADDLE");
     if (models.isEmpty() || argc < 2) { std::puts("usage: SUBTITLE_TEST_PADDLE=<models> expression_probe <result.json> [--deepl]"); return 2; }
     const bool deepl = argc > 2 && QString::fromLocal8Bit(argv[2]) == QLatin1String("--deepl");
@@ -183,6 +195,19 @@ int main(int argc, char** argv) {
     PaddleOcr ocr(models);
     QString error;
     ocr.warmUp(ocrCode, true);
+    const double memoryWarm = privateMb();
+    // A dialogue box the size of the fake game's (1100x220) and a large one (1920x400).
+    double memoryBox = 0, memoryLarge = 0;
+    {
+        QImage box(1100, 220, QImage::Format_RGB32); box.fill(QColor(24, 28, 48));
+        QPainter p(&box); QFont f(QStringLiteral("Yu Gothic")); f.setPixelSize(40); p.setFont(f); p.setPen(Qt::white);
+        p.drawText(box.rect().adjusted(40, 0, -40, 0), Qt::AlignVCenter, QStringLiteral("今日はいい天気ですね。散歩に行きましょう。"));
+        p.end();
+        ocr.read(box, ocrCode, error);
+        memoryBox = privateMb();
+        ocr.read(box.scaled(1920, 400), ocrCode, error);
+        memoryLarge = privateMb();
+    }
 
     QJsonArray rows;
     struct Tally { int reads = 0, exact = 0, marks = 0, marksKept = 0, dropped = 0; double unsure = 0; };
@@ -256,6 +281,9 @@ int main(int argc, char** argv) {
                              {"source", truthSplit.source}, {"target", targetFor(sample.language)}};
     }
 
+    std::printf("\nmemory MB: start %.1f, models warm %.1f, after a 1100x220 read %.1f, after a 1920x400 read %.1f, after all reads %.1f\n",
+                memoryStart, memoryWarm, memoryBox, memoryLarge, privateMb());
+    const QJsonObject memory{{"startMb", memoryStart}, {"warmMb", memoryWarm}, {"boxMb", memoryBox}, {"largeMb", memoryLarge}, {"endMb", privateMb()}};
     QJsonArray translations;
     QJsonObject usage;
     if (deepl) {
@@ -303,6 +331,6 @@ int main(int argc, char** argv) {
     QFile file(QString::fromLocal8Bit(argv[1]));
     if (file.open(QIODevice::WriteOnly))
         file.write(QJsonDocument(QJsonObject{{"ocrLanguages", ocrCode}, {"reads", rows}, {"summary", summary},
-                                             {"rules", rules}, {"deepl", translations}, {"usage", usage}}).toJson());
+                                             {"rules", rules}, {"deepl", translations}, {"usage", usage}, {"memory", memory}}).toJson());
     return 0;
 }

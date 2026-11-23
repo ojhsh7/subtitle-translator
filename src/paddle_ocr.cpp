@@ -31,9 +31,14 @@ Ort::SessionOptions sessionOptions() {
     options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     return options;
 }
+// P-43: after each run the CPU arena gives back what the run took. Without it the arena kept the
+// working memory of the largest picture read so far: 436-460 MB while auto translating, 171-184 MB
+// with it, for 0-7 ms more per read (no arena at all: 146-161 MB but 10-20 ms more).
+// docs/plan/2026-11-23-memory.ko.md
+void giveBackMemory(Ort::RunOptions& options) { options.AddConfigEntry("memory.enable_memory_arena_shrinkage", "cpu:0"); }
 }
 struct OcrCancel::Options { Ort::RunOptions run; };
-OcrCancel::OcrCancel() : options_(std::make_unique<Options>()) {}
+OcrCancel::OcrCancel() : options_(std::make_unique<Options>()) { giveBackMemory(options_->run); }
 OcrCancel::~OcrCancel() = default;
 void OcrCancel::cancel() {
     cancelled_ = true;
@@ -45,7 +50,7 @@ std::vector<Ort::Value> timedRun(Ort::Session& session, const std::string& input
                                  const std::string& output, double* runMs, const OcrCancel* cancel) {
     const char* inputs[] = {input.c_str()};
     const char* outputs[] = {output.c_str()};
-    static const Ort::RunOptions plain{nullptr};
+    static const Ort::RunOptions plain = [] { Ort::RunOptions o; giveBackMemory(o); return o; }();
     const Ort::RunOptions& options = cancel ? cancel->options().run : plain;
     const auto start = std::chrono::steady_clock::now();
     auto result = session.Run(options, inputs, &tensor, 1, outputs, 1);

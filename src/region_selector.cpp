@@ -46,13 +46,36 @@ void RegionSelector::paintEvent(QPaintEvent*) {
         p.drawRect(current_.adjusted(0, 0, -1, -1));
         drawTag(p, rect(), current_, QStringLiteral("지금 영역 %1").arg(sizeText(current_)), QColor("#facc15"));
     }
-    const QString hint = current_.isEmpty()
-        ? QStringLiteral("자막이 나오는 부분을 드래그하세요. 취소는 Esc예요.")
-        : QStringLiteral("새로 드래그하거나 방향키로 지금 영역을 옮기세요(Shift는 10px, Ctrl은 크기). 확정은 Enter, 취소는 Esc예요.");
-    const QRect box(16, 16, QFontMetrics(p.font()).horizontalAdvance(hint) + 32, 44);
-    p.fillRect(box, QColor(20, 26, 36, 230));
+    // P-41: a two-line card at the top centre (it sat small in the corner of a large screen), saying
+    // that the whole dialogue box may be chosen. It moves to the bottom when the region is up there.
+    const QString title = current_.isEmpty() ? QStringLiteral("자막이 나오는 대사창을 드래그하세요")
+                                             : QStringLiteral("새로 드래그하거나 방향키로 지금 영역을 옮기세요");
+    const QString detail = current_.isEmpty()
+        ? QStringLiteral("이름표·테두리까지 넉넉히 골라도 글자 줄만 찾아 읽어요 · 취소 Esc")
+        : QStringLiteral("Shift는 10px씩, Ctrl+방향키는 크기 · 확정 Enter · 취소 Esc");
+    QFont titleFont = p.font();
+    titleFont.setPixelSize(17);
+    titleFont.setBold(true);
+    QFont detailFont = p.font();
+    detailFont.setPixelSize(13);
+    const QFontMetrics titleMetrics(titleFont), detailMetrics(detailFont);
+    const int width = std::max(titleMetrics.horizontalAdvance(title), detailMetrics.horizontalAdvance(detail)) + 48;
+    const int height = titleMetrics.height() + detailMetrics.height() + 30;
+    QRect card(0, 0, std::min(width, this->width() - 32), height);
+    card.moveTopLeft(QPoint((this->width() - card.width()) / 2, 24));
+    if (!shown.isEmpty() && shown.intersects(card.adjusted(0, 0, 0, 24))) card.moveBottom(this->height() - 24);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(20, 26, 36, 235));
+    p.drawRoundedRect(card, 10, 10);
+    const QRect inside = card.adjusted(24, 12, -24, -12);
+    p.setFont(titleFont);
     p.setPen(Qt::white);
-    p.drawText(box.adjusted(12, 0, -12, 0), Qt::AlignVCenter, hint);
+    p.drawText(QRect(inside.left(), inside.top(), inside.width(), titleMetrics.height()), Qt::AlignHCenter | Qt::AlignVCenter, title);
+    p.setFont(detailFont);
+    p.setPen(QColor(205, 212, 224));
+    p.drawText(QRect(inside.left(), inside.top() + titleMetrics.height() + 6, inside.width(), detailMetrics.height()),
+               Qt::AlignHCenter | Qt::AlignVCenter, detail);
 }
 void RegionSelector::mousePressEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) {

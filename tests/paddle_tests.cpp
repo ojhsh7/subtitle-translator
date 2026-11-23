@@ -15,6 +15,10 @@
 #include <cmath>
 #include <functional>
 #include <thread>
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <psapi.h>
 namespace {
 QString fixture(const QString& name) { return QDir(QStringLiteral(OCR_FIXTURE_DIR)).filePath(name); }
 QString models() { return qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); }
@@ -471,6 +475,34 @@ private slots:
         const auto result = ocr.read(QImage(fixture("shadow-ko-14px.png")), "kor", error);
         QVERIFY(!result.detected); // older installs without the detection model keep working
         QVERIFY2(result.text.contains(QStringLiteral("날씨")), qPrintable(result.text));
+    }
+    // P-43: the working memory of a read is given back. The arena used to keep what the largest
+    // picture needed: about 310 MB more after a 1920x400 read than with the models just loaded.
+    void largeReadGivesItsMemoryBack() {
+        if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");
+        auto privateMb = [] {
+            PROCESS_MEMORY_COUNTERS_EX counters{};
+            counters.cb = sizeof(counters);
+            GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters));
+            return double(counters.PrivateUsage) / (1024.0 * 1024.0);
+        };
+        PaddleOcr ocr(models());
+        QString error;
+        ocr.warmUp(QStringLiteral("jpn+eng+kor"), true);
+        const double warm = privateMb();
+        QImage large(1920, 400, QImage::Format_RGB32);
+        large.fill(QColor(24, 28, 48));
+        {
+            QPainter p(&large);
+            QFont font(QStringLiteral("Yu Gothic")); font.setPixelSize(64);
+            p.setFont(font); p.setPen(Qt::white);
+            p.drawText(large.rect().adjusted(60, 0, -60, 0), Qt::AlignVCenter, QStringLiteral("今日はいい天気ですね。散歩に行きましょう。"));
+        }
+        for (int i = 0; i < 3; ++i) ocr.read(large, QStringLiteral("jpn+eng+kor"), error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        const double grown = privateMb() - warm;
+        qInfo("private memory after three 1920x400 reads: +%.1f MB over the loaded models", grown);
+        QVERIFY2(grown < 100, qPrintable(QString::number(grown)));
     }
     void warmReadIsFast() {
         if (models().isEmpty()) QSKIP("PaddleOCR models not configured (SUBTITLE_TEST_PADDLE).");

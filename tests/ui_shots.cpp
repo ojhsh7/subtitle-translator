@@ -6,6 +6,9 @@
 #include "main_window.h"
 #include "fluent_widgets.h"
 #include "subtitle_overlay.h"
+#include "region_selector.h"
+#include <QMouseEvent>
+#include <QPainter>
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
@@ -101,6 +104,35 @@ public:
             window.previewSubtitle();
             if (window.subtitleOverlay_->isVisible()) shoot(window.subtitleOverlay_, QStringLiteral("22-caption-preview"));
             window.subtitleOverlay_->hide();
+        }
+        // The region selector over a made-up game picture (never the real screen).
+        {
+            QPixmap scene(1280, 720);
+            scene.fill(QColor(70, 110, 150));
+            {
+                QPainter p(&scene);
+                p.setRenderHint(QPainter::Antialiasing);
+                p.fillRect(QRect(0, 420, 1280, 300), QColor(60, 90, 60));
+                const QRect box(80, 520, 1120, 160);
+                p.setPen(QPen(QColor(230, 230, 240), 2)); p.setBrush(QColor(0, 0, 0, 200));
+                p.drawRoundedRect(box, 14, 14);
+                QFont font(QStringLiteral("Yu Gothic")); font.setPixelSize(34); font.setBold(true);
+                p.setFont(font); p.setPen(Qt::white);
+                p.drawText(box.adjusted(30, 20, -30, -20), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("今日はいい天気ですね。散歩に行きましょう。"));
+            }
+            RegionSelector fresh(scene, QRect(0, 0, 1280, 720));
+            fresh.resize(1280, 720);
+            shoot(&fresh, QStringLiteral("30-region-selector"));
+            RegionSelector adjusting(scene, QRect(0, 0, 1280, 720), QRect(100, 540, 1080, 120));
+            adjusting.resize(1280, 720);
+            shoot(&adjusting, QStringLiteral("31-region-selector-current"));
+            RegionSelector dragging(scene, QRect(0, 0, 1280, 720));
+            dragging.resize(1280, 720);
+            QMouseEvent press(QEvent::MouseButtonPress, QPointF(96, 532), QPointF(96, 532), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent move(QEvent::MouseMove, QPointF(1180, 668), QPointF(1180, 668), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(&dragging, &press);
+            QApplication::sendEvent(&dragging, &move);
+            shoot(&dragging, QStringLiteral("32-region-selector-drag"));
         }
         QSettings().clear();
         std::printf("%d screenshots in %s\n", saved, qPrintable(folder));
