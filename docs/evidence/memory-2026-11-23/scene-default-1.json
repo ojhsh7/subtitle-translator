@@ -1,0 +1,227 @@
+[
+    {
+        "captioned": 4,
+        "charactersSent": 46,
+        "cpuPercentOfOneCore": 7.40440396731333,
+        "distinctTexts": 4,
+        "findAvgMs": 66.90324,
+        "gdiObjects": [
+            30,
+            30,
+            30,
+            30
+        ],
+        "handles": [
+            770,
+            770,
+            770,
+            770
+        ],
+        "latencyAvgMs": 463,
+        "latencyMaxMs": 501,
+        "latencyMs": [
+            501,
+            487,
+            439,
+            425
+        ],
+        "lineCharacters": 46,
+        "lines": 4,
+        "memoryMb": [
+            436.10546875,
+            436.10546875,
+            436.10546875,
+            436.10546875
+        ],
+        "memoryStartMb": 276.13671875,
+        "ocrReads": 5,
+        "otherTexts": 0,
+        "polls": 129,
+        "readAvgMs": 77.2,
+        "recognizeAvgMs": 8.988579999999999,
+        "requests": 4,
+        "scene": "still",
+        "sent": [
+            "今日はいい天気ですね。",
+            "明日は学校に行きます。",
+            "この本はとても面白い。",
+            "駅まで一緒に歩きましょう。"
+        ],
+        "textsSent": 4,
+        "userObjects": [
+            49,
+            49,
+            49,
+            49
+        ]
+    },
+    {
+        "captioned": 4,
+        "charactersSent": 46,
+        "cpuPercentOfOneCore": 9.363295880149813,
+        "distinctTexts": 4,
+        "findAvgMs": 44.59901111111112,
+        "gdiObjects": [
+            30,
+            30,
+            30,
+            30
+        ],
+        "handles": [
+            770,
+            770,
+            769,
+            769
+        ],
+        "latencyAvgMs": 485,
+        "latencyMaxMs": 654,
+        "latencyMs": [
+            654,
+            403,
+            377,
+            508
+        ],
+        "lineCharacters": 46,
+        "lines": 4,
+        "memoryMb": [
+            440.5390625,
+            440.54296875,
+            440.50390625,
+            441.20703125
+        ],
+        "memoryStartMb": 307.578125,
+        "ocrReads": 9,
+        "otherTexts": 0,
+        "polls": 134,
+        "readAvgMs": 54.44444444444444,
+        "recognizeAvgMs": 8.924288888888888,
+        "requests": 4,
+        "scene": "bounce",
+        "sent": [
+            "今日はいい天気ですね。",
+            "明日は学校に行きます。",
+            "この本はとても面白い。",
+            "駅まで一緒に歩きましょう。"
+        ],
+        "textsSent": 4,
+        "userObjects": [
+            49,
+            49,
+            49,
+            49
+        ]
+    },
+    {
+        "captioned": 4,
+        "charactersSent": 59,
+        "cpuPercentOfOneCore": 9.691519920069938,
+        "distinctTexts": 5,
+        "findAvgMs": 41.40394545454546,
+        "gdiObjects": [
+            30,
+            31,
+            31,
+            31
+        ],
+        "handles": [
+            769,
+            769,
+            769,
+            767
+        ],
+        "latencyAvgMs": 442,
+        "latencyMaxMs": 521,
+        "latencyMs": [
+            356,
+            503,
+            521,
+            390
+        ],
+        "lineCharacters": 46,
+        "lines": 4,
+        "memoryMb": [
+            443.19921875,
+            444.14453125,
+            444.14453125,
+            460.12109375
+        ],
+        "memoryStartMb": 175.27734375,
+        "ocrReads": 11,
+        "otherTexts": 0,
+        "polls": 184,
+        "readAvgMs": 52,
+        "recognizeAvgMs": 9.467845454545456,
+        "requests": 5,
+        "scene": "sparkle",
+        "sent": [
+            "今日はいい天気ですね。",
+            "明日は学校に行きます。",
+            "この本はとても面白い。",
+            "駅まで一緒に歩きましょう。",
+            "駅まで一緒に歩きましょう："
+        ],
+        "textsSent": 5,
+        "userObjects": [
+            49,
+            49,
+            49,
+            49
+        ]
+    },
+    {
+        "captioned": 4,
+        "charactersSent": 78,
+        "cpuPercentOfOneCore": 8.51166377482167,
+        "distinctTexts": 4,
+        "findAvgMs": 41.22908,
+        "gdiObjects": [
+            31,
+            31,
+            31,
+            31
+        ],
+        "handles": [
+            767,
+            765,
+            765,
+            765
+        ],
+        "latencyAvgMs": 416,
+        "latencyMaxMs": 424,
+        "latencyMs": [
+            409,
+            422,
+            424,
+            409
+        ],
+        "lineCharacters": 78,
+        "lines": 4,
+        "memoryMb": [
+            459.54296875,
+            459.9140625,
+            459.9609375,
+            460.33984375
+        ],
+        "memoryStartMb": 308.56640625,
+        "ocrReads": 10,
+        "otherTexts": 0,
+        "polls": 192,
+        "readAvgMs": 57.5,
+        "recognizeAvgMs": 15.202409999999997,
+        "requests": 4,
+        "scene": "typed-moving",
+        "sent": [
+            "今日はいい天気ですね。散歩に行きましょう。",
+            "明日は雨が降ります。傘を持って行きます。",
+            "この本は面白いです。もう一度読みたい。",
+            "駅まで歩きましょう。電車に乗ります。"
+        ],
+        "textsSent": 4,
+        "userObjects": [
+            49,
+            49,
+            49,
+            49
+        ]
+    }
+]

@@ -20,6 +20,7 @@
 | [BACKLOG.md](plan/BACKLOG.md) | 다음에 무엇을 할지 정할 때. 남은 일은 여기에만 적는다 |
 | [DECISIONS.md](plan/DECISIONS.md) | "왜 이렇게 했지?"가 궁금할 때, 기존 결정을 바꾸기 전 |
 | [TEMPLATE.md](plan/TEMPLATE.md) | 새 기능 계획서를 만들 때 |
+| [2026-11-23-memory](plan/2026-11-23-memory.ko.md) | 완료: 자동 번역 중 메모리 줄이기 (P-43) |
 | [2026-11-23-trailing-mark](plan/2026-11-23-trailing-mark.ko.md) | 완료: 줄 끝 `。`를 놓치는 검출 상자 보완 (P-42) |
 | [2026-11-23-convenience](plan/2026-11-23-convenience.ko.md) | 완료: 편의성 검토(앱 창 스크린샷)와 보완 10가지 (P-41) |
 | [2026-11-23-qa-rerun](plan/2026-11-23-qa-rerun.ko.md) | 완료: QA 남은 케이스(1시간 누수, 유휴 CPU, 콜드 스타트, 단축키 선점·연타·종료) 재확인 (P-12) |
