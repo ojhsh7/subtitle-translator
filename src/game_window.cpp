@@ -35,9 +35,17 @@ QString keyOf(HWND hwnd) {
 }
 // A window the user can see and capture: shown, not minimized, not cloaked (other virtual
 // desktop, suspended UWP frame), not click-through (overlays), with a client area.
+// P-41: not an overlay that never takes focus or is fully transparent either. NVIDIA's overlay
+// (class CEF-OSC-WIDGET) covers the whole screen as a layered window at alpha 0 with
+// WS_EX_NOACTIVATE but without WS_EX_TRANSPARENT, and was taken for the game. A game takes focus.
 bool visibleTarget(HWND hwnd) {
     if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) return false;
-    if (GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TRANSPARENT) return false;
+    const LONG_PTR extended = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    if (extended & (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE)) return false;
+    if (extended & WS_EX_LAYERED) {
+        COLORREF key = 0; BYTE alpha = 255; DWORD flags = 0;
+        if (GetLayeredWindowAttributes(hwnd, &key, &alpha, &flags) && (flags & LWA_ALPHA) && alpha == 0) return false;
+    }
     BOOL cloaked = FALSE;
     if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked) return false;
     RECT client{};

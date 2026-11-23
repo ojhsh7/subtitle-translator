@@ -64,6 +64,13 @@ bool nearlySame(const QString& a, const QString& b) {
 QString describeRegion(const QScreen* screen, const QRect& region) {
     return QStringLiteral("%1 화면의 %2×%3 영역").arg(screen->name()).arg(region.width()).arg(region.height());
 }
+// How a game is named in messages (P-41): its window title, which is usually the game's name,
+// else the program file ("hspy.exe"). A long title is cut.
+QString gameLabel(const GameWindow::Info& info) {
+    const QString title = info.title.simplified();
+    if (title.isEmpty()) return info.name;
+    return title.size() > 40 ? title.left(39) + QChar(0x2026) : title;
+}
 // Settings group of one game. A program path has '/' and ':', which QSettings would treat as structure.
 QString gameGroup(const QString& key) {
     return QStringLiteral("games/") +
@@ -381,7 +388,7 @@ MainWindow::MainWindow() {
     restoreRegion();
     restoreExtraAreas();
     registerHotkeys();
-    QString ready = QStringLiteral("게임 언어를 고르고 자막 영역을 선택한 다음 자동 번역을 켜 주세요.");
+    QString ready = nextStep();
     QStringList taken;
     if (!regionRegistered_) taken << regionShortcut_;
     if (!autoRegistered_) taken << autoShortcut_;
@@ -986,7 +993,7 @@ void MainWindow::setRegion(QScreen* screen, const QRect& region) {
         const GameWindow::Info info = GameWindow::at(global.center(), ignoreProcess_);
         const QRect inside = info.isValid() ? GameWindow::toPhysical(global).intersected(info.client) : QRect();
         if (inside.width() >= 8 && inside.height() >= 8)
-            game_ = {info.key, info.name, GameWindow::relativeTo(inside, info.client), info.client.size(), info.handle};
+            game_ = {info.key, gameLabel(info), GameWindow::relativeTo(inside, info.client), info.client.size(), info.handle};
     }
     regionLabel_->setText(describeRegion(screen, region_) +
         (game_.key.isEmpty() ? QString() : QStringLiteral(" (게임 창 %1 기준)").arg(game_.name)));
@@ -1324,7 +1331,9 @@ QString MainWindow::diagnostics() const {
     // States and timings only: what was read or translated never goes into a report.
     const PaddleOcr::Result& paddle = ocr_.paddleDetails();
     QStringList lines;
-    lines << QStringLiteral("자막 번역 %1, Qt %2").arg(QCoreApplication::applicationVersion(), QString::fromLatin1(qVersion()))
+    lines << QStringLiteral("자막 번역 %1 (빌드 %2), Qt %3").arg(QCoreApplication::applicationVersion(),
+                                                                qApp->property("buildId").toString().isEmpty() ? QStringLiteral("모름") : qApp->property("buildId").toString(),
+                                                                QString::fromLatin1(qVersion()))
           << QStringLiteral("OCR 엔진 %1, 게임 언어 %2, 번역 언어 %3, OCR 스레드 %4")
                  .arg(paddleEngine_ ? QStringLiteral("PaddleOCR") : QStringLiteral("Tesseract"), ocrLanguages(), targetLanguage())
                  .arg(PaddleOcr::threads())

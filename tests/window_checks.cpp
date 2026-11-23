@@ -244,6 +244,59 @@ private slots:
         QVERIFY(window.hoverRegistered_); // took its fallback
         QCOMPARE(window.hoverShortcut_, QKeySequence(QStringLiteral("Ctrl+Alt+F9")).toString(QKeySequence::NativeText));
         QVERIFY2(!window.status_->text().contains(window.hoverShortcut_), qPrintable(window.status_->text()));
+        // P-41: the shortcut page says which key works instead.
+        window.reloadSettings_();
+        QStringList notes;
+        for (QLabel* label : window.settingsWindow_->findChildren<QLabel*>()) notes << label->text();
+        QVERIFY2(notes.filter(QStringLiteral("대신 쓰고 있어요")).join(QString()).contains(window.hoverShortcut_), qPrintable(notes.join(QStringLiteral(" | "))));
+        QVERIFY2(!notes.filter(QStringLiteral("다른 앱이 이 키를 쓰고 있어요")).isEmpty(), "the taken captions key is not told");
+    }
+    // P-41: the start message names the one next step, and the buttons show the keys in use.
+    void nextStepAndKeyHintsFollowTheState() {
+        MainWindow window;
+        window.region_ = {}; window.selectedScreen_ = nullptr; window.game_ = {};
+        window.apiKey_.clear(); window.consent_ = false;
+        QVERIFY2(window.nextStep().contains(QStringLiteral("영역 선택")), qPrintable(window.nextStep()));
+        window.setRegion(QGuiApplication::primaryScreen(), QRect(80, 100, 600, 50));
+        window.game_ = {};
+        QVERIFY2(window.nextStep().contains(QStringLiteral("DeepL 키")), qPrintable(window.nextStep()));
+        window.apiKey_ = QStringLiteral("test-key:fx"); window.consent_ = true;
+        QVERIFY2(window.nextStep().contains(QStringLiteral("준비됐어요")), qPrintable(window.nextStep()));
+        window.setStatus(window.nextStep());
+        if (window.autoRegistered_) QVERIFY2(window.status_->text().contains(window.autoShortcut_), qPrintable(window.status_->text()));
+        window.refreshUi();
+        QCOMPARE(window.keyHints_[0]->text(), window.regionRegistered_ ? window.regionShortcut_ : QString());
+        QCOMPARE(window.keyHints_[1]->text(), window.registered_ ? window.captureShortcut_ : QString());
+        QCOMPARE(window.keyHints_[2]->text(), window.cursorRegistered_ ? window.cursorShortcut_ : QString());
+    }
+    // P-41: the Tesseract settings show only when Tesseract reads.
+    void tesseractSettingsShowOnlyWhenUsed() {
+        if (qEnvironmentVariableIsEmpty("SUBTITLE_TEST_PADDLE")) QSKIP("PaddleOCR models not configured");
+        MainWindow window;
+        window.paddleDir_ = qEnvironmentVariable("SUBTITLE_TEST_PADDLE"); window.paddleEngine_ = true; window.applyOcrEngine();
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("jpn"));
+        auto shown = [&](const QString& title) {
+            for (QLabel* label : window.settingsWindow_->findChildren<QLabel*>())
+                if (label->text() == title) return label->isVisibleTo(window.settingsWindow_);
+            return false;
+        };
+        window.settingsPages_->setCurrentRow(2); // 인식
+        window.reloadSettings_();
+        QVERIFY(!shown(QStringLiteral("Tesseract 실행 파일")));
+        QVERIFY(!shown(QStringLiteral("tessdata 폴더")));
+        QVERIFY(shown(QStringLiteral("OCR 엔진")));
+        // Choosing Tesseract shows them at once.
+        QComboBox* engine = nullptr;
+        for (QComboBox* box : window.settingsWindow_->findChildren<QComboBox*>())
+            if (box->count() == 2 && box->itemText(1) == QStringLiteral("Tesseract")) engine = box;
+        QVERIFY(engine);
+        engine->setCurrentIndex(1);
+        QVERIFY(shown(QStringLiteral("Tesseract 실행 파일")));
+        // Vietnamese is read by Tesseract whatever the engine.
+        engine->setCurrentIndex(0);
+        window.ocrLanguageBox_->setCurrentIndex(window.ocrLanguageBox_->findData("vie"));
+        window.reloadSettings_();
+        QVERIFY(shown(QStringLiteral("Tesseract 실행 파일")));
     }
     // P-36: captions can be held back while reading and translating go on; the tray item follows.
     void captionsCanBeHidden() {
@@ -462,6 +515,7 @@ private slots:
     void gameRegionFollowsMoveResizeAndMinimize() {
         QWidget game;
         game.setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint);
+        game.setWindowTitle(QStringLiteral("Test Quest II"));
         game.setStyleSheet("background:#203040;");
         game.resize(800, 450); game.move(40, 40); game.show();
         QVERIFY(QTest::qWaitForWindowExposed(&game));
@@ -473,6 +527,8 @@ private slots:
         window.setRegion(screen, chosen);
         QCOMPARE(window.game_.key, GameWindow::normalizedKey(QCoreApplication::applicationFilePath()));
         QVERIFY(window.regionLabel_->text().contains(QStringLiteral("게임 창")));
+        // P-41: the game is named by its window title, not "window_checks.exe".
+        QVERIFY2(window.regionLabel_->text().contains(QStringLiteral("Test Quest II")), qPrintable(window.regionLabel_->text()));
 
         game.move(240, 140);
         QTRY_VERIFY2_WITH_TIMEOUT(window.followGame(false) && closeTo(window.region_, chosen.translated(200, 100)),

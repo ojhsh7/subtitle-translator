@@ -61,6 +61,7 @@ private:
     void refreshUi();            // state badge, button texts, tray menu after any state change
     void setStatus(const QString& text);
     QString withShortcuts(QString text) const; // default key names in a message -> the keys in use
+    QString nextStep() const; // the one thing to do next (P-41): choose a region, add a key, or start
     void refreshIcons();         // icons are drawn in the text colour: again after a light/dark switch
     void quitApp();
     void settings(int page = -1); // -1: the last page shown
@@ -164,11 +165,14 @@ private:
     QCheckBox* hoverMode_;
     QLabel* stateBadge_ = nullptr;
     CaptionStage* stage_ = nullptr;        // the last line as it looks over the game
+    QLabel* keyHints_[3] = {};             // shortcuts under region, capture now, mouse (P-41)
+    QWidget* cancelSpacer_ = nullptr;      // under Cancel, so the hints stay under their buttons
     QWidget* detailsWindow_ = nullptr;     // capture image and OCR text, from the more menu
     std::vector<std::pair<QAbstractButton*, char16_t>> glyphButtons_;
     QListWidget* settingsPages_ = nullptr;
     QDialog* settingsWindow_ = nullptr;
     std::function<void()> reloadSettings_; // fills the settings fields from the current values
+    std::function<void()> showTesseractRows_; // the Tesseract settings only when Tesseract reads (P-41)
     std::function<bool()> saveSettings_;   // applies key, engine and shortcut fields; false keeps the window open
     QSystemTrayIcon* tray_ = nullptr;
     QAction* trayAuto_ = nullptr;

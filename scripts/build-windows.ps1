@@ -24,7 +24,16 @@ foreach($entry in @('src','core','tests','CMakeLists.txt')) {
 }
 $onnxRoot=Join-Path $ToolchainRoot 'onnxruntime'
 if (!(Test-Path -LiteralPath "$onnxRoot\include\onnxruntime_cxx_api.h")) { throw "Extract onnxruntime-win-x64 into $onnxRoot." }
-& $CMakeExe -S $sourceStage -B $buildRoot -G 'Visual Studio 17 2022' -A x64 "-DCMAKE_PREFIX_PATH=$QtRoot" "-DONNXRUNTIME_ROOT=$onnxRoot"
+# Which build this is, for the About page and problem reports: date and commit, "+" with uncommitted changes.
+$buildId = Get-Date -Format 'yyyy-MM-dd'
+try {
+    $commit = git -C $projectRoot rev-parse --short HEAD 2>$null
+    if ($LASTEXITCODE -eq 0 -and $commit) {
+        $buildId += " $commit"
+        if (git -C $projectRoot status --porcelain --untracked-files=no 2>$null) { $buildId += '+' }
+    }
+} catch { } # no git: the date alone
+& $CMakeExe -S $sourceStage -B $buildRoot -G 'Visual Studio 17 2022' -A x64 "-DCMAKE_PREFIX_PATH=$QtRoot" "-DONNXRUNTIME_ROOT=$onnxRoot" "-DSUBTITLE_BUILD_ID=$buildId"
 if($LASTEXITCODE) { throw 'CMake configure failed.' }
 & $CMakeExe --build $buildRoot --config Release --parallel
 if($LASTEXITCODE) { throw 'C++ build failed.' }

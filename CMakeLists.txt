@@ -31,6 +31,10 @@ qt_add_executable(SubtitleTranslator WIN32
   src/main.cpp src/main_window.cpp src/main_window_ui.cpp src/main_window.h src/fluent_widgets.cpp src/fluent_widgets.h
   src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
 target_link_libraries(SubtitleTranslator PRIVATE subtitle_services subtitle_core Qt6::Concurrent User32)
+# Build date and commit for the About page and problem reports (scripts/build-windows.ps1 passes it).
+# Only main.cpp gets it, so a new commit recompiles one file.
+set(SUBTITLE_BUILD_ID "" CACHE STRING "Build date and commit shown in the app")
+set_property(SOURCE src/main.cpp APPEND PROPERTY COMPILE_DEFINITIONS "SUBTITLE_BUILD_ID=\"${SUBTITLE_BUILD_ID}\"")
 # Windows ships an older onnxruntime.dll in System32; ours must sit next to every executable.
 add_custom_target(onnxruntime_runtime ALL
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
@@ -126,5 +130,11 @@ if(BUILD_TESTING)
   target_link_libraries(scene_probe PRIVATE subtitle_services subtitle_core Qt6::Concurrent User32)
   if(MSVC)
     target_compile_options(scene_probe PRIVATE /utf-8)
+  endif()
+  # Screenshots for design reviews, not a test: every window and settings page in the test settings group.
+  qt_add_executable(ui_shots tests/ui_shots.cpp src/main_window.cpp src/main_window_ui.cpp src/main_window.h src/fluent_widgets.cpp src/fluent_widgets.h src/region_selector.cpp src/region_selector.h src/subtitle_overlay.cpp src/subtitle_overlay.h)
+  target_link_libraries(ui_shots PRIVATE subtitle_services subtitle_core Qt6::Concurrent User32)
+  if(MSVC)
+    target_compile_options(ui_shots PRIVATE /utf-8)
   endif()
 endif()

@@ -45,6 +45,40 @@ private slots:
         QCOMPARE(area.screen, screen);
         QCOMPARE(area.rect, QRect(QPoint(40, 60), QSize(300, 80)));
     }
+    // P-41: an overlay above the game is not the game. NVIDIA's overlay is a layered window at alpha 0
+    // that never takes focus; it covered the whole screen and was chosen as the game.
+    void invisibleOrUnfocusableOverlaysAreSkipped() {
+        QWidget game;
+        game.setWindowTitle(QStringLiteral("Subtitle test game"));
+        const QRect available = QGuiApplication::primaryScreen()->availableGeometry();
+        game.setGeometry(QRect(available.topLeft() + QPoint(60, 60), QSize(640, 360)));
+        game.show();
+        game.raise(); game.activateWindow();
+        QVERIFY(QTest::qWaitForWindowExposed(&game));
+        const QPoint inside = game.mapToGlobal(QPoint(320, 180));
+        QTRY_COMPARE_WITH_TIMEOUT(GameWindow::at(inside, 0).handle, quintptr(game.winId()), 3000);
+        // Plain Win32 windows: Qt manages WS_EX_LAYERED itself and would take it off again.
+        const QRect physical = GameWindow::toPhysical(game.geometry().adjusted(-20, -20, 20, 20));
+        auto overlay = [&](DWORD extraStyle, bool transparent) {
+            const HWND hwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | extraStyle, L"STATIC", L"overlay", WS_POPUP,
+                                              physical.x(), physical.y(), physical.width(), physical.height(),
+                                              nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+            if (transparent) SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            QTest::qWait(100);
+            return hwnd;
+        };
+        const HWND invisible = overlay(WS_EX_LAYERED, true);
+        QCOMPARE(GameWindow::at(inside, 0).handle, quintptr(game.winId()));
+        DestroyWindow(invisible);
+        const HWND unfocusable = overlay(WS_EX_NOACTIVATE, false);
+        QCOMPARE(GameWindow::at(inside, 0).handle, quintptr(game.winId()));
+        DestroyWindow(unfocusable);
+        // A plain window on top is still found: it is what the user sees.
+        const HWND plain = overlay(0, false);
+        QCOMPARE(GameWindow::at(inside, 0).handle, quintptr(plain));
+        DestroyWindow(plain);
+    }
     void findsTheWindowUnderARegionAndAfterItMoves() {
         QWidget game;
         game.setWindowTitle(QStringLiteral("Subtitle test game"));

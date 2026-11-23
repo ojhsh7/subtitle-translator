@@ -162,6 +162,13 @@ void MainWindow::setStatus(const QString& text) {
 }
 
 
+QString MainWindow::nextStep() const {
+    if (!hasRegion()) return QStringLiteral("먼저 영역 선택(Ctrl+Alt+R)으로 게임의 대사창을 골라 주세요.");
+    if (apiKey_.isEmpty() || !consent_)
+        return QStringLiteral("영역은 준비됐어요. 번역까지 하려면 설정의 번역 페이지에서 DeepL 키를 넣어 주세요(키가 없어도 글자는 읽어요).");
+    return QStringLiteral("준비됐어요. 자동 번역(Ctrl+Alt+P)을 켜면 대사가 바뀔 때마다 번역해요.");
+}
+
 void MainWindow::refreshUi() {
     if (!stateBadge_) return; // still building the window
     const bool autoOn = autoTranslating(), hover = hoverMode_->isChecked();
@@ -179,6 +186,12 @@ void MainWindow::refreshUi() {
         : QStringLiteral("누르고 3초 안에 글자 위로 마우스를 옮기면 그 주변을 번역해요."));
     static_cast<ToggleSwitch*>(hoverMode_)->setHint(hoverRegistered_ ? hoverShortcut_ : QString());
     cancel_->setVisible(busy_);
+    if (cancelSpacer_) cancelSpacer_->setVisible(busy_);
+    if (keyHints_[0]) {
+        keyHints_[0]->setText(regionRegistered_ ? regionShortcut_ : QString());
+        keyHints_[1]->setText(registered_ ? captureShortcut_ : QString());
+        keyHints_[2]->setText(cursorRegistered_ ? cursorShortcut_ : QString());
+    }
     const int extras = activeExtraCount();
     if (extrasLabel_) {
         extrasLabel_->setVisible(extras > 0);
@@ -284,6 +297,7 @@ void MainWindow::buildUi() {
     stage_->setPlaceholder(QStringLiteral("자막 영역을 고르고 자동 번역을 켜면 마지막 대사가 여기에 보여요."));
     stage_->setStyle(QSettings().value("display/captionScale", 100).toInt() / 100.0, QSettings().value("display/captionBox", false).toBool());
     layout->addWidget(stage_);
+    layout->addSpacing(6); // the language row no longer sits on the stage (P-41)
 
     ocrLanguageBox_ = new QComboBox;
     for (const auto& option : Languages::Ocr) ocrLanguageBox_->addItem(QString::fromUtf8(option.label), QString::fromLatin1(option.code));
@@ -319,7 +333,23 @@ void MainWindow::buildUi() {
     iconButton(cursorCapture_, Look::Mouse);
     for (QPushButton* button : {select_, capture_, cursorCapture_}) actions->addWidget(button, 1);
     actions->addWidget(cancel_);
-    layout->addLayout(actions);
+    // P-41: the keys these are used with during a game, right under each button (filled in refreshUi).
+    auto* hints = new QHBoxLayout;
+    hints->setSpacing(8);
+    for (QLabel*& hint : keyHints_) {
+        hint = new Note;
+        hint->setAlignment(Qt::AlignHCenter);
+        hints->addWidget(hint, 1);
+    }
+    cancelSpacer_ = new QWidget; // keeps the hints under their buttons while Cancel shows
+    cancelSpacer_->setFixedWidth(cancel_->sizeHint().width());
+    cancelSpacer_->setVisible(false);
+    hints->addWidget(cancelSpacer_);
+    auto* actionBlock = new QVBoxLayout;
+    actionBlock->setSpacing(2);
+    actionBlock->addLayout(actions);
+    actionBlock->addLayout(hints);
+    layout->addLayout(actionBlock);
     hoverMode_ = new ToggleSwitch(QStringLiteral("마우스 올려두기"));
     hoverMode_->setToolTip(QStringLiteral("글자 위에서 1초 멈추면 그 주변을 한 번 번역해요. 앱을 다시 열면 꺼져 있어요."));
     layout->addWidget(hoverMode_);
@@ -662,7 +692,7 @@ void MainWindow::buildSettings() {
     mode->addItem(QStringLiteral("자동"), 0);
     mode->addItem(QStringLiteral("여러 줄"), 6);
     mode->addItem(QStringLiteral("한 줄"), 7);
-    row(recognition, QStringLiteral("Tesseract 줄 배치"), QStringLiteral("Tesseract로 읽을 때만 써요"), mode);
+    SettingRow* modeRow = row(recognition, QStringLiteral("Tesseract 줄 배치"), QStringLiteral("Tesseract로 읽을 때만 써요"), mode);
     auto* exe = new QLineEdit;
     auto* tessdataEdit = new QLineEdit;
     auto browse = [this](QLineEdit* edit, bool directory) {
@@ -675,8 +705,8 @@ void MainWindow::buildSettings() {
         });
         return button;
     };
-    row(recognition, QStringLiteral("Tesseract 실행 파일"), QString(), fieldWithButton(exe, browse(exe, false), 300));
-    row(recognition, QStringLiteral("tessdata 폴더"), QString(), fieldWithButton(tessdataEdit, browse(tessdataEdit, true), 300));
+    SettingRow* exeRow = row(recognition, QStringLiteral("Tesseract 실행 파일"), QString(), fieldWithButton(exe, browse(exe, false), 300));
+    SettingRow* tessdataRow = row(recognition, QStringLiteral("tessdata 폴더"), QString(), fieldWithButton(tessdataEdit, browse(tessdataEdit, true), 300));
     auto* probe = new QPushButton(QStringLiteral("확인"));
     SettingRow* probeRow = row(recognition, QStringLiteral("설치 확인"), QString(), probe);
     auto* tesseractLink = new Note(QStringLiteral("<a href='https://tesseract-ocr.github.io/tessdoc/Installation.html'>Tesseract 설치 안내</a>"));
@@ -684,6 +714,15 @@ void MainWindow::buildSettings() {
     tesseractLink->setContentsMargins(6, 8, 0, 0);
     recognition->addWidget(tesseractLink);
     recognition->addStretch(1);
+    // P-41: the Tesseract rows only when Tesseract reads: chosen, Vietnamese, or no PaddleOCR models.
+    showTesseractRows_ = [this, engine, modeRow, exeRow, tessdataRow, tesseractLink] {
+        const bool used = !engine->currentData().toBool() || ocrLanguages() == QLatin1String("vie") ||
+                          !PaddleOcr::available(paddleDir_, ocrLanguages());
+        for (QWidget* widget : {static_cast<QWidget*>(modeRow), static_cast<QWidget*>(exeRow),
+                                static_cast<QWidget*>(tessdataRow), static_cast<QWidget*>(tesseractLink)})
+            widget->setVisible(used);
+    };
+    connect(engine, &QComboBox::currentIndexChanged, settingsWindow_, [this] { showTesseractRows_(); });
     auto* checker = new OcrService(settingsWindow_);
     connect(probe, &QPushButton::clicked, settingsWindow_, [this, engine, exe, tessdataEdit, probe, probeRow, checker] {
         if (engine->currentData().toBool() && ocrLanguages() != QLatin1String("vie")) {
@@ -830,7 +869,9 @@ void MainWindow::buildSettings() {
     });
 
     auto* about = page(Look::Info, QStringLiteral("정보"));
-    auto* version = new QLabel(QStringLiteral("자막 번역 %1").arg(QCoreApplication::applicationVersion()));
+    const QString build = qApp->property("buildId").toString();
+    auto* version = new QLabel(QStringLiteral("자막 번역 %1").arg(QCoreApplication::applicationVersion()) +
+                               (build.isEmpty() ? QString() : QStringLiteral(" · 빌드 %1").arg(build)));
     version->setFont(weighted(font(), 14, QFont::DemiBold));
     about->addWidget(version);
     auto* aboutText = new Note(QStringLiteral(
@@ -882,6 +923,7 @@ void MainWindow::buildSettings() {
         mode->setCurrentIndex(qMax(0, mode->findData(psm_)));
         exe->setText(executable_);
         tessdataEdit->setText(tessdata_);
+        showTesseractRows_();
         probeRow->setDescription(ocrLanguages() == QLatin1String("vie")
             ? QStringLiteral("베트남어는 성조를 읽는 Tesseract vie 모델로 읽어요.")
             : PaddleOcr::available(paddleDir_, ocrLanguages())
@@ -893,9 +935,14 @@ void MainWindow::buildSettings() {
         fixTable->setRowCount(0);
         for (const TextFix& fix : fixes_) addFixRow(fix.onTranslation, fix.find, fix.replace);
         const bool states[] = {regionRegistered_, autoRegistered_, registered_, cursorRegistered_, hoverRegistered_, captionsRegistered_};
+        const QString inUse[] = {regionShortcut_, autoShortcut_, captureShortcut_, cursorShortcut_, hoverShortcut_, captionsShortcut_};
         for (int i = 0; i < keyEdits.size(); ++i) {
             keyEdits[i]->setKeySequence(storedSequence(hotkeySpecs[i]));
-            keyRows[i]->setDescription(states[i] ? QString() : QStringLiteral("다른 앱이 이 키를 쓰고 있어요. 다른 키를 골라 주세요."));
+            const QString chosen = keyText(storedSequence(hotkeySpecs[i]));
+            // P-41: a default key another app holds is replaced by Ctrl+Alt+F7/F8/F9; say which one works.
+            keyRows[i]->setDescription(!states[i] ? QStringLiteral("다른 앱이 이 키를 쓰고 있어요. 다른 키를 골라 주세요.")
+                : inUse[i] != chosen ? QStringLiteral("다른 앱이 %1을(를) 쓰고 있어서 %2로 대신 쓰고 있어요.").arg(chosen, inUse[i])
+                : QString());
         }
     };
     saveSettings_ = [=]() -> bool {
@@ -986,6 +1033,8 @@ void MainWindow::settings(int page) {
     settingsWindow_->exec();
     modal_ = false;
     refreshUi();
+    // P-41: a key or region added there changes what to do next.
+    if (!autoTranslating() && !busy_ && !hoverMode_->isChecked()) setStatus(nextStep());
 }
 
 void MainWindow::buildTray() {
@@ -1036,7 +1085,9 @@ void MainWindow::addToBacklog(const QString& source, const QString& translation)
     if (!backlog_.isEmpty() && backlog_.last().source == original && backlog_.last().translation == translation) return;
     const QString time = QTime::currentTime().toString(QStringLiteral("HH:mm:ss"));
     backlog_.append({time, original, translation});
-    auto* item = new QListWidgetItem(translation.isEmpty() ? original : translation + QLatin1Char('\n') + original);
+    // P-41: the time shows with the line (it was only a tooltip).
+    const QString stamp = QStringLiteral("  · ") + time.left(5);
+    auto* item = new QListWidgetItem(translation.isEmpty() ? original + stamp : translation + QLatin1Char('\n') + original + stamp);
     item->setToolTip(time);
     item->setData(Qt::UserRole, translation.isEmpty() ? original : translation);
     backlogList_->addItem(item);

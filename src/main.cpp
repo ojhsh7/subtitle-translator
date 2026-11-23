@@ -1,4 +1,5 @@
 #include "main_window.h"
+#include "fluent_widgets.h"
 #include <QApplication>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -12,7 +13,12 @@ int main(int argc, char** argv) {
     app.setOrganizationName("PersonalTools");
     app.setApplicationName("SubtitleTranslator");
     app.setApplicationVersion("0.1.0");
+#ifndef SUBTITLE_BUILD_ID
+#define SUBTITLE_BUILD_ID ""
+#endif
+    app.setProperty("buildId", QStringLiteral(SUBTITLE_BUILD_ID)); // date and commit, for About and problem reports
     app.setFont(QFont("Malgun Gothic", 10));
+    app.setStyle(new AppStyle); // the Windows 11 style, with room around button text
     app.setWindowIcon(MainWindow::appIcon());
     // The app lives in the tray: closing the window, or the result window while it is hidden, must not end it.
     app.setQuitOnLastWindowClosed(false);

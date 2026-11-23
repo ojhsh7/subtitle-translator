@@ -2,6 +2,7 @@
 #include <QCheckBox>
 #include <QIcon>
 #include <QLabel>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QWidget>
 
@@ -103,4 +104,12 @@ protected:
     void paintEvent(QPaintEvent*) override;
 private:
     Note* description_;
+};
+
+// The Windows 11 style with room around button text (P-41): its text buttons were as wide as their
+// words ("선택한 줄 삭제" touched the edges). Icon-only and flat buttons keep their size.
+class AppStyle : public QProxyStyle {
+public:
+    using QProxyStyle::QProxyStyle;
+    QSize sizeFromContents(ContentsType type, const QStyleOption* option, const QSize& size, const QWidget* widget) const override;
 };

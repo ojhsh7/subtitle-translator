@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPainterPath>
+#include <QStyleOption>
 #include <QVBoxLayout>
 
 namespace Look {
@@ -269,4 +270,12 @@ void SettingRow::paintEvent(QPaintEvent*) {
     p.setPen(QPen(Look::hairline(palette()), 1));
     p.setBrush(Look::rowFill(palette()));
     p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 4, 4);
+}
+
+QSize AppStyle::sizeFromContents(ContentsType type, const QStyleOption* option, const QSize& size, const QWidget* widget) const {
+    QSize result = QProxyStyle::sizeFromContents(type, option, size, widget);
+    if (type == CT_PushButton)
+        if (const auto* button = qstyleoption_cast<const QStyleOptionButton*>(option))
+            if (!button->text.isEmpty() && !(button->features & QStyleOptionButton::Flat)) result.rwidth() += 12;
+    return result;
 }
